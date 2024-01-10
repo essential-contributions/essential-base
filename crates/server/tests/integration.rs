@@ -1,4 +1,5 @@
 use intent_server::Server;
+use intent_server::check::Directive;
 use intent_server::check::Solution;
 use intent_server::check::SolvedIntent;
 use intent_server::state_read::Slot;
@@ -30,6 +31,7 @@ fn sanity() {
             },
         ],
         constraints: vec![],
+        directive: Directive::Satisfy,
     };
 
     let solved_intent = SolvedIntent {

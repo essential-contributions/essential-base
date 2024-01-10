@@ -1,16 +1,19 @@
+use check::Directive;
 use check::SolvedIntent;
 use db::Db;
 use state_read::Slot;
 
-pub mod db;
-pub mod state_read;
 pub mod check;
 pub mod data;
+pub mod db;
+pub mod state_read;
+pub mod op;
 
 pub struct Intent {
     pub state_read: Vec<u8>,
     pub state_slots: Vec<Slot>,
     pub constraints: Vec<Vec<u8>>,
+    pub directive: Directive,
 }
 
 #[derive(Default)]
