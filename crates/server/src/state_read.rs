@@ -10,21 +10,14 @@ pub struct Slot {
     pub params: (),
 }
 
-pub fn load_module(
-    bytes: &[u8],
-    db: Db,
-) -> anyhow::Result<(Store<Db>, Instance)> {
+pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)> {
     let engine = Engine::default();
     let module = Module::from_binary(&engine, bytes)?;
     let mut store = Store::new(&engine, db);
     // Host function that the guest calls to read state.
     let state_read_word_range = Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, Db>,
-         key: u64,
-         amount: i32,
-         buf_ptr: i32|
-         -> anyhow::Result<i32> {
+        |mut caller: Caller<'_, Db>, key: u64, amount: i32, buf_ptr: i32| -> anyhow::Result<i32> {
             // Get the guest memory.
             let Some(Extern::Memory(mem)) = caller.get_export("memory") else {
                 bail!("failed to find host memory");
@@ -34,6 +27,7 @@ pub fn load_module(
             let result: Vec<u8> = caller
                 .data()
                 .read_range(&key, amount)
+                .iter()
                 .flat_map(|i| i.to_le_bytes())
                 .collect();
 

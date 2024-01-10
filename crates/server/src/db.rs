@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Default)]
 pub struct Db {
     data: BTreeMap<u64, u64>,
-    staged: Option<BTreeMap<u64, u64>>
+    staged: Option<BTreeMap<u64, u64>>,
 }
 
 impl Db {
@@ -14,8 +14,22 @@ impl Db {
         }
     }
 
-    pub fn read_range(&self, key: &u64, amount: i32) -> impl Iterator<Item = &u64> {
-        self.data.range(key..).take(amount as usize).map(|(_, v)| v)
+    pub fn read_range(&self, key: &u64, amount: i32) -> Vec<u64> {
+        match &self.staged {
+            Some(staged) => staged
+                .range(key..)
+                .take(amount as usize)
+                .map(|(_, v)| v)
+                .copied()
+                .collect(),
+            None => self
+                .data
+                .range(key..)
+                .take(amount as usize)
+                .map(|(_, v)| v)
+                .copied()
+                .collect(),
+        }
     }
 
     pub fn stage(&mut self, key: u64, value: Option<u64>) {

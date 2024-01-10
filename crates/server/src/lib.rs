@@ -6,8 +6,8 @@ use state_read::Slot;
 pub mod check;
 pub mod data;
 pub mod db;
-pub mod state_read;
 pub mod op;
+pub mod state_read;
 
 pub struct Intent {
     pub state_read: Vec<u8>,

@@ -45,7 +45,6 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
     for slot in &intent.intent.state_slots {
         let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
-        dbg!(&result);
         if result.len() != slot.amount as usize {
             bail!("State read failed");
         }
@@ -84,7 +83,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         Directive::Maximize(code) | Directive::Minimize(code) => {
             let ops = serde_json::from_slice(&code)?;
             eval(&data, ops)
-        },
+        }
     }
 }
 
@@ -185,8 +184,8 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
             );
         }
         Access::State => {
-            let address = pop_one(stack)?;
-            let state = match pop_one(stack)? {
+            let (address, delta) = pop_two(stack)?;
+            let state = match delta {
                 0 => data.state[address as usize],
                 1 => data.state_delta[address as usize],
                 _ => anyhow::bail!("Invalid state access"),
