@@ -7,6 +7,7 @@ use intent_server::check::SolvedIntent;
 use intent_server::data::InputMessage;
 use intent_server::data::Slots;
 use intent_server::op::Access;
+use intent_server::op::Alu;
 use intent_server::op::Op;
 use intent_server::op::Pred;
 use intent_server::state_read::StateSlot;
@@ -171,6 +172,40 @@ fn erc20_transfer() {
     let constraint = serde_json::to_vec(&constraint).unwrap();
     constraints.push(constraint);
 
+    // constraint sender_bal - sender_bal' == msg.amount
+    let constraint = vec![
+        Op::Push(0),
+        Op::Push(0),
+        Op::Access(Access::State),
+        Op::Push(0),
+        Op::Push(1),
+        Op::Access(Access::State),
+        Op::Alu(Alu::Sub),
+        Op::Push(1),
+        Op::Push(0),
+        Op::Access(Access::InputMsgArgWord),
+        Op::Pred(Pred::Eq),
+    ];
+    let constraint = serde_json::to_vec(&constraint).unwrap();
+    constraints.push(constraint);
+
+    // constraint receiver_bal' - receiver_bal == msg.amount
+    let constraint = vec![
+        Op::Push(1),
+        Op::Push(1),
+        Op::Access(Access::State),
+        Op::Push(1),
+        Op::Push(0),
+        Op::Access(Access::State),
+        Op::Alu(Alu::Sub),
+        Op::Push(1),
+        Op::Push(0),
+        Op::Access(Access::InputMsgArgWord),
+        Op::Pred(Pred::Eq),
+    ];
+    let constraint = serde_json::to_vec(&constraint).unwrap();
+    constraints.push(constraint);
+
     let get_msg_sender = vec![Op::Access(Access::InputMsgSender)];
     let get_msg_receiver = vec![Op::Push(0), Op::Access(Access::InputMsgArg)];
     let get_msg_sender = serde_json::to_vec(&get_msg_sender).unwrap();
@@ -200,6 +235,14 @@ fn erc20_transfer() {
         directive: Directive::Satisfy,
     };
 
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    vec![2u64; 8].hash(&mut hasher);
+    let key1 = hasher.finish();
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    vec![1u64; 8].hash(&mut hasher);
+    let key2 = hasher.finish();
+
     let solved_intent = SolvedIntent {
         intent,
         solution: Solution {
@@ -207,15 +250,14 @@ fn erc20_transfer() {
                 sender: [2; 8],
                 args: vec![vec![1; 8], vec![500]],
             },
+            state_mutations: vec![(key1, Some(500)), (key2, Some(500))],
             ..Default::default()
         },
     };
 
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    vec![2u64; 8].hash(&mut hasher);
-    let key = hasher.finish();
     let mut server = Server::new();
-    server.db().stage(key, Some(1000));
+    server.db().stage(key1, Some(1000));
+    server.db().stage(key2, Some(0));
     server.db().commit();
     let solution = server.check(solved_intent, 1).unwrap();
     assert!(solution);
