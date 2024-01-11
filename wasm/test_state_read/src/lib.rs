@@ -3,7 +3,7 @@ pub fn foo() -> i32 {
     let data = guest_sdk::state_read_word_range(0, 10);
     let mut data = data
         .into_iter()
-        .filter(|i| i % 2 == 0)
+        .filter(|i| i.map_or(false, |i| i % 2 == 0))
         .take(4)
         .collect::<Vec<_>>();
     data.sort();

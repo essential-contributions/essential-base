@@ -24,15 +24,20 @@ pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)
             };
 
             // Get the data from the database at the given key and amount.
-            let result: Vec<u8> = caller
-                .data()
-                .read_range(&key, amount)
+            let result = caller.data().read_range(&key, amount);
+
+            let set: bitvec::vec::BitVec<u8, bitvec::order::Msb0> =
+                result.iter().map(|i| i.is_some()).collect();
+            let set: Vec<u8> = set.into_vec();
+            let result: Vec<u8> = result
                 .iter()
+                .flatten()
                 .flat_map(|i| i.to_le_bytes())
                 .collect();
 
             // Write the result to the guest memory at the given location.
             mem.write(&mut caller, buf_ptr as usize, &result)?;
+            mem.write(&mut caller, (buf_ptr as usize) + result.len(), &set)?;
 
             // Return the length of the result.
             Ok((result.len() / 8) as i32)
@@ -50,7 +55,7 @@ pub fn read_state(
     instance: &Instance,
     fn_name: &str,
     params: (),
-) -> anyhow::Result<Vec<u64>> {
+) -> anyhow::Result<Vec<Option<u64>>> {
     // Run the wasm.
     let get_state = instance.get_typed_func::<(), i32>(&mut store, fn_name)?;
 
@@ -59,7 +64,7 @@ pub fn read_state(
     // Get the guest memory.
     let mem = instance.get_memory(&mut store, "memory").unwrap();
 
-    let size = std::mem::size_of::<[i32; 2]>();
+    let size = std::mem::size_of::<[i32; 4]>();
     // Get the result ptr and length from the guest memory.
     let Some(output) = mem
         .data(&mut store)
@@ -86,23 +91,43 @@ pub fn read_state(
     let Some(&result_len) = output.get(1) else {
         bail!("failed to get result len");
     };
+    let Some(&set_ptr) = output.get(2) else {
+        bail!("failed to get set ptr");
+    };
+    let Some(&set_truncate_len) = output.get(3) else {
+        bail!("failed to get set truncate len");
+    };
 
+    let set_len = result_len / 8 + if result_len % 8 == 0 { 0 } else { 1 };
     let result_len = result_len * 8;
 
     // Get the result from the guest memory.
     let Some(output) = mem
-        .data(store)
+        .data(&store)
         .get(result_ptr as usize..(result_ptr as usize + result_len as usize))
     else {
         bail!("failed to get result output");
     };
-    Ok(output
-        .chunks_exact(8)
-        .map(|i| {
-            u64::from_le_bytes(
-                i.try_into()
-                    .expect("Can't fail as we know the size of the chunk"),
-            )
-        })
+
+    let Some(set) = mem
+        .data(&store)
+        .get(set_ptr as usize..(set_ptr as usize + set_len as usize))
+    else {
+        bail!("failed to get result output");
+    };
+    let set = set.to_vec();
+
+    let mut set: bitvec::vec::BitVec<u8, bitvec::order::Msb0> = bitvec::vec::BitVec::from_vec(set);
+    set.truncate(set_truncate_len as usize);
+
+    let mut iter = output.chunks_exact(8).map(|i| {
+        u64::from_le_bytes(
+            i.try_into()
+                .expect("Can't fail as we know the size of the chunk"),
+        )
+    });
+    Ok(set
+        .iter()
+        .map(|i| if *i { iter.next() } else { None })
         .collect())
 }

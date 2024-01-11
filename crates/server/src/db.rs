@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::iter::Peekable;
 
 #[derive(Clone, Default)]
 pub struct Db {
@@ -14,21 +15,16 @@ impl Db {
         }
     }
 
-    pub fn read_range(&self, key: &u64, amount: i32) -> Vec<u64> {
+    pub fn read_range(&self, key: &u64, amount: i32) -> Vec<Option<u64>> {
         match &self.staged {
-            Some(staged) => staged
-                .range(key..)
-                .take(amount as usize)
-                .map(|(_, v)| v)
-                .copied()
-                .collect(),
-            None => self
-                .data
-                .range(key..)
-                .take(amount as usize)
-                .map(|(_, v)| v)
-                .copied()
-                .collect(),
+            Some(staged) => {
+                let iter = staged.range(key..).map(|(k, v)| (*k, *v)).peekable();
+                construct_values(*key, amount as u64, iter)
+            }
+            None => {
+                let iter = self.data.range(key..).map(|(k, v)| (*k, *v)).peekable();
+                construct_values(*key, amount as u64, iter)
+            }
         }
     }
 
@@ -66,4 +62,18 @@ impl Db {
     pub fn rollback(&mut self) {
         self.staged = None;
     }
+}
+
+fn construct_values<I>(key: u64, amount: u64, mut iter: Peekable<I>) -> Vec<Option<u64>>
+where
+    I: Iterator<Item = (u64, u64)>,
+{
+    (key..(key + amount))
+        .map(|k| (k, None::<u64>))
+        .map(|(k, _)| match iter.peek() {
+            Some((k2, _)) if k == *k2 => iter.next().map(|(_, v)| v),
+            _ => None,
+        })
+        .take(amount as usize)
+        .collect()
 }

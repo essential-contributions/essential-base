@@ -29,6 +29,15 @@ fn sanity() {
         Op::Push(4),
         Op::Pred(Pred::Eq),
         Op::Pred(Pred::And),
+        Op::Push(4),
+        Op::Push(0),
+        Op::Access(Access::StateIsSome),
+        Op::Pred(Pred::Not),
+        Op::Pred(Pred::And),
+        Op::Push(5),
+        Op::Push(0),
+        Op::Access(Access::StateIsSome),
+        Op::Pred(Pred::And),
     ];
     let constraints = serde_json::to_vec(&constraints).unwrap();
     let constraints = vec![constraints];
@@ -65,6 +74,7 @@ fn sanity() {
     for i in 0..15 {
         server.db().stage(i, i.into());
     }
+    server.db().stage(14, None);
     server.db().commit();
 
     let solution = server.check(solved_intent, 1).unwrap();

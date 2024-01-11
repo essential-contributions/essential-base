@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.79"
+bitvec = "1.0.1"
 wasmtime = "16.0.0"
 
 # TODO: Choose or build a better bytecode encoding

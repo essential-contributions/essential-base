@@ -39,8 +39,8 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         .map(|s| s.index + s.amount)
         .max()
         .unwrap_or(0);
-    let mut state = vec![0; len as usize];
-    let mut state_delta = vec![0; len as usize];
+    let mut state = vec![None; len as usize];
+    let mut state_delta = vec![None; len as usize];
 
     let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
     for slot in &intent.intent.state_slots {
@@ -61,7 +61,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     for slot in &intent.intent.state_slots {
         let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
         if result.len() != slot.amount as usize {
-            bail!("State read failed");
+            bail!("State delta read failed");
         }
         for (s, r) in state_delta.iter_mut().skip(slot.index as usize).zip(result) {
             *s = r;
@@ -190,17 +190,50 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
                 1 => data.state_delta[address as usize],
                 _ => anyhow::bail!("Invalid state access"),
             };
-            stack.push(state);
+            if let Some(state) = state {
+                stack.push(state);
+            }
         }
         Access::StateRange => {
             let (address, range) = pop_two(stack)?;
             match pop_one(stack)? {
                 0 => {
-                    let iter = &data.state[address as usize..(address + range) as usize];
+                    let iter = data.state[address as usize..(address + range) as usize]
+                        .iter()
+                        .flatten();
                     stack.extend(iter);
                 }
                 1 => {
-                    let iter = &data.state_delta[address as usize..(address + range) as usize];
+                    let iter = data.state_delta[address as usize..(address + range) as usize]
+                        .iter()
+                        .flatten();
+                    stack.extend(iter);
+                }
+                _ => anyhow::bail!("Invalid state access"),
+            }
+        }
+        Access::StateIsSome => {
+            let (address, delta) = pop_two(stack)?;
+            let state = match delta {
+                0 => data.state[address as usize],
+                1 => data.state_delta[address as usize],
+                _ => anyhow::bail!("Invalid state access"),
+            };
+            stack.push(state.is_some() as u64);
+        }
+        Access::StateIsSomeRange => {
+            let (address, range) = pop_two(stack)?;
+            match pop_one(stack)? {
+                0 => {
+                    let iter = data.state[address as usize..(address + range) as usize]
+                        .iter()
+                        .map(|i| i.is_some() as u64);
+                    stack.extend(iter);
+                }
+                1 => {
+                    let iter = data.state_delta[address as usize..(address + range) as usize]
+                        .iter()
+                        .map(|i| i.is_some() as u64);
                     stack.extend(iter);
                 }
                 _ => anyhow::bail!("Invalid state access"),

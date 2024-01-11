@@ -18,6 +18,8 @@ pub enum Access {
     DecisionVarRange,
     State,
     StateRange,
+    StateIsSome,
+    StateIsSomeRange,
     InputMsgSenderWord,
     InputMsgSender,
     InputMsgArgWord,
