@@ -1,3 +1,6 @@
+use std::hash::Hash;
+use std::hash::Hasher;
+
 use anyhow::bail;
 use anyhow::ensure;
 use wasmtime::*;
@@ -50,8 +53,50 @@ pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)
         },
     );
 
+    // Host function that the guest calls to hash.
+    let hash = Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, Db>,
+         data_ptr: i32,
+         data_len: i32,
+         hash_ptr: i32|
+         -> anyhow::Result<()> {
+            // Get the guest memory.
+            let Some(Extern::Memory(mem)) = caller.get_export("memory") else {
+                bail!("failed to find host memory");
+            };
+
+            let data = mem
+                .data(&mut caller)
+                .get(data_ptr as usize..(data_ptr as usize + (data_len * 8) as usize))
+                .ok_or_else(|| anyhow::anyhow!("failed to get data from guest memory"))?;
+
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            let data: Vec<_> = data
+                .chunks_exact(8)
+                .map(|chunk| {
+                    u64::from_le_bytes(
+                        chunk
+                            .try_into()
+                            .expect("Can't fail as we know the size of the chunk."),
+                    )
+                })
+                .collect();
+            data.hash(&mut hasher);
+            let hash = hasher.finish();
+            let hash = [hash, hash, hash, hash];
+            let hash = hash
+                .iter()
+                .flat_map(|i| i.to_le_bytes())
+                .collect::<Vec<_>>();
+
+            mem.write(&mut caller, hash_ptr as usize, &hash)?;
+
+            Ok(())
+        },
+    );
     // Instantiate the module with the host function.
-    let imports = [state_read_word_range.into()];
+    let imports = [hash.into(), state_read_word_range.into()];
     let instance = Instance::new(&mut store, &module, &imports)?;
     Ok((store, instance))
 }
@@ -159,7 +204,7 @@ pub fn read_state(
     };
 
     // Calculate the number of bytes that the bit vector of somes should be.
-    let set_len = result_len / 8 + if result_len % 8 == 0 { 0 } else { 1 };
+    let set_len = set_truncate_len / 8 + if set_truncate_len % 8 == 0 { 0 } else { 1 };
 
     // Calculate the number of bytes that the result should be.
     let result_len = result_len * 8;

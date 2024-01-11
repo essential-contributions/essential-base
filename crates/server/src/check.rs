@@ -191,11 +191,11 @@ fn eval(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
 fn check_predicate(stack: &mut Vec<u64>, pred: Pred) -> anyhow::Result<()> {
     let word1 = pop_one(stack)?;
     let result = match pred {
-        Pred::Eq => word1 == pop_one(stack)?,
-        Pred::Gt => word1 > pop_one(stack)?,
-        Pred::Lt => word1 < pop_one(stack)?,
-        Pred::Gte => word1 >= pop_one(stack)?,
-        Pred::Lte => word1 <= pop_one(stack)?,
+        Pred::Eq => pop_one(stack)? == word1,
+        Pred::Gt => pop_one(stack)? > word1,
+        Pred::Lt => pop_one(stack)? < word1,
+        Pred::Gte => pop_one(stack)? >= word1,
+        Pred::Lte => pop_one(stack)? <= word1,
         Pred::And => {
             let word2 = pop_one(stack)?;
             word1 != 0 && word2 != 0

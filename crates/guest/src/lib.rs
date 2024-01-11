@@ -1,5 +1,27 @@
 extern "C" {
     fn _state_read_word_range(key: u64, amount: i32, buf_ptr: i32) -> i32;
+    fn _hash(data_ptr: i32, data_len: i32, hash_ptr: i32);
+}
+
+pub fn hash(data: Vec<u64>) -> [u64; 4] {
+    // Get the length of the data.
+    let data_len = data.len() as i32;
+    // Leak the data so it isn't dropped.
+    let data_ptr = data.leak().as_ptr() as i32;
+
+    // Create a buffer to write the hash into.
+    let hash: Vec<u64> = Vec::with_capacity(4);
+    // Leak the buffer so it isn't dropped.
+    let hash_ptr = hash.leak().as_ptr() as i32;
+
+    // Call the host and hash the data.
+    unsafe { _hash(data_ptr, data_len, hash_ptr) };
+
+    // Get the hash from memory.
+    let hash_ptr = hash_ptr as *mut u64;
+    let hash = unsafe { Vec::from_raw_parts(hash_ptr, 4, 4) };
+
+    hash.try_into().unwrap()
 }
 
 pub fn state_read_word_range(key: u64, amount: i32) -> Vec<Option<u64>> {

@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
 
-members = ["crates/server", "crates/guest", "wasm/test_state_read"]
+members = ["crates/server", "crates/guest", "wasm/test_state_read", "wasm/test_erc20"]
