@@ -46,17 +46,32 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     let mut state = vec![None; len as usize];
     let mut state_delta = vec![None; len as usize];
 
+    let mut data = Data {
+        decision_variables: intent.solution.decision_variables.clone(),
+        state: state.clone(),
+        state_delta: state_delta.clone(),
+        input_message: intent.solution.input_message.clone(),
+        output_messages: intent.solution.output_messages.clone(),
+    };
+
     if !intent.intent.state_read.is_empty() {
         let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
         for slot in &intent.intent.slots.state {
+            let mut params = Vec::with_capacity(slot.params.len());
+            for param in &slot.params {
+                let ops = serde_json::from_slice(param)?;
+                let stack = eval(&data, ops)?;
+                params.push(stack);
+            }
             let result =
-                state_read::read_state(&mut store, &module, &slot.fn_name, slot.params.clone())?;
+                state_read::read_state(&mut store, &module, &slot.fn_name, params.clone())?;
             if result.len() != slot.amount as usize {
                 bail!("State read failed");
             }
             for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
                 *s = r;
             }
+            data.state = state.clone();
         }
     }
 
@@ -67,24 +82,23 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     if !intent.intent.state_read.is_empty() {
         let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
         for slot in &intent.intent.slots.state {
+            let mut params = Vec::with_capacity(slot.params.len());
+            for param in &slot.params {
+                let ops = serde_json::from_slice(param)?;
+                let stack = eval(&data, ops)?;
+                params.push(stack);
+            }
             let result =
-                state_read::read_state(&mut store, &module, &slot.fn_name, slot.params.clone())?;
+                state_read::read_state(&mut store, &module, &slot.fn_name, params.clone())?;
             if result.len() != slot.amount as usize {
                 bail!("State delta read failed");
             }
             for (s, r) in state_delta.iter_mut().skip(slot.index as usize).zip(result) {
                 *s = r;
             }
+            data.state_delta = state_delta.clone();
         }
     }
-
-    let data = Data {
-        decision_variables: intent.solution.decision_variables.clone(),
-        state,
-        state_delta,
-        input_message: intent.solution.input_message.clone(),
-        output_messages: intent.solution.output_messages.clone(),
-    };
 
     check_constraints(&data, &intent.intent.constraints)?;
 
@@ -92,7 +106,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         Directive::Satisfy => Ok(1),
         Directive::Maximize(code) | Directive::Minimize(code) => {
             let ops = serde_json::from_slice(&code)?;
-            eval(&data, ops)
+            pop_one(&mut eval(&data, ops)?)
         }
     }
 }
@@ -131,7 +145,8 @@ fn check_constraints(data: &Data, constraints: &Vec<Vec<u8>>) -> anyhow::Result<
 }
 
 fn check_constraint(data: &Data, ops: Vec<Op>) -> anyhow::Result<()> {
-    let output = eval(data, ops)?;
+    let mut output = eval(data, ops)?;
+    let output = pop_one(&mut output)?;
 
     if output != 1 {
         anyhow::bail!("Constraint failed");
@@ -140,7 +155,7 @@ fn check_constraint(data: &Data, ops: Vec<Op>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn eval(data: &Data, ops: Vec<Op>) -> anyhow::Result<u64> {
+fn eval(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
     let mut stack = Vec::new();
 
     for op in ops {
@@ -170,7 +185,7 @@ fn eval(data: &Data, ops: Vec<Op>) -> anyhow::Result<u64> {
 
     println!("Result: {:?}", stack);
 
-    pop_one(&mut stack)
+    Ok(stack)
 }
 
 fn check_predicate(stack: &mut Vec<u64>, pred: Pred) -> anyhow::Result<()> {

@@ -54,8 +54,12 @@ fn sanity() {
     let constraints = serde_json::to_vec(&constraints).unwrap();
     let constraints = vec![constraints];
 
+    let get_param_one = vec![Op::Push(0), Op::Access(Access::DecisionVar)];
+    let get_param_one = serde_json::to_vec(&get_param_one).unwrap();
+
     let intent = Intent {
         slots: Slots {
+            decision_variables: 1,
             state: vec![
                 StateSlot {
                     index: 0,
@@ -67,7 +71,7 @@ fn sanity() {
                     index: 4,
                     amount: 5,
                     fn_name: "bar".to_string(),
-                    params: vec![vec![2]],
+                    params: vec![get_param_one],
                 },
             ],
             ..Default::default()
@@ -81,6 +85,7 @@ fn sanity() {
         intent,
         solution: Solution {
             state_mutations: vec![(6, Some(2))],
+            decision_variables: vec![2],
             ..Default::default()
         },
     };

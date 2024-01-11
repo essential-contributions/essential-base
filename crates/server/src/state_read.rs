@@ -9,7 +9,7 @@ pub struct StateSlot {
     pub index: u64,
     pub amount: u64,
     pub fn_name: String,
-    pub params: Vec<Vec<u64>>,
+    pub params: Vec<Vec<u8>>,
 }
 
 pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)> {
@@ -56,30 +56,43 @@ pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)
     Ok((store, instance))
 }
 
-pub fn read_state(
+fn write_input_args(
     mut store: &mut Store<Db>,
     instance: &Instance,
-    fn_name: &str,
     params: Vec<Vec<u64>>,
-) -> anyhow::Result<Vec<Option<u64>>> {
-    // Run the wasm.
-    let get_state = instance.get_typed_func::<(i32, i32), i32>(&mut store, fn_name)?;
-
+) -> anyhow::Result<(i32, i32)> {
+    // Get the guest memory.
     let Some(mem) = instance.get_memory(&mut store, "memory") else {
         bail!("failed to find guest memory");
     };
+
+    // Get some space from the end of memory.
+    // This is hacky.
     let space_needed = params.iter().map(|i| i.len()).sum::<usize>() * 8;
+    let len = mem.data(&mut store).len();
+    // This is the beginning place to write the params.
+    let mut ptr = len - space_needed - 1 - (params.len() * 4);
+
+    // Encode the length of each param.
     let lens = params
         .iter()
         .flat_map(|i| (i.len() as i32).to_le_bytes())
         .collect::<Vec<_>>();
-    let len = mem.data(&mut store).len();
-    let mut ptr = len - space_needed - 1 - (params.len() * 4);
+
+    // Get the starting pointer.
     let start = ptr as i32;
+    // Get the number of params.
     let params_len = params.len() as i32;
+
+    // Check that there is enough space in memory.
     ensure!(ptr > 0, "not enough space in memory");
+
+    // Write the param lengths to guest memory.
     mem.write(&mut store, ptr, &lens)?;
+    // Move the pointer forward.
     ptr += lens.len();
+
+    // Write each param to guest memory.
     for param in params {
         let param = param
             .into_iter()
@@ -89,6 +102,20 @@ pub fn read_state(
         mem.write(&mut store, ptr, &param)?;
         ptr += len;
     }
+    Ok((start, params_len))
+}
+
+pub fn read_state(
+    mut store: &mut Store<Db>,
+    instance: &Instance,
+    fn_name: &str,
+    params: Vec<Vec<u64>>,
+) -> anyhow::Result<Vec<Option<u64>>> {
+    // Run the wasm.
+    let get_state = instance.get_typed_func::<(i32, i32), i32>(&mut store, fn_name)?;
+
+    // Write the input args to the guest memory.
+    let (start, params_len) = write_input_args(store, instance, params)?;
 
     let ptr = get_state.call(&mut store, (start, params_len))?;
 
