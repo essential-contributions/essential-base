@@ -38,6 +38,11 @@ fn sanity() {
         Op::Push(0),
         Op::Access(Access::StateIsSome),
         Op::Pred(Pred::And),
+        Op::Push(500),
+        Op::Push(0),
+        Op::Access(Access::StateIsSome),
+        Op::Pred(Pred::Not),
+        Op::Pred(Pred::And),
     ];
     let constraints = serde_json::to_vec(&constraints).unwrap();
     let constraints = vec![constraints];

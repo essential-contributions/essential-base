@@ -26,9 +26,12 @@ pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)
             // Get the data from the database at the given key and amount.
             let result = caller.data().read_range(&key, amount);
 
+            // Encode bit vector of which values are Some.
             let set: bitvec::vec::BitVec<u8, bitvec::order::Msb0> =
                 result.iter().map(|i| i.is_some()).collect();
             let set: Vec<u8> = set.into_vec();
+
+            // Encode just the some values.
             let result: Vec<u8> = result
                 .iter()
                 .flatten()
@@ -37,6 +40,7 @@ pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)
 
             // Write the result to the guest memory at the given location.
             mem.write(&mut caller, buf_ptr as usize, &result)?;
+            // Write the bit vector of some values to the guest memory after the result.
             mem.write(&mut caller, (buf_ptr as usize) + result.len(), &set)?;
 
             // Return the length of the result.
@@ -98,7 +102,10 @@ pub fn read_state(
         bail!("failed to get set truncate len");
     };
 
+    // Calculate the number of bytes that the bit vector of somes should be.
     let set_len = result_len / 8 + if result_len % 8 == 0 { 0 } else { 1 };
+
+    // Calculate the number of bytes that the result should be.
     let result_len = result_len * 8;
 
     // Get the result from the guest memory.
@@ -109,6 +116,7 @@ pub fn read_state(
         bail!("failed to get result output");
     };
 
+    // Get the bit vector from the guest memory.
     let Some(set) = mem
         .data(&store)
         .get(set_ptr as usize..(set_ptr as usize + set_len as usize))
@@ -117,7 +125,10 @@ pub fn read_state(
     };
     let set = set.to_vec();
 
+    // Decode from bytes to bit vector.
     let mut set: bitvec::vec::BitVec<u8, bitvec::order::Msb0> = bitvec::vec::BitVec::from_vec(set);
+
+    // Truncate the bit vector to the correct length.
     set.truncate(set_truncate_len as usize);
 
     let mut iter = output.chunks_exact(8).map(|i| {
@@ -126,6 +137,8 @@ pub fn read_state(
                 .expect("Can't fail as we know the size of the chunk"),
         )
     });
+
+    // Return Some values where the bit vector is true.
     Ok(set
         .iter()
         .map(|i| if *i { iter.next() } else { None })

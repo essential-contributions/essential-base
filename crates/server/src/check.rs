@@ -186,8 +186,8 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
         Access::State => {
             let (address, delta) = pop_two(stack)?;
             let state = match delta {
-                0 => data.state[address as usize],
-                1 => data.state_delta[address as usize],
+                0 => data.state.get(address as usize).copied().flatten(),
+                1 => data.state_delta.get(address as usize).copied().flatten(),
                 _ => anyhow::bail!("Invalid state access"),
             };
             if let Some(state) = state {
@@ -215,8 +215,8 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
         Access::StateIsSome => {
             let (address, delta) = pop_two(stack)?;
             let state = match delta {
-                0 => data.state[address as usize],
-                1 => data.state_delta[address as usize],
+                0 => data.state.get(address as usize).copied().flatten(),
+                1 => data.state_delta.get(address as usize).copied().flatten(),
                 _ => anyhow::bail!("Invalid state access"),
             };
             stack.push(state.is_some() as u64);
