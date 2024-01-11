@@ -1,4 +1,5 @@
 use anyhow::bail;
+use anyhow::ensure;
 use wasmtime::*;
 
 use crate::db::Db;
@@ -8,7 +9,7 @@ pub struct StateSlot {
     pub index: u64,
     pub amount: u64,
     pub fn_name: String,
-    pub params: (),
+    pub params: Vec<Vec<u64>>,
 }
 
 pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)> {
@@ -59,15 +60,42 @@ pub fn read_state(
     mut store: &mut Store<Db>,
     instance: &Instance,
     fn_name: &str,
-    params: (),
+    params: Vec<Vec<u64>>,
 ) -> anyhow::Result<Vec<Option<u64>>> {
     // Run the wasm.
-    let get_state = instance.get_typed_func::<(), i32>(&mut store, fn_name)?;
+    let get_state = instance.get_typed_func::<(i32, i32), i32>(&mut store, fn_name)?;
 
-    let ptr = get_state.call(&mut store, params)?;
+    let Some(mem) = instance.get_memory(&mut store, "memory") else {
+        bail!("failed to find guest memory");
+    };
+    let space_needed = params.iter().map(|i| i.len()).sum::<usize>() * 8;
+    let lens = params
+        .iter()
+        .flat_map(|i| (i.len() as i32).to_le_bytes())
+        .collect::<Vec<_>>();
+    let len = mem.data(&mut store).len();
+    let mut ptr = len - space_needed - 1 - (params.len() * 4);
+    let start = ptr as i32;
+    let params_len = params.len() as i32;
+    ensure!(ptr > 0, "not enough space in memory");
+    mem.write(&mut store, ptr, &lens)?;
+    ptr += lens.len();
+    for param in params {
+        let param = param
+            .into_iter()
+            .flat_map(|i| i.to_le_bytes())
+            .collect::<Vec<u8>>();
+        let len = param.len();
+        mem.write(&mut store, ptr, &param)?;
+        ptr += len;
+    }
+
+    let ptr = get_state.call(&mut store, (start, params_len))?;
 
     // Get the guest memory.
-    let mem = instance.get_memory(&mut store, "memory").unwrap();
+    let Some(mem) = instance.get_memory(&mut store, "memory") else {
+        bail!("failed to find guest memory");
+    };
 
     let size = std::mem::size_of::<[i32; 4]>();
     // Get the result ptr and length from the guest memory.

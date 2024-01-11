@@ -49,7 +49,8 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     if !intent.intent.state_read.is_empty() {
         let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
         for slot in &intent.intent.slots.state {
-            let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
+            let result =
+                state_read::read_state(&mut store, &module, &slot.fn_name, slot.params.clone())?;
             if result.len() != slot.amount as usize {
                 bail!("State read failed");
             }
@@ -66,7 +67,8 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     if !intent.intent.state_read.is_empty() {
         let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
         for slot in &intent.intent.slots.state {
-            let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
+            let result =
+                state_read::read_state(&mut store, &module, &slot.fn_name, slot.params.clone())?;
             if result.len() != slot.amount as usize {
                 bail!("State delta read failed");
             }
@@ -179,8 +181,14 @@ fn check_predicate(stack: &mut Vec<u64>, pred: Pred) -> anyhow::Result<()> {
         Pred::Lt => word1 < pop_one(stack)?,
         Pred::Gte => word1 >= pop_one(stack)?,
         Pred::Lte => word1 <= pop_one(stack)?,
-        Pred::And => word1 != 0 && pop_one(stack)? != 0,
-        Pred::Or => word1 != 0 || pop_one(stack)? != 0,
+        Pred::And => {
+            let word2 = pop_one(stack)?;
+            word1 != 0 && word2 != 0
+        }
+        Pred::Or => {
+            let word2 = pop_one(stack)?;
+            word1 != 0 || word2 != 0
+        }
         Pred::Not => word1 == 0,
     };
     stack.push(result as u64);

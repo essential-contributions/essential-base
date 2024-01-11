@@ -62,3 +62,16 @@ pub fn encode_result(result: Vec<Option<u64>>) -> i32 {
     let output_ptr = Box::leak(output) as *const [i32; 4] as i32;
     output_ptr
 }
+
+pub fn decode_args(arg_ptr: i32, arg_len: i32) -> Vec<Vec<u64>> {
+    let args =
+        unsafe { Vec::from_raw_parts(arg_ptr as *mut i32, arg_len as usize, arg_len as usize) };
+    let mut ptr: i32 = arg_ptr + (arg_len * 4);
+    args.into_iter()
+        .map(|len| {
+            let arg = unsafe { Vec::from_raw_parts(ptr as *mut u64, len as usize, len as usize) };
+            ptr += len * 8;
+            arg
+        })
+        .collect()
+}

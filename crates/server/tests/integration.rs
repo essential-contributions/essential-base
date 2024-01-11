@@ -44,6 +44,12 @@ fn sanity() {
         Op::Access(Access::StateIsSome),
         Op::Pred(Pred::Not),
         Op::Pred(Pred::And),
+        Op::Push(5),
+        Op::Push(0),
+        Op::Access(Access::State),
+        Op::Push(20),
+        Op::Pred(Pred::Eq),
+        Op::Pred(Pred::And),
     ];
     let constraints = serde_json::to_vec(&constraints).unwrap();
     let constraints = vec![constraints];
@@ -55,13 +61,13 @@ fn sanity() {
                     index: 0,
                     amount: 4,
                     fn_name: "foo".to_string(),
-                    params: (),
+                    params: vec![],
                 },
                 StateSlot {
                     index: 4,
                     amount: 5,
                     fn_name: "bar".to_string(),
-                    params: (),
+                    params: vec![vec![2]],
                 },
             ],
             ..Default::default()
