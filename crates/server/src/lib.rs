@@ -1,7 +1,7 @@
 use check::Directive;
 use check::SolvedIntent;
+use data::Slots;
 use db::Db;
-use state_read::Slot;
 
 pub mod check;
 pub mod data;
@@ -10,8 +10,8 @@ pub mod op;
 pub mod state_read;
 
 pub struct Intent {
+    pub slots: Slots,
     pub state_read: Vec<u8>,
-    pub state_slots: Vec<Slot>,
     pub constraints: Vec<Vec<u8>>,
     pub directive: Directive,
 }

@@ -1,10 +1,11 @@
 use intent_server::check::Directive;
 use intent_server::check::Solution;
 use intent_server::check::SolvedIntent;
+use intent_server::data::Slots;
 use intent_server::op::Access;
 use intent_server::op::Op;
 use intent_server::op::Pred;
-use intent_server::state_read::Slot;
+use intent_server::state_read::StateSlot;
 use intent_server::Intent;
 use intent_server::Server;
 
@@ -48,21 +49,24 @@ fn sanity() {
     let constraints = vec![constraints];
 
     let intent = Intent {
+        slots: Slots {
+            state: vec![
+                StateSlot {
+                    index: 0,
+                    amount: 4,
+                    fn_name: "foo".to_string(),
+                    params: (),
+                },
+                StateSlot {
+                    index: 4,
+                    amount: 5,
+                    fn_name: "bar".to_string(),
+                    params: (),
+                },
+            ],
+            ..Default::default()
+        },
         state_read,
-        state_slots: vec![
-            Slot {
-                index: 0,
-                amount: 4,
-                fn_name: "foo".to_string(),
-                params: (),
-            },
-            Slot {
-                index: 4,
-                amount: 5,
-                fn_name: "bar".to_string(),
-                params: (),
-            },
-        ],
         constraints,
         directive: Directive::Satisfy,
     };
@@ -81,6 +85,43 @@ fn sanity() {
     }
     server.db().stage(14, None);
     server.db().commit();
+
+    let solution = server.check(solved_intent, 1).unwrap();
+    assert!(solution);
+}
+
+#[test]
+fn constrain_dec_vars() {
+    let constraints = vec![
+        Op::Push(0),
+        Op::Access(Access::DecisionVar),
+        Op::Push(1),
+        Op::Access(Access::DecisionVar),
+        Op::Push(2),
+        Op::Pred(Pred::Eq),
+        Op::Pred(Pred::And),
+    ];
+    let constraints = serde_json::to_vec(&constraints).unwrap();
+    let constraints = vec![constraints];
+    let intent = Intent {
+        slots: Slots {
+            decision_variables: 2,
+            ..Default::default()
+        },
+        state_read: vec![],
+        constraints,
+        directive: Directive::Satisfy,
+    };
+
+    let mut server = Server::new();
+
+    let solved_intent = SolvedIntent {
+        intent,
+        solution: Solution {
+            decision_variables: vec![1, 2],
+            ..Default::default()
+        },
+    };
 
     let solution = server.check(solved_intent, 1).unwrap();
     assert!(solution);

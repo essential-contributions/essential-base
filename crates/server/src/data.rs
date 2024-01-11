@@ -1,3 +1,5 @@
+use crate::state_read::StateSlot;
+
 #[derive(Clone, Debug, Default)]
 pub struct Data {
     pub decision_variables: Vec<u64>,
@@ -17,4 +19,12 @@ pub struct InputMessage {
 pub struct OutputMessage {
     pub recipient: [u64; 8],
     pub args: Vec<Vec<u64>>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Slots {
+    pub decision_variables: u64,
+    pub state: Vec<StateSlot>,
+    pub input_message_args: Vec<u64>,
+    pub output_messages_args: Vec<Vec<u64>>,
 }

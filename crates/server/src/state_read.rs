@@ -3,7 +3,8 @@ use wasmtime::*;
 
 use crate::db::Db;
 
-pub struct Slot {
+#[derive(Debug, Clone)]
+pub struct StateSlot {
     pub index: u64,
     pub amount: u64,
     pub fn_name: String,

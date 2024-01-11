@@ -1,8 +1,10 @@
 use anyhow::bail;
+use anyhow::ensure;
 
 use crate::data::Data;
 use crate::data::InputMessage;
 use crate::data::OutputMessage;
+use crate::data::Slots;
 use crate::db::Db;
 use crate::op::Access;
 use crate::op::Alu;
@@ -32,9 +34,11 @@ pub struct Solution {
 }
 
 pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
+    check_slots(&intent.intent.slots, &intent.solution)?;
     let len = intent
         .intent
-        .state_slots
+        .slots
+        .state
         .iter()
         .map(|s| s.index + s.amount)
         .max()
@@ -42,14 +46,16 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     let mut state = vec![None; len as usize];
     let mut state_delta = vec![None; len as usize];
 
-    let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
-    for slot in &intent.intent.state_slots {
-        let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
-        if result.len() != slot.amount as usize {
-            bail!("State read failed");
-        }
-        for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
-            *s = r;
+    if !intent.intent.state_read.is_empty() {
+        let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
+        for slot in &intent.intent.slots.state {
+            let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
+            if result.len() != slot.amount as usize {
+                bail!("State read failed");
+            }
+            for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
+                *s = r;
+            }
         }
     }
 
@@ -57,14 +63,16 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         db.stage(key, value);
     }
 
-    let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
-    for slot in &intent.intent.state_slots {
-        let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
-        if result.len() != slot.amount as usize {
-            bail!("State delta read failed");
-        }
-        for (s, r) in state_delta.iter_mut().skip(slot.index as usize).zip(result) {
-            *s = r;
+    if !intent.intent.state_read.is_empty() {
+        let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
+        for slot in &intent.intent.slots.state {
+            let result = state_read::read_state(&mut store, &module, &slot.fn_name, slot.params)?;
+            if result.len() != slot.amount as usize {
+                bail!("State delta read failed");
+            }
+            for (s, r) in state_delta.iter_mut().skip(slot.index as usize).zip(result) {
+                *s = r;
+            }
         }
     }
 
@@ -85,6 +93,30 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
             eval(&data, ops)
         }
     }
+}
+
+fn check_slots(slots: &Slots, solution: &Solution) -> anyhow::Result<()> {
+    ensure!(slots.decision_variables == solution.decision_variables.len() as u64);
+    ensure!(slots.input_message_args.len() == solution.input_message.args.len());
+    ensure!(slots.output_messages_args.len() == solution.output_messages.len());
+    for (expected, args) in slots
+        .input_message_args
+        .iter()
+        .zip(solution.input_message.args.iter())
+    {
+        ensure!(*expected == args.len() as u64);
+    }
+    for (expected, args) in slots
+        .output_messages_args
+        .iter()
+        .zip(solution.output_messages.iter())
+    {
+        ensure!(expected.len() == args.args.len());
+        for (len, got) in expected.iter().zip(args.args.iter()) {
+            ensure!(*len == got.len() as u64);
+        }
+    }
+    Ok(())
 }
 
 fn check_constraints(data: &Data, constraints: &Vec<Vec<u8>>) -> anyhow::Result<()> {
@@ -172,16 +204,20 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
     match access {
         Access::DecisionVar => {
             let address = pop_one(stack)?;
-            let var = data.decision_variables[address as usize];
-            stack.push(var);
+            let Some(var) = data.decision_variables.get(address as usize) else {
+                bail!("Decision variable out of bounds");
+            };
+            stack.push(*var);
         }
         Access::DecisionVarRange => {
             let (index, range) = pop_two(stack)?;
-            stack.extend(
-                data.decision_variables[index as usize..(index + range) as usize]
-                    .iter()
-                    .copied(),
-            );
+            let Some(slice) = data
+                .decision_variables
+                .get(index as usize..(index + range) as usize)
+            else {
+                bail!("Decision variable range out of bounds");
+            };
+            stack.extend(slice);
         }
         Access::State => {
             let (address, delta) = pop_two(stack)?;
