@@ -6,6 +6,7 @@ use crate::data::InputMessage;
 use crate::data::OutputMessage;
 use crate::data::Slots;
 use crate::db::Db;
+use crate::db::Key;
 use crate::op::Access;
 use crate::op::Alu;
 use crate::op::Op;
@@ -35,7 +36,7 @@ pub struct Solution {
     pub decision_variables: Vec<u64>,
     pub input_message: InputMessage,
     pub output_messages: Vec<OutputMessage>,
-    pub state_mutations: Vec<(u64, Option<u64>)>,
+    pub state_mutations: Vec<(Key, Option<u64>)>,
 }
 
 pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {

@@ -28,6 +28,10 @@ pub enum ControlFlow {
 pub enum Memory {
     Alloc,
     Free,
+    Load,
+    Store,
+    Clear,
+    IsSome,
 }
 
 pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<Vec<Option<u64>>> {
@@ -52,8 +56,7 @@ pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<V
                 for (k, s) in stack.drain(key_pos..).zip(key.iter_mut()) {
                     *s = k;
                 }
-                // TODO: Make db keys 32 bytes.
-                let result = db.read_range(&key[0], amount as i32);
+                let result = db.read_range(&key, amount as i32);
                 ensure!(memory.capacity() >= result.len(), "Memory overflow");
                 let start = memory.len();
                 memory.extend(result);
@@ -114,6 +117,38 @@ fn eval_memory(
             let size = pop_one(stack)?;
             let new_size = memory.capacity().saturating_sub(size as usize);
             memory.shrink_to(new_size);
+            *pc += 1;
+        }
+        Memory::Load => {
+            let index = pop_one(stack)?;
+            let value = memory
+                .get(index as usize)
+                .copied()
+                .flatten()
+                .ok_or_else(|| anyhow::anyhow!("invalid memory access"))?;
+            stack.push(value);
+            *pc += 1;
+        }
+        Memory::Store => {
+            let (index, value) = pop_two(stack)?;
+            match memory.get_mut(index as usize) {
+                Some(m) => *m = Some(value),
+                None => bail!("index out of bounds"),
+            }
+            *pc += 1;
+        }
+        Memory::Clear => {
+            let index = pop_one(stack)?;
+            match memory.get_mut(index as usize) {
+                Some(m) => *m = None,
+                None => bail!("index out of bounds"),
+            }
+            *pc += 1;
+        }
+        Memory::IsSome => {
+            let index = pop_one(stack)?;
+            let value = memory.get(index as usize).copied().flatten().is_some() as u64;
+            stack.push(value);
             *pc += 1;
         }
     }

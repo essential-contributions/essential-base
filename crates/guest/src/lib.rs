@@ -1,5 +1,12 @@
 extern "C" {
-    fn _state_read_word_range(key: u64, amount: i32, buf_ptr: i32) -> i32;
+    fn _state_read_word_range(
+        key0: u64,
+        key1: u64,
+        key2: u64,
+        key3: u64,
+        amount: i32,
+        buf_ptr: i32,
+    ) -> i32;
     fn _hash(data_ptr: i32, data_len: i32, hash_ptr: i32);
 }
 
@@ -24,7 +31,7 @@ pub fn hash(data: Vec<u64>) -> [u64; 4] {
     hash.try_into().unwrap()
 }
 
-pub fn state_read_word_range(key: u64, amount: i32) -> Vec<Option<u64>> {
+pub fn state_read_word_range(key: [u64; 4], amount: i32) -> Vec<Option<u64>> {
     // Create a buffer to read the state into.
     let buf: Vec<u64> = Vec::with_capacity(amount as usize);
     // Leak the buffer so it isn't dropped.
@@ -34,7 +41,7 @@ pub fn state_read_word_range(key: u64, amount: i32) -> Vec<Option<u64>> {
     let bit_vec_len = amount as usize / 8 + if amount as usize % 8 == 0 { 0 } else { 1 };
 
     // Call the host and read state.
-    let len = unsafe { _state_read_word_range(key, amount, buf_ptr) };
+    let len = unsafe { _state_read_word_range(key[0], key[1], key[2], key[3], amount, buf_ptr) };
 
     // Get the results from memory.
     let buf_ptr = buf_ptr as *mut u64;

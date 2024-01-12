@@ -62,7 +62,7 @@ fn vm_state_reads() {
         },
     };
 
-    server.db().stage(14, Some(42));
+    server.db().stage([14, 14, 14, 14], Some(42));
     server.db().commit();
 
     let solution = server.check(solved_intent, 1).unwrap();

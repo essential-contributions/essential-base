@@ -1,10 +1,16 @@
 use std::collections::BTreeMap;
 use std::iter::Peekable;
 
+pub type Key = [u64; 4];
+
 #[derive(Clone, Default)]
 pub struct Db {
-    data: BTreeMap<u64, u64>,
-    staged: Option<BTreeMap<u64, u64>>,
+    data: BTreeMap<Key, u64>,
+    staged: Option<BTreeMap<Key, u64>>,
+}
+
+struct KeyIter {
+    key: Option<Key>,
 }
 
 impl Db {
@@ -15,20 +21,20 @@ impl Db {
         }
     }
 
-    pub fn read_range(&self, key: &u64, amount: i32) -> Vec<Option<u64>> {
+    pub fn read_range(&self, key: &Key, amount: i32) -> Vec<Option<u64>> {
         match &self.staged {
             Some(staged) => {
-                let iter = staged.range(key..).map(|(k, v)| (*k, *v)).peekable();
+                let iter = staged.range(*key..).map(|(k, v)| (*k, *v)).peekable();
                 construct_values(*key, amount as u64, iter)
             }
             None => {
-                let iter = self.data.range(key..).map(|(k, v)| (*k, *v)).peekable();
+                let iter = self.data.range(*key..).map(|(k, v)| (*k, *v)).peekable();
                 construct_values(*key, amount as u64, iter)
             }
         }
     }
 
-    pub fn stage(&mut self, key: u64, value: Option<u64>) {
+    pub fn stage(&mut self, key: Key, value: Option<u64>) {
         if let Some(staged) = &mut self.staged {
             match value {
                 Some(value) => {
@@ -64,11 +70,11 @@ impl Db {
     }
 }
 
-fn construct_values<I>(key: u64, amount: u64, mut iter: Peekable<I>) -> Vec<Option<u64>>
+fn construct_values<I>(key: Key, amount: u64, mut iter: Peekable<I>) -> Vec<Option<u64>>
 where
-    I: Iterator<Item = (u64, u64)>,
+    I: Iterator<Item = (Key, u64)>,
 {
-    (key..(key + amount))
+    KeyIter { key: Some(key) }
         .map(|k| (k, None::<u64>))
         .map(|(k, _)| match iter.peek() {
             Some((k2, _)) if k == *k2 => iter.next().map(|(_, v)| v),
@@ -76,4 +82,29 @@ where
         })
         .take(amount as usize)
         .collect()
+}
+
+impl Iterator for KeyIter {
+    type Item = [u64; 4];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let r = self.key;
+        if let Some(key) = self.key {
+            self.key = add_one(key, 0);
+        }
+        r
+    }
+}
+
+fn add_one(mut key: Key, index: usize) -> Option<Key> {
+    if index >= key.len() {
+        return None;
+    }
+    match key[index].checked_add(1) {
+        Some(n) => {
+            key[index] = n;
+            Some(key)
+        }
+        None => add_one(key, index + 1),
+    }
 }

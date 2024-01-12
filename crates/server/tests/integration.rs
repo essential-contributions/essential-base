@@ -95,7 +95,7 @@ fn sanity() {
     let solved_intent = SolvedIntent {
         intent,
         solution: Solution {
-            state_mutations: vec![(6, Some(2))],
+            state_mutations: vec![([6, 0, 0, 0], Some(2))],
             decision_variables: vec![2],
             ..Default::default()
         },
@@ -103,9 +103,9 @@ fn sanity() {
 
     let mut server = Server::new();
     for i in 0..15 {
-        server.db().stage(i, i.into());
+        server.db().stage([i, 0, 0, 0], i.into());
     }
-    server.db().stage(14, None);
+    server.db().stage([14, 0, 0, 0], None);
     server.db().commit();
 
     let solution = server.check(solved_intent, 1).unwrap();
@@ -248,10 +248,12 @@ fn erc20_transfer() {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     vec![2u64; 8].hash(&mut hasher);
     let key1 = hasher.finish();
+    let key1 = [key1, key1, key1, key1];
 
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     vec![1u64; 8].hash(&mut hasher);
     let key2 = hasher.finish();
+    let key2 = [key2, key2, key2, key2];
 
     let solved_intent = SolvedIntent {
         intent,

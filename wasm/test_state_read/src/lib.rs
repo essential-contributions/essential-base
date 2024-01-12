@@ -1,6 +1,6 @@
 #[no_mangle]
 pub fn foo(_args_ptr: i32, _args_len: i32) -> i32 {
-    let data = guest_sdk::state_read_word_range(0, 10);
+    let data = guest_sdk::state_read_word_range([0, 0, 0, 0], 10);
     let mut data = data
         .into_iter()
         .filter(|i| i.map_or(false, |i| i % 2 == 0))
@@ -13,7 +13,7 @@ pub fn foo(_args_ptr: i32, _args_len: i32) -> i32 {
 #[no_mangle]
 pub fn bar(args_ptr: i32, args_len: i32) -> i32 {
     let args = guest_sdk::decode_args(args_ptr, args_len);
-    let mut data = guest_sdk::state_read_word_range(10, 5);
+    let mut data = guest_sdk::state_read_word_range([10, 0, 0, 0], 5);
     for d in data.iter_mut().flatten() {
         *d *= args[0][0]
     }

@@ -14,12 +14,20 @@ pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)
     // Host function that the guest calls to read state.
     let state_read_word_range = Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, Db>, key: u64, amount: i32, buf_ptr: i32| -> anyhow::Result<i32> {
+        |mut caller: Caller<'_, Db>,
+         key0: u64,
+         key1: u64,
+         key2: u64,
+         key3: u64,
+         amount: i32,
+         buf_ptr: i32|
+         -> anyhow::Result<i32> {
             // Get the guest memory.
             let Some(Extern::Memory(mem)) = caller.get_export("memory") else {
                 bail!("failed to find host memory");
             };
 
+            let key = [key0, key1, key2, key3];
             // Get the data from the database at the given key and amount.
             let result = caller.data().read_range(&key, amount);
 
