@@ -10,7 +10,9 @@ use intent_server::op::Access;
 use intent_server::op::Alu;
 use intent_server::op::Op;
 use intent_server::op::Pred;
+use intent_server::state_read::StateRead;
 use intent_server::state_read::StateSlot;
+use intent_server::state_read::WasmCall;
 use intent_server::Intent;
 use intent_server::Server;
 
@@ -21,7 +23,7 @@ fn sanity() {
         "/../../target/wasm32-unknown-unknown/release/test_state_read.wasm"
     );
 
-    let state_read = std::fs::read(path).unwrap();
+    let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
 
     let constraints = vec![
         Op::Push(3),
@@ -65,20 +67,24 @@ fn sanity() {
     let intent = Intent {
         slots: Slots {
             decision_variables: 1,
-            state: vec![
+            state: StateRead::Wasm(vec![
                 StateSlot {
                     index: 0,
                     amount: 4,
-                    fn_name: "foo".to_string(),
-                    params: vec![],
+                    call: WasmCall {
+                        fn_name: "foo".to_string(),
+                        params: vec![],
+                    },
                 },
                 StateSlot {
                     index: 4,
                     amount: 5,
-                    fn_name: "bar".to_string(),
-                    params: vec![get_param_one],
+                    call: WasmCall {
+                        fn_name: "bar".to_string(),
+                        params: vec![get_param_one],
+                    },
                 },
-            ],
+            ]),
             ..Default::default()
         },
         state_read,
@@ -124,7 +130,7 @@ fn constrain_dec_vars() {
             decision_variables: 2,
             ..Default::default()
         },
-        state_read: vec![],
+        state_read: StateRead::default(),
         constraints,
         directive: Directive::Satisfy,
     };
@@ -157,7 +163,7 @@ fn erc20_transfer() {
         "/../../target/wasm32-unknown-unknown/release/test_erc20.wasm"
     );
 
-    let state_read = std::fs::read(path).unwrap();
+    let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
     let mut constraints = vec![];
     // constraint sender_bal >= msg.amount
     let constraint = vec![
@@ -213,20 +219,24 @@ fn erc20_transfer() {
 
     let intent = Intent {
         slots: Slots {
-            state: vec![
+            state: StateRead::Wasm(vec![
                 StateSlot {
                     index: 0,
                     amount: 1,
-                    fn_name: "get_sender_bal".to_string(),
-                    params: vec![get_msg_sender],
+                    call: WasmCall {
+                        fn_name: "get_sender_bal".to_string(),
+                        params: vec![get_msg_sender],
+                    },
                 },
                 StateSlot {
                     index: 1,
                     amount: 1,
-                    fn_name: "get_receiver_bal".to_string(),
-                    params: vec![get_msg_receiver],
+                    call: WasmCall {
+                        fn_name: "get_receiver_bal".to_string(),
+                        params: vec![get_msg_receiver],
+                    },
                 },
-            ],
+            ]),
             input_message_args: vec![8, 1],
             ..Default::default()
         },

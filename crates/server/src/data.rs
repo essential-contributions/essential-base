@@ -1,4 +1,7 @@
+use crate::state_read::StateRead;
 use crate::state_read::StateSlot;
+use crate::state_read::VmCall;
+use crate::state_read::WasmCall;
 
 #[derive(Clone, Debug, Default)]
 pub struct Data {
@@ -24,7 +27,7 @@ pub struct OutputMessage {
 #[derive(Debug, Default, Clone)]
 pub struct Slots {
     pub decision_variables: u64,
-    pub state: Vec<StateSlot>,
+    pub state: StateRead<Vec<StateSlot<WasmCall>>, Vec<StateSlot<VmCall>>>,
     pub input_message_args: Vec<u64>,
     pub output_messages_args: Vec<Vec<u64>>,
 }

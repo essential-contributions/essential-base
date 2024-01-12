@@ -20,3 +20,10 @@ pub fn bar(args_ptr: i32, args_len: i32) -> i32 {
     data.sort();
     guest_sdk::encode_result(data)
 }
+
+#[no_mangle]
+pub fn hash(args_ptr: i32, args_len: i32) -> i32 {
+    let args = guest_sdk::decode_args(args_ptr, args_len);
+    let hash = guest_sdk::hash(args[0].clone());
+    guest_sdk::encode_result(hash.into_iter().map(Some).collect())
+}

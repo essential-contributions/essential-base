@@ -12,6 +12,11 @@ use crate::op::Op;
 use crate::op::Pred;
 use crate::state_read;
 use crate::state_read::load_module;
+use crate::state_read::vm;
+use crate::state_read::vm::StateReadOp;
+use crate::state_read::StateSlot;
+use crate::state_read::VmCall;
+use crate::state_read::WasmCall;
 use crate::Intent;
 
 pub struct SolvedIntent {
@@ -35,16 +40,9 @@ pub struct Solution {
 
 pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     check_slots(&intent.intent.slots, &intent.solution)?;
-    let len = intent
-        .intent
-        .slots
-        .state
-        .iter()
-        .map(|s| s.index + s.amount)
-        .max()
-        .unwrap_or(0);
-    let mut state = vec![None; len as usize];
-    let mut state_delta = vec![None; len as usize];
+    let len = intent.intent.slots.state.len();
+    let mut state = vec![None; len];
+    let mut state_delta = vec![None; len];
 
     let mut data = Data {
         decision_variables: intent.solution.decision_variables.clone(),
@@ -54,51 +52,19 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         output_messages: intent.solution.output_messages.clone(),
     };
 
-    if !intent.intent.state_read.is_empty() {
-        let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
-        for slot in &intent.intent.slots.state {
-            let mut params = Vec::with_capacity(slot.params.len());
-            for param in &slot.params {
-                let ops = serde_json::from_slice(param)?;
-                let stack = eval(&data, ops)?;
-                params.push(stack);
-            }
-            let result =
-                state_read::read_state(&mut store, &module, &slot.fn_name, params.clone())?;
-            if result.len() != slot.amount as usize {
-                bail!("State read failed");
-            }
-            for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
-                *s = r;
-            }
-            data.state = state.clone();
-        }
-    }
+    read_state(&intent.intent, db.clone(), &mut data, &mut state, false)?;
 
     for (key, value) in intent.solution.state_mutations {
         db.stage(key, value);
     }
 
-    if !intent.intent.state_read.is_empty() {
-        let (mut store, module) = load_module(&intent.intent.state_read, db.clone())?;
-        for slot in &intent.intent.slots.state {
-            let mut params = Vec::with_capacity(slot.params.len());
-            for param in &slot.params {
-                let ops = serde_json::from_slice(param)?;
-                let stack = eval(&data, ops)?;
-                params.push(stack);
-            }
-            let result =
-                state_read::read_state(&mut store, &module, &slot.fn_name, params.clone())?;
-            if result.len() != slot.amount as usize {
-                bail!("State delta read failed");
-            }
-            for (s, r) in state_delta.iter_mut().skip(slot.index as usize).zip(result) {
-                *s = r;
-            }
-            data.state_delta = state_delta.clone();
-        }
-    }
+    read_state(
+        &intent.intent,
+        db.clone(),
+        &mut data,
+        &mut state_delta,
+        true,
+    )?;
 
     check_constraints(&data, &intent.intent.constraints)?;
 
@@ -106,9 +72,94 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         Directive::Satisfy => Ok(1),
         Directive::Maximize(code) | Directive::Minimize(code) => {
             let ops = serde_json::from_slice(&code)?;
-            pop_one(&mut eval(&data, ops)?)
+            pop_one(&mut run(&data, ops)?)
         }
     }
+}
+
+fn read_state(
+    intent: &Intent,
+    db: Db,
+    data: &mut Data,
+    state: &mut [Option<u64>],
+    delta: bool,
+) -> anyhow::Result<()> {
+    match (&intent.state_read, &intent.slots.state) {
+        (state_read::StateRead::Wasm(read), state_read::StateRead::Wasm(state_slots)) => {
+            read_state_wasm(read, db, state_slots, data, state, delta)?
+        }
+        (state_read::StateRead::Vm(read), state_read::StateRead::Vm(state_slots)) => {
+            read_state_vm(read, db, state_slots, data, state, delta)?
+        }
+        _ => bail!("State read mismatch"),
+    }
+    Ok(())
+}
+
+fn read_state_wasm(
+    read: &[u8],
+    db: Db,
+    state_slots: &[StateSlot<WasmCall>],
+    data: &mut Data,
+    state: &mut [Option<u64>],
+    delta: bool,
+) -> anyhow::Result<()> {
+    if !read.is_empty() {
+        let (mut store, module) = load_module(read, db)?;
+        for slot in state_slots {
+            let mut params = Vec::with_capacity(slot.call.params.len());
+            for param in &slot.call.params {
+                let ops = serde_json::from_slice(param)?;
+                let stack = run(data, ops)?;
+                params.push(stack);
+            }
+            let result =
+                state_read::read_state(&mut store, &module, &slot.call.fn_name, params.clone())?;
+            if result.len() != slot.amount as usize {
+                bail!("State read failed");
+            }
+            for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
+                *s = r;
+            }
+            if delta {
+                data.state_delta = state.to_vec();
+            } else {
+                data.state = state.to_vec();
+            }
+        }
+    }
+    Ok(())
+}
+
+fn read_state_vm(
+    read: &[u8],
+    db: Db,
+    state_slots: &[StateSlot<VmCall>],
+    data: &mut Data,
+    state: &mut [Option<u64>],
+    delta: bool,
+) -> anyhow::Result<()> {
+    if !read.is_empty() {
+        let programs: Vec<Vec<StateReadOp>> = serde_json::from_slice(read)?;
+        for slot in state_slots {
+            let Some(program) = programs.get(slot.call.index as usize) else {
+                bail!("State read program out of bounds");
+            };
+            let result = vm::read(&db, data, program.clone())?;
+            if result.len() != slot.amount as usize {
+                bail!("State read failed");
+            }
+            for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
+                *s = r;
+            }
+            if delta {
+                data.state_delta = state.to_vec();
+            } else {
+                data.state = state.to_vec();
+            }
+        }
+    }
+    Ok(())
 }
 
 fn check_slots(slots: &Slots, solution: &Solution) -> anyhow::Result<()> {
@@ -145,7 +196,7 @@ fn check_constraints(data: &Data, constraints: &Vec<Vec<u8>>) -> anyhow::Result<
 }
 
 fn check_constraint(data: &Data, ops: Vec<Op>) -> anyhow::Result<()> {
-    let mut output = eval(data, ops)?;
+    let mut output = run(data, ops)?;
     let output = pop_one(&mut output)?;
 
     if output != 1 {
@@ -155,37 +206,39 @@ fn check_constraint(data: &Data, ops: Vec<Op>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn eval(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
+fn run(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
     let mut stack = Vec::new();
-
-    for op in ops {
-        match op {
-            Op::Push(word) => {
-                stack.push(word);
-            }
-            Op::Pop => {
-                stack.pop();
-            }
-            Op::Dup => {
-                let word = pop_one(&mut stack)?;
-                stack.push(word);
-                stack.push(word);
-            }
-            Op::Swap => {
-                let (word1, word2) = pop_two(&mut stack)?;
-                stack.push(word1);
-                stack.push(word2);
-            }
-            Op::Pred(pred) => check_predicate(&mut stack, pred)?,
-            Op::Alu(alu) => check_alu(&mut stack, alu)?,
-            Op::Access(access) => check_access(data, &mut stack, access)?,
-        }
-        println!("Op: {:?}, Stack: {:?}", op, stack);
-    }
-
     println!("Result: {:?}", stack);
-
+    for op in ops {
+        eval(&mut stack, data, op)?;
+    }
     Ok(stack)
+}
+
+pub fn eval(stack: &mut Vec<u64>, data: &Data, op: Op) -> anyhow::Result<()> {
+    match op {
+        Op::Push(word) => {
+            stack.push(word);
+        }
+        Op::Pop => {
+            stack.pop();
+        }
+        Op::Dup => {
+            let word = pop_one(stack)?;
+            stack.push(word);
+            stack.push(word);
+        }
+        Op::Swap => {
+            let (word1, word2) = pop_two(stack)?;
+            stack.push(word1);
+            stack.push(word2);
+        }
+        Op::Pred(pred) => check_predicate(stack, pred)?,
+        Op::Alu(alu) => check_alu(stack, alu)?,
+        Op::Access(access) => check_access(data, stack, access)?,
+    }
+    println!("Op: {:?}, Stack: {:?}", op, stack);
+    Ok(())
 }
 
 fn check_predicate(stack: &mut Vec<u64>, pred: Pred) -> anyhow::Result<()> {
@@ -349,13 +402,13 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
     Ok(())
 }
 
-fn pop_one(stack: &mut Vec<u64>) -> anyhow::Result<u64> {
+pub fn pop_one(stack: &mut Vec<u64>) -> anyhow::Result<u64> {
     stack
         .pop()
         .ok_or_else(|| anyhow::anyhow!("Stack underflow"))
 }
 
-fn pop_two(stack: &mut Vec<u64>) -> anyhow::Result<(u64, u64)> {
+pub fn pop_two(stack: &mut Vec<u64>) -> anyhow::Result<(u64, u64)> {
     let word1 = pop_one(stack)?;
     let word2 = pop_one(stack)?;
     Ok((word2, word1))
