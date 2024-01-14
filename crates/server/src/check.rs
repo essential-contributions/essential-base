@@ -12,13 +12,9 @@ use crate::op::Access;
 use crate::op::Alu;
 use crate::op::Op;
 use crate::op::Pred;
-use crate::state_read;
-use crate::state_read::load_module;
 use crate::state_read::vm;
 use crate::state_read::vm::StateReadOp;
 use crate::state_read::StateSlot;
-use crate::state_read::VmCall;
-use crate::state_read::WasmCall;
 use crate::Intent;
 
 pub struct SolvedIntent {
@@ -61,15 +57,23 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         output_messages: intent.solution.output_messages.clone(),
     };
 
-    read_state(&intent.intent, db.clone(), &mut data, &mut state, false)?;
+    read_state(
+        &intent.intent.state_read,
+        db.clone(),
+        intent.intent.slots.state.as_slice(),
+        &mut data,
+        &mut state,
+        false,
+    )?;
 
     for (key, value) in intent.solution.state_mutations {
         db.stage(data.this_address, key, value);
     }
 
     read_state(
-        &intent.intent,
+        &intent.intent.state_read,
         db.clone(),
+        intent.intent.slots.state.as_slice(),
         &mut data,
         &mut state_delta,
         true,
@@ -87,64 +91,9 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
 }
 
 fn read_state(
-    intent: &Intent,
-    db: Db,
-    data: &mut Data,
-    state: &mut [Option<u64>],
-    delta: bool,
-) -> anyhow::Result<()> {
-    match (&intent.state_read, &intent.slots.state) {
-        (state_read::StateRead::Wasm(read), state_read::StateRead::Wasm(state_slots)) => {
-            read_state_wasm(read, db, intent.address(), state_slots, data, state, delta)?
-        }
-        (state_read::StateRead::Vm(read), state_read::StateRead::Vm(state_slots)) => {
-            read_state_vm(read, db, state_slots, data, state, delta)?
-        }
-        _ => bail!("State read mismatch"),
-    }
-    Ok(())
-}
-
-fn read_state_wasm(
     read: &[u8],
     db: Db,
-    this_address: Address,
-    state_slots: &[StateSlot<WasmCall>],
-    data: &mut Data,
-    state: &mut [Option<u64>],
-    delta: bool,
-) -> anyhow::Result<()> {
-    if !read.is_empty() {
-        let (mut store, module) = load_module(this_address, read, db)?;
-        for slot in state_slots {
-            let mut params = Vec::with_capacity(slot.call.params.len());
-            for param in &slot.call.params {
-                let ops = serde_json::from_slice(param)?;
-                let stack = run(data, ops)?;
-                params.push(stack);
-            }
-            let result =
-                state_read::read_state(&mut store, &module, &slot.call.fn_name, params.clone())?;
-            if result.len() != slot.amount as usize {
-                bail!("State read failed");
-            }
-            for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
-                *s = r;
-            }
-            if delta {
-                data.state_delta = state.to_vec();
-            } else {
-                data.state = state.to_vec();
-            }
-        }
-    }
-    Ok(())
-}
-
-fn read_state_vm(
-    read: &[u8],
-    db: Db,
-    state_slots: &[StateSlot<VmCall>],
+    state_slots: &[StateSlot],
     data: &mut Data,
     state: &mut [Option<u64>],
     delta: bool,

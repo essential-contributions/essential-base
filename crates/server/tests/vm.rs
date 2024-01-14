@@ -10,8 +10,8 @@ use intent_server::state_read::vm::ControlFlow;
 use intent_server::state_read::vm::Memory;
 use intent_server::state_read::vm::State;
 use intent_server::state_read::vm::StateReadOp;
-use intent_server::state_read::StateRead;
 use intent_server::state_read::StateSlot;
+use intent_server::state_read::StateSlots;
 use intent_server::state_read::VmCall;
 use intent_server::Intent;
 use intent_server::Server;
@@ -43,14 +43,14 @@ fn vm_state_reads() {
     let constraints = vec![constraints];
     let intent = Intent {
         slots: Slots {
-            state: StateRead::Vm(vec![StateSlot {
+            state: StateSlots::new(vec![StateSlot {
                 index: 0,
                 amount: 1,
                 call: VmCall { index: 0 },
             }]),
             ..Default::default()
         },
-        state_read: StateRead::Vm(state_read),
+        state_read,
         constraints,
         directive: Directive::Satisfy,
     };
@@ -103,14 +103,14 @@ fn extern_state_reads() {
     let constraints = vec![constraints];
     let intent = Intent {
         slots: Slots {
-            state: StateRead::Vm(vec![StateSlot {
+            state: StateSlots::new(vec![StateSlot {
                 index: 0,
                 amount: 1,
                 call: VmCall { index: 0 },
             }]),
             ..Default::default()
         },
-        state_read: StateRead::Vm(state_read),
+        state_read,
         constraints,
         directive: Directive::Satisfy,
     };

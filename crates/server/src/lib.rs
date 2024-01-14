@@ -3,7 +3,6 @@ use check::SolvedIntent;
 use data::Slots;
 use db::Address;
 use db::Db;
-use state_read::StateRead;
 
 pub mod check;
 pub mod data;
@@ -13,7 +12,7 @@ pub mod state_read;
 
 pub struct Intent {
     pub slots: Slots,
-    pub state_read: StateRead<Vec<u8>, Vec<u8>>,
+    pub state_read: Vec<u8>,
     pub constraints: Vec<Vec<u8>>,
     pub directive: Directive,
 }

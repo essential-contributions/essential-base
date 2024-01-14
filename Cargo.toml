@@ -1,8 +1,5 @@
 [workspace]
 members = [
-    "crates/guest",
     "crates/server",
-    "wasm/test_erc20",
-    "wasm/test_state_read",
 ]
 resolver = "2"

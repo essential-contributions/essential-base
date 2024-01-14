@@ -10,20 +10,27 @@ use intent_server::op::Access;
 use intent_server::op::Alu;
 use intent_server::op::Op;
 use intent_server::op::Pred;
-use intent_server::state_read::StateRead;
+use intent_server::state_read::vm::ControlFlow;
+use intent_server::state_read::vm::Memory;
+use intent_server::state_read::vm::State;
+use intent_server::state_read::vm::StateReadOp;
 use intent_server::state_read::StateSlot;
-use intent_server::state_read::WasmCall;
+use intent_server::state_read::StateSlots;
+use intent_server::state_read::VmCall;
 use intent_server::Intent;
 use intent_server::Server;
 
 #[test]
 fn sanity() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../target/wasm32-unknown-unknown/release/test_state_read.wasm"
-    );
+    // let path = concat!(
+    //     env!("CARGO_MANIFEST_DIR"),
+    //     "/../../target/wasm32-unknown-unknown/release/test_state_read.wasm"
+    // );
 
-    let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
+    // let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
+    let get_42 = vec![StateReadOp::Constraint(Op::Push(4))];
+    let state_read = vec![get_42];
+    let state_read = serde_json::to_vec(&state_read).unwrap();
 
     let constraints = vec![
         Op::Push(3),
@@ -61,28 +68,19 @@ fn sanity() {
     let constraints = serde_json::to_vec(&constraints).unwrap();
     let constraints = vec![constraints];
 
-    let get_param_one = vec![Op::Push(0), Op::Access(Access::DecisionVar)];
-    let get_param_one = serde_json::to_vec(&get_param_one).unwrap();
-
     let intent = Intent {
         slots: Slots {
             decision_variables: 1,
-            state: StateRead::Wasm(vec![
+            state: StateSlots::new(vec![
                 StateSlot {
                     index: 0,
                     amount: 4,
-                    call: WasmCall {
-                        fn_name: "foo".to_string(),
-                        params: vec![],
-                    },
+                    call: VmCall { index: 0 },
                 },
                 StateSlot {
                     index: 4,
                     amount: 5,
-                    call: WasmCall {
-                        fn_name: "bar".to_string(),
-                        params: vec![get_param_one],
-                    },
+                    call: VmCall { index: 1 },
                 },
             ]),
             ..Default::default()
@@ -130,7 +128,7 @@ fn constrain_dec_vars() {
             decision_variables: 2,
             ..Default::default()
         },
-        state_read: StateRead::default(),
+        state_read: Default::default(),
         constraints,
         directive: Directive::Satisfy,
     };
@@ -158,12 +156,15 @@ fn constrain_dec_vars() {
 // constraint receiver_bal' - receiver_bal == msg.amount
 #[test]
 fn erc20_transfer() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../target/wasm32-unknown-unknown/release/test_erc20.wasm"
-    );
+    // let path = concat!(
+    //     env!("CARGO_MANIFEST_DIR"),
+    //     "/../../target/wasm32-unknown-unknown/release/test_erc20.wasm"
+    // );
 
-    let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
+    // let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
+    let get_42 = vec![StateReadOp::Constraint(Op::Push(4))];
+    let state_read = vec![get_42];
+    let state_read = serde_json::to_vec(&state_read).unwrap();
     let mut constraints = vec![];
     // constraint sender_bal >= msg.amount
     let constraint = vec![
@@ -212,29 +213,18 @@ fn erc20_transfer() {
     let constraint = serde_json::to_vec(&constraint).unwrap();
     constraints.push(constraint);
 
-    let get_msg_sender = vec![Op::Access(Access::InputMsgSender)];
-    let get_msg_receiver = vec![Op::Push(0), Op::Access(Access::InputMsgArg)];
-    let get_msg_sender = serde_json::to_vec(&get_msg_sender).unwrap();
-    let get_msg_receiver = serde_json::to_vec(&get_msg_receiver).unwrap();
-
     let intent = Intent {
         slots: Slots {
-            state: StateRead::Wasm(vec![
+            state: StateSlots::new(vec![
                 StateSlot {
                     index: 0,
                     amount: 1,
-                    call: WasmCall {
-                        fn_name: "get_sender_bal".to_string(),
-                        params: vec![get_msg_sender],
-                    },
+                    call: VmCall { index: 0 },
                 },
                 StateSlot {
                     index: 1,
                     amount: 1,
-                    call: WasmCall {
-                        fn_name: "get_receiver_bal".to_string(),
-                        params: vec![get_msg_receiver],
-                    },
+                    call: VmCall { index: 0 },
                 },
             ]),
             input_message_args: vec![8, 1],

@@ -1,19 +1,13 @@
-pub use wasm::*;
-
 pub mod vm;
-pub mod wasm;
+
+#[derive(Debug, Clone, Default)]
+pub struct StateSlots(Vec<StateSlot>);
 
 #[derive(Debug, Clone)]
-pub struct StateSlot<Call> {
+pub struct StateSlot {
     pub index: u64,
     pub amount: u64,
-    pub call: Call,
-}
-
-#[derive(Debug, Clone)]
-pub struct WasmCall {
-    pub fn_name: String,
-    pub params: Vec<Vec<u8>>,
+    pub call: VmCall,
 }
 
 #[derive(Debug, Clone)]
@@ -22,36 +16,25 @@ pub struct VmCall {
     pub index: u64,
 }
 
-#[derive(Debug, Clone)]
-pub enum StateRead<W, V> {
-    Wasm(W),
-    Vm(V),
-}
-
-impl<W: Default, V: Default> Default for StateRead<W, V> {
-    fn default() -> Self {
-        Self::Vm(V::default())
+impl StateSlots {
+    pub fn new(slots: Vec<StateSlot>) -> Self {
+        Self(slots)
     }
-}
 
-impl StateRead<Vec<StateSlot<WasmCall>>, Vec<StateSlot<VmCall>>> {
     pub fn len(&self) -> usize {
-        match self {
-            Self::Wasm(wasm) => wasm
-                .iter()
-                .map(|slot| slot.index + slot.amount)
-                .max()
-                .unwrap_or(0) as usize,
-            Self::Vm(vm) => vm
-                .iter()
-                .map(|slot| slot.index + slot.amount)
-                .max()
-                .unwrap_or(0) as usize,
-        }
+        self.0
+            .iter()
+            .map(|slot| slot.index + slot.amount)
+            .max()
+            .unwrap_or(0) as usize
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn as_slice(&self) -> &[StateSlot] {
+        &self.0
     }
 }
