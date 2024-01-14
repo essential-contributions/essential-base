@@ -25,8 +25,6 @@ pub enum Access {
     InputMsgArgWord,
     InputMsgArg,
     InputMsgArgRange,
-    OutputMsgRecipientWord,
-    OutputMsgRecipient,
     OutputMsgArgWord,
     OutputMsgArg,
     OutputMsgArgRange,

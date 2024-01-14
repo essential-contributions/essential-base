@@ -381,14 +381,6 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
             let index = pop_one(stack)?;
             stack.extend(&data.input_message.args[index as usize]);
         }
-        Access::OutputMsgRecipientWord => {
-            let (msg_index, word_index) = pop_two(stack)?;
-            stack.push(data.output_messages[msg_index as usize].recipient[word_index as usize]);
-        }
-        Access::OutputMsgRecipient => {
-            let msg_index = pop_one(stack)?;
-            stack.extend(data.output_messages[msg_index as usize].recipient);
-        }
         Access::OutputMsgArgWord => {
             let (arg_index, word_index) = pop_two(stack)?;
             let msg_index = pop_one(stack)?;

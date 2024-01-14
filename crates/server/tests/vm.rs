@@ -1,6 +1,7 @@
 use intent_server::check::Directive;
 use intent_server::check::Solution;
 use intent_server::check::SolvedIntent;
+use intent_server::data::OutputMessage;
 use intent_server::data::Slots;
 use intent_server::op::Access;
 use intent_server::op::Op;
@@ -131,5 +132,42 @@ fn extern_state_reads() {
 }
 
 // Message outputs
+#[test]
+fn message_outputs() {
+    let constraints = vec![
+        Op::Push(0),
+        Op::Push(0),
+        Op::Push(0),
+        Op::Access(Access::OutputMsgArgWord),
+        Op::Push(42),
+        Op::Pred(Pred::Eq),
+    ];
+    let constraints = serde_json::to_vec(&constraints).unwrap();
+    let constraints = vec![constraints];
+    let intent = Intent {
+        slots: Slots {
+            output_messages_args: vec![vec![1]],
+            ..Default::default()
+        },
+        state_read: Default::default(),
+        constraints,
+        directive: Directive::Satisfy,
+    };
+
+    let mut server = Server::new();
+
+    let solved_intent = SolvedIntent {
+        intent,
+        solution: Solution {
+            output_messages: vec![OutputMessage {
+                args: vec![vec![42]],
+            }],
+            ..Default::default()
+        },
+    };
+
+    let solution = server.check(solved_intent, 1).unwrap();
+    assert!(solution);
+}
 
 // hash sizes

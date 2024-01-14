@@ -30,7 +30,7 @@ pub enum StateRead<W, V> {
 
 impl<W: Default, V: Default> Default for StateRead<W, V> {
     fn default() -> Self {
-        Self::Wasm(W::default())
+        Self::Vm(V::default())
     }
 }
 

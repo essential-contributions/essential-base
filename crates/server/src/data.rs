@@ -22,7 +22,6 @@ pub struct InputMessage {
 
 #[derive(Clone, Debug, Default)]
 pub struct OutputMessage {
-    pub recipient: [u64; 8],
     pub args: Vec<Vec<u64>>,
 }
 
