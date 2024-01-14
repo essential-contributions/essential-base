@@ -5,23 +5,28 @@ use anyhow::bail;
 use anyhow::ensure;
 use wasmtime::*;
 
+use crate::db::Address;
 use crate::db::Db;
 
-pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)> {
+pub fn load_module(
+    this_address: Address,
+    bytes: &[u8],
+    db: Db,
+) -> anyhow::Result<(Store<Db>, Instance)> {
     let engine = Engine::default();
     let module = Module::from_binary(&engine, bytes)?;
     let mut store = Store::new(&engine, db);
     // Host function that the guest calls to read state.
     let state_read_word_range = Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, Db>,
-         key0: u64,
-         key1: u64,
-         key2: u64,
-         key3: u64,
-         amount: i32,
-         buf_ptr: i32|
-         -> anyhow::Result<i32> {
+        move |mut caller: Caller<'_, Db>,
+              key0: u64,
+              key1: u64,
+              key2: u64,
+              key3: u64,
+              amount: i32,
+              buf_ptr: i32|
+              -> anyhow::Result<i32> {
             // Get the guest memory.
             let Some(Extern::Memory(mem)) = caller.get_export("memory") else {
                 bail!("failed to find host memory");
@@ -29,7 +34,7 @@ pub fn load_module(bytes: &[u8], db: Db) -> anyhow::Result<(Store<Db>, Instance)
 
             let key = [key0, key1, key2, key3];
             // Get the data from the database at the given key and amount.
-            let result = caller.data().read_range(&key, amount);
+            let result = caller.data().read_range(&this_address, &key, amount);
 
             // Encode bit vector of which values are Some.
             let set: bitvec::vec::BitVec<u8, bitvec::order::Msb0> =

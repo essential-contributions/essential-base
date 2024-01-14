@@ -1,3 +1,4 @@
+use crate::db::Address;
 use crate::state_read::StateRead;
 use crate::state_read::StateSlot;
 use crate::state_read::VmCall;
@@ -5,6 +6,7 @@ use crate::state_read::WasmCall;
 
 #[derive(Clone, Debug, Default)]
 pub struct Data {
+    pub this_address: Address,
     pub decision_variables: Vec<u64>,
     pub state: Vec<Option<u64>>,
     pub state_delta: Vec<Option<u64>>,

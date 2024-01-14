@@ -103,9 +103,9 @@ fn sanity() {
 
     let mut server = Server::new();
     for i in 0..15 {
-        server.db().stage([i, 0, 0, 0], i.into());
+        server.db().stage([0, 0, 0, 0], [i, 0, 0, 0], i.into());
     }
-    server.db().stage([14, 0, 0, 0], None);
+    server.db().stage([0, 0, 0, 0], [14, 0, 0, 0], None);
     server.db().commit();
 
     let solution = server.check(solved_intent, 1).unwrap();
@@ -268,8 +268,9 @@ fn erc20_transfer() {
     };
 
     let mut server = Server::new();
-    server.db().stage(key1, Some(1000));
-    server.db().stage(key2, Some(0));
+    let address = [0, 0, 0, 0];
+    server.db().stage(address, key1, Some(1000));
+    server.db().stage(address, key2, Some(0));
     server.db().commit();
     let solution = server.check(solved_intent, 1).unwrap();
     assert!(solution);

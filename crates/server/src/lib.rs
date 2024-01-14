@@ -1,6 +1,7 @@
 use check::Directive;
 use check::SolvedIntent;
 use data::Slots;
+use db::Address;
 use db::Db;
 use state_read::StateRead;
 
@@ -40,5 +41,11 @@ impl Server {
 
     pub fn db(&mut self) -> &mut Db {
         &mut self.db
+    }
+}
+
+impl Intent {
+    pub fn address(&self) -> Address {
+        [0; 4]
     }
 }

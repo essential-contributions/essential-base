@@ -5,6 +5,7 @@ use crate::data::Data;
 use crate::data::InputMessage;
 use crate::data::OutputMessage;
 use crate::data::Slots;
+use crate::db::Address;
 use crate::db::Db;
 use crate::db::Key;
 use crate::op::Access;
@@ -39,6 +40,12 @@ pub struct Solution {
     pub state_mutations: Vec<(Key, Option<u64>)>,
 }
 
+impl SolvedIntent {
+    pub fn address(&self) -> Address {
+        self.intent.address()
+    }
+}
+
 pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     check_slots(&intent.intent.slots, &intent.solution)?;
     let len = intent.intent.slots.state.len();
@@ -46,6 +53,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     let mut state_delta = vec![None; len];
 
     let mut data = Data {
+        this_address: intent.address(),
         decision_variables: intent.solution.decision_variables.clone(),
         state: state.clone(),
         state_delta: state_delta.clone(),
@@ -56,7 +64,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     read_state(&intent.intent, db.clone(), &mut data, &mut state, false)?;
 
     for (key, value) in intent.solution.state_mutations {
-        db.stage(key, value);
+        db.stage(data.this_address, key, value);
     }
 
     read_state(
@@ -87,7 +95,7 @@ fn read_state(
 ) -> anyhow::Result<()> {
     match (&intent.state_read, &intent.slots.state) {
         (state_read::StateRead::Wasm(read), state_read::StateRead::Wasm(state_slots)) => {
-            read_state_wasm(read, db, state_slots, data, state, delta)?
+            read_state_wasm(read, db, intent.address(), state_slots, data, state, delta)?
         }
         (state_read::StateRead::Vm(read), state_read::StateRead::Vm(state_slots)) => {
             read_state_vm(read, db, state_slots, data, state, delta)?
@@ -100,13 +108,14 @@ fn read_state(
 fn read_state_wasm(
     read: &[u8],
     db: Db,
+    this_address: Address,
     state_slots: &[StateSlot<WasmCall>],
     data: &mut Data,
     state: &mut [Option<u64>],
     delta: bool,
 ) -> anyhow::Result<()> {
     if !read.is_empty() {
-        let (mut store, module) = load_module(read, db)?;
+        let (mut store, module) = load_module(this_address, read, db)?;
         for slot in state_slots {
             let mut params = Vec::with_capacity(slot.call.params.len());
             for param in &slot.call.params {

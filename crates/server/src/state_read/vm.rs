@@ -12,7 +12,7 @@ use crate::op::Op;
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum StateReadOp {
     Constraint(Op),
-    StateReadWordRange,
+    State(State),
     ControlFlow(ControlFlow),
     Memory(Memory),
 }
@@ -34,6 +34,12 @@ pub enum Memory {
     IsSome,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum State {
+    StateReadWordRange,
+    StateReadWordRangeExtern,
+}
+
 pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<Vec<Option<u64>>> {
     let mut stack = Vec::new();
     let mut pc = 0;
@@ -47,21 +53,8 @@ pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<V
                 crate::check::eval(&mut stack, data, op)?;
                 pc += 1;
             }
-            StateReadOp::StateReadWordRange => {
-                let amount = pop_one(&mut stack)?;
-                let Some(key_pos) = stack.len().checked_sub(4) else {
-                    bail!("stack underflow");
-                };
-                let mut key = [0u64; 4];
-                for (k, s) in stack.drain(key_pos..).zip(key.iter_mut()) {
-                    *s = k;
-                }
-                let result = db.read_range(&key, amount as i32);
-                ensure!(memory.capacity() >= result.len(), "Memory overflow");
-                let start = memory.len();
-                memory.extend(result);
-                stack.push(start as u64);
-                pc += 1;
+            StateReadOp::State(state) => {
+                eval_state(&mut stack, db, data, &mut memory, &mut pc, state)?;
             }
             StateReadOp::ControlFlow(cf) => {
                 eval_control_flow(&mut stack, &mut pc, &mut running, cf)?
@@ -75,6 +68,58 @@ pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<V
         }
     }
     Ok(memory)
+}
+
+fn eval_state(
+    stack: &mut Vec<u64>,
+    db: &Db,
+    data: &Data,
+    memory: &mut Vec<Option<u64>>,
+    pc: &mut usize,
+    state: State,
+) -> anyhow::Result<()> {
+    match state {
+        State::StateReadWordRange => {
+            let amount = pop_one(stack)?;
+            let Some(key_pos) = stack.len().checked_sub(4) else {
+                bail!("stack underflow");
+            };
+            let mut key = [0u64; 4];
+            for (s, k) in stack.drain(key_pos..).zip(key.iter_mut()) {
+                *k = s;
+            }
+            let result = db.read_range(&data.this_address, &key, amount as i32);
+            ensure!(memory.capacity() >= result.len(), "Memory overflow");
+            let start = memory.len();
+            memory.extend(result);
+            stack.push(start as u64);
+            *pc += 1;
+        }
+        State::StateReadWordRangeExtern => {
+            let amount = pop_one(stack)?;
+            let Some(key_pos) = stack.len().checked_sub(4) else {
+                bail!("stack underflow");
+            };
+            let mut key = [0u64; 4];
+            for (s, k) in stack.drain(key_pos..).zip(key.iter_mut()) {
+                *k = s;
+            }
+            let Some(address_pos) = stack.len().checked_sub(4) else {
+                bail!("stack underflow");
+            };
+            let mut address = [0u64; 4];
+            for (s, a) in stack.drain(address_pos..).zip(address.iter_mut()) {
+                *a = s;
+            }
+            let result = db.read_range(&address, &key, amount as i32);
+            ensure!(memory.capacity() >= result.len(), "Memory overflow");
+            let start = memory.len();
+            memory.extend(result);
+            stack.push(start as u64);
+            *pc += 1;
+        }
+    }
+    Ok(())
 }
 
 fn eval_control_flow(
