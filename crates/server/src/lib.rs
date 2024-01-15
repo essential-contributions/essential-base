@@ -78,6 +78,48 @@ impl Server {
         Ok(utility)
     }
 
+    pub fn submit_intent(&mut self, intent: Intent) -> anyhow::Result<()> {
+        self.intent_pool.insert(intent.address(), intent);
+        Ok(())
+    }
+
+    pub fn deploy_intent(&mut self, intent: Intent) -> anyhow::Result<()> {
+        self.deployed_intents.insert(intent.address(), intent);
+        Ok(())
+    }
+
+    pub fn submit_solution(&mut self, solution: Solution) -> anyhow::Result<u64> {
+        let utility = self.check(solution)?;
+        self.db.commit();
+        Ok(utility)
+    }
+
+    pub fn list_intents(&self) -> impl Iterator<Item = (&Address, &Intent)> {
+        self.intent_pool.iter()
+    }
+
+    pub fn list_deployed(&self) -> impl Iterator<Item = (&Address, &Intent)> {
+        self.deployed_intents.iter()
+    }
+
+    pub fn get_intent(&self, address: &Address) -> Option<&Intent> {
+        self.intent_pool.get(address)
+    }
+
+    pub fn get_deployed(&self, address: &Address) -> Option<&Intent> {
+        self.deployed_intents.get(address)
+    }
+
+    pub fn generate_account(&mut self) -> anyhow::Result<u64> {
+        use rand_core::OsRng;
+
+        let index = self.accounts.index;
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        self.accounts.accounts.insert(index, signing_key);
+        self.accounts.index += 1;
+        Ok(index)
+    }
+
     pub fn db(&mut self) -> &mut Db {
         &mut self.db
     }
