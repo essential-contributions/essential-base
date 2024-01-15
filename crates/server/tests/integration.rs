@@ -2,8 +2,8 @@ use std::hash::Hash;
 use std::hash::Hasher;
 
 use intent_server::check::Directive;
-use intent_server::check::Solution;
 use intent_server::check::SolvedIntent;
+use intent_server::check::Transition;
 use intent_server::data::InputMessage;
 use intent_server::data::Slots;
 use intent_server::intent::Intent;
@@ -102,7 +102,7 @@ fn sanity() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Solution {
+        solution: Transition {
             state_mutations: vec![([6, 0, 0, 0], Some(2))],
             decision_variables: vec![2],
             ..Default::default()
@@ -116,7 +116,7 @@ fn sanity() {
     server.db().stage([0, 0, 0, 0], [14, 0, 0, 0], None);
     server.db().commit();
 
-    let solution = server.check(solved_intent, 1).unwrap();
+    let solution = server.check_individual(solved_intent, 1).unwrap();
     assert!(solution);
 }
 
@@ -147,13 +147,13 @@ fn constrain_dec_vars() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Solution {
+        solution: Transition {
             decision_variables: vec![1, 2],
             ..Default::default()
         },
     };
 
-    let solution = server.check(solved_intent, 1).unwrap();
+    let solution = server.check_individual(solved_intent, 1).unwrap();
     assert!(solution);
 }
 
@@ -237,7 +237,7 @@ fn erc20_transfer() {
                     call: VmCall { index: 0 },
                 },
             ]),
-            input_message_args: vec![8, 1],
+            input_message_args: Some(vec![8, 1]),
             ..Default::default()
         },
         state_read,
@@ -257,11 +257,11 @@ fn erc20_transfer() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Solution {
-            input_message: InputMessage {
-                sender: [2; 8],
+        solution: Transition {
+            input_message: Some(InputMessage {
+                sender: [2; 4],
                 args: vec![vec![1; 8], vec![500]],
-            },
+            }),
             state_mutations: vec![(key1, Some(500)), (key2, Some(500))],
             ..Default::default()
         },
@@ -272,6 +272,6 @@ fn erc20_transfer() {
     server.db().stage(address, key1, Some(1000));
     server.db().stage(address, key2, Some(0));
     server.db().commit();
-    let solution = server.check(solved_intent, 1).unwrap();
+    let solution = server.check_individual(solved_intent, 1).unwrap();
     assert!(solution);
 }

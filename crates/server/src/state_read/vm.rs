@@ -8,6 +8,7 @@ use crate::check::pop_two;
 use crate::data::Data;
 use crate::db::Db;
 use crate::op::Op;
+use crate::KeyStore;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum StateReadOp {
@@ -40,7 +41,12 @@ pub enum State {
     StateReadWordRangeExtern,
 }
 
-pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<Vec<Option<u64>>> {
+pub fn read(
+    db: &Db,
+    accounts: &KeyStore,
+    data: &Data,
+    program: Vec<StateReadOp>,
+) -> anyhow::Result<Vec<Option<u64>>> {
     let mut stack = Vec::new();
     let mut pc = 0;
     let mut running = true;
@@ -50,7 +56,7 @@ pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<V
         let instruction = next_instruction(&program, pc)?;
         match instruction {
             StateReadOp::Constraint(op) => {
-                crate::check::eval(&mut stack, data, op)?;
+                crate::check::eval(&mut stack, accounts, data, op)?;
                 pc += 1;
             }
             StateReadOp::State(state) => {

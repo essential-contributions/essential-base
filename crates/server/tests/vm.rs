@@ -1,6 +1,6 @@
 use intent_server::check::Directive;
-use intent_server::check::Solution;
 use intent_server::check::SolvedIntent;
+use intent_server::check::Transition;
 use intent_server::data::OutputMessage;
 use intent_server::data::Slots;
 use intent_server::intent::Intent;
@@ -61,7 +61,7 @@ fn vm_state_reads() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Solution {
+        solution: Transition {
             ..Default::default()
         },
     };
@@ -71,7 +71,7 @@ fn vm_state_reads() {
         .stage(intent_address, [14, 14, 14, 14], Some(42));
     server.db().commit();
 
-    let solution = server.check(solved_intent, 1).unwrap();
+    let solution = server.check_individual(solved_intent, 1).unwrap();
     assert!(solution);
 }
 
@@ -123,7 +123,7 @@ fn extern_state_reads() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Solution {
+        solution: Transition {
             ..Default::default()
         },
     };
@@ -131,7 +131,7 @@ fn extern_state_reads() {
     server.db().stage([1, 1, 1, 1], [14, 14, 14, 14], Some(42));
     server.db().commit();
 
-    let solution = server.check(solved_intent, 1).unwrap();
+    let solution = server.check_individual(solved_intent, 1).unwrap();
     assert!(solution);
 }
 
@@ -162,7 +162,7 @@ fn message_outputs() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Solution {
+        solution: Transition {
             output_messages: vec![OutputMessage {
                 args: vec![vec![42]],
             }],
@@ -170,7 +170,7 @@ fn message_outputs() {
         },
     };
 
-    let solution = server.check(solved_intent, 1).unwrap();
+    let solution = server.check_individual(solved_intent, 1).unwrap();
     assert!(solution);
 }
 

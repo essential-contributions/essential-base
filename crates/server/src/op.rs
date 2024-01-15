@@ -55,5 +55,12 @@ pub enum Alu {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Crypto {
     /// [{data to hash}, data_len]
+    /// [{hash: [u64; 4]}]
     Sha256,
+    /// [{data to sign}, data_len, account_index]
+    /// [{signature: [u64; 8]}]
+    SignEd25519,
+    /// [{data to verify}, data_len, {signature: [u64; 8]}, account_index]
+    /// [verified]
+    VerifyEd25519,
 }
