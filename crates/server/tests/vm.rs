@@ -174,4 +174,94 @@ fn message_outputs() {
     assert!(solution);
 }
 
-// hash sizes
+#[test]
+fn naughts_crosses() {
+    let mut server = Server::new();
+
+    let get_board = vec![
+        StateReadOp::Constraint(Op::Push(9)),
+        StateReadOp::Memory(Memory::Alloc),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(9)),
+        StateReadOp::State(State::StateReadWordRange),
+        StateReadOp::ControlFlow(ControlFlow::Halt),
+    ];
+    let state_read = vec![get_board];
+    let state_read = serde_json::to_vec(&state_read).unwrap();
+
+    let mut constraints = vec![];
+
+    let constraint = (0..9)
+        .flat_map(|i| {
+            [
+                // State must be none
+                Op::Push(i),
+                Op::Push(1),
+                Op::Access(Access::StateIsSome),
+                Op::Pred(Pred::Not),
+                // Or 0
+                Op::Push(i),
+                Op::Push(1),
+                Op::Access(Access::StateIsSome),
+                Op::Push(0),
+                Op::Push(i),
+                Op::Push(1),
+                Op::Access(Access::State),
+                Op::Pred(Pred::Eq),
+                Op::Pred(Pred::And),
+                Op::Pred(Pred::Or),
+                // Or 1
+                Op::Push(1),
+                Op::Push(i),
+                Op::Push(1),
+                Op::Access(Access::State),
+                Op::Pred(Pred::Eq),
+                Op::Pred(Pred::Or),
+            ]
+        })
+        .collect::<Vec<_>>();
+    let constraint = serde_json::to_vec(&constraint).unwrap();
+    constraints.push(constraint);
+
+    let constraint = (0..9)
+        .flat_map(|i| {
+            [
+                // State before must be none
+                Op::Push(i),
+                Op::Push(0),
+                Op::Access(Access::StateIsSome),
+                Op::Pred(Pred::Not),
+                // or it must have not changed
+                Op::Push(i),
+                Op::Push(0),
+                Op::Access(Access::State),
+                Op::Push(i),
+                Op::Push(1),
+                Op::Access(Access::State),
+                Op::Pred(Pred::Eq),
+                Op::Pred(Pred::Or),
+            ]
+        })
+        .collect::<Vec<_>>();
+    let constraint = serde_json::to_vec(&constraint).unwrap();
+    constraints.push(constraint);
+
+    let deployed_intent = Intent {
+        slots: Slots {
+            state: StateSlots::new(vec![StateSlot {
+                index: 0,
+                amount: 9,
+                call: VmCall { index: 0 },
+            }]),
+            ..Default::default()
+        },
+        state_read,
+        constraints,
+        directive: Directive::Satisfy,
+    };
+
+    let deployed_address = server.deploy_intent(deployed_intent).unwrap();
+}

@@ -254,104 +254,153 @@ fn check_alu(stack: &mut Vec<u64>, alu: Alu) -> anyhow::Result<()> {
 fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Result<()> {
     match access {
         Access::DecisionVar => {
-            let address = pop_one(stack)?;
-            let Some(var) = data.decision_variables.get(address as usize) else {
-                bail!("Decision variable out of bounds");
+            let slot = pop_one(stack)?;
+            let slot: usize = slot.try_into()?;
+            let Some(var) = data.decision_variables.get(slot) else {
+                bail!("{:?} access out of bounds", access);
             };
             stack.push(*var);
         }
         Access::DecisionVarRange => {
-            let (index, range) = pop_two(stack)?;
-            let Some(slice) = data
-                .decision_variables
-                .get(index as usize..(index + range) as usize)
-            else {
-                bail!("Decision variable range out of bounds");
+            let (slot, range) = pop_two(stack)?;
+            let slot: usize = slot.try_into()?;
+            let range: usize = range.try_into()?;
+            let Some(slice) = data.decision_variables.get(slot..(slot + range)) else {
+                bail!("{:?} access out of bounds", access);
             };
             stack.extend(slice);
         }
         Access::State => {
-            let (address, delta) = pop_two(stack)?;
+            let (slot, delta) = pop_two(stack)?;
+            let slot: usize = slot.try_into()?;
             let state = match delta {
-                0 => data.state.get(address as usize).copied().flatten(),
-                1 => data.state_delta.get(address as usize).copied().flatten(),
-                _ => anyhow::bail!("Invalid state access"),
+                0 => data.state.get(slot).copied().map(Option::unwrap_or_default),
+                1 => data
+                    .state_delta
+                    .get(slot)
+                    .copied()
+                    .map(Option::unwrap_or_default),
+                _ => bail!("{:?} Invalid state access", access),
             };
-            if let Some(state) = state {
-                stack.push(state);
+            match state {
+                Some(state) => {
+                    stack.push(state);
+                }
+                None => bail!("{:?} access out of bounds", access),
             }
         }
         Access::StateRange => {
-            let (address, range) = pop_two(stack)?;
+            let (slot, range) = pop_two(stack)?;
+            let slot: usize = slot.try_into()?;
+            let range: usize = range.try_into()?;
             match pop_one(stack)? {
                 0 => {
-                    let iter = data.state[address as usize..(address + range) as usize]
-                        .iter()
-                        .flatten();
-                    stack.extend(iter);
+                    let iter = data
+                        .state
+                        .get(slot..(slot + range))
+                        .map(|i| i.iter().copied().map(Option::unwrap_or_default));
+                    match iter {
+                        Some(iter) => {
+                            stack.extend(iter);
+                        }
+                        None => bail!("{:?} access out of bounds", access),
+                    }
                 }
                 1 => {
-                    let iter = data.state_delta[address as usize..(address + range) as usize]
-                        .iter()
-                        .flatten();
-                    stack.extend(iter);
+                    let iter = data
+                        .state_delta
+                        .get(slot..(slot + range))
+                        .map(|i| i.iter().copied().map(Option::unwrap_or_default));
+                    match iter {
+                        Some(iter) => {
+                            stack.extend(iter);
+                        }
+                        None => bail!("{:?} access out of bounds", access),
+                    }
                 }
-                _ => anyhow::bail!("Invalid state access"),
+                _ => bail!("{:?} Invalid state access", access),
             }
         }
         Access::StateIsSome => {
             let (address, delta) = pop_two(stack)?;
+            let address: usize = address.try_into()?;
             let state = match delta {
-                0 => data.state.get(address as usize).copied().flatten(),
-                1 => data.state_delta.get(address as usize).copied().flatten(),
-                _ => anyhow::bail!("Invalid state access"),
+                0 => data.state.get(address).copied(),
+                1 => data.state_delta.get(address).copied(),
+                _ => bail!("{:?} Invalid state access", access),
             };
-            stack.push(state.is_some() as u64);
+            match state {
+                Some(state) => {
+                    stack.push(state.is_some() as u64);
+                }
+                None => bail!("{:?} access out of bounds", access),
+            }
         }
         Access::StateIsSomeRange => {
-            let (address, range) = pop_two(stack)?;
+            let (slot, range) = pop_two(stack)?;
+            let slot: usize = slot.try_into()?;
+            let range: usize = range.try_into()?;
             match pop_one(stack)? {
                 0 => {
-                    let iter = data.state[address as usize..(address + range) as usize]
-                        .iter()
-                        .map(|i| i.is_some() as u64);
-                    stack.extend(iter);
+                    let iter = data
+                        .state
+                        .get(slot..(slot + range))
+                        .map(|iter| iter.iter().map(|i| i.is_some() as u64));
+                    match iter {
+                        Some(iter) => {
+                            stack.extend(iter);
+                        }
+                        None => bail!("{:?} access out of bounds", access),
+                    }
                 }
                 1 => {
-                    let iter = data.state_delta[address as usize..(address + range) as usize]
-                        .iter()
-                        .map(|i| i.is_some() as u64);
-                    stack.extend(iter);
+                    let iter = data
+                        .state_delta
+                        .get(slot..(slot + range))
+                        .map(|iter| iter.iter().map(|i| i.is_some() as u64));
+                    match iter {
+                        Some(iter) => {
+                            stack.extend(iter);
+                        }
+                        None => bail!("{:?} access out of bounds", access),
+                    }
                 }
-                _ => anyhow::bail!("Invalid state access"),
+                _ => bail!("{:?} Invalid state access", access),
             }
         }
         Access::InputMsgSenderWord => {
             let index: usize = pop_one(stack)?.try_into()?;
-            if let Some(word) = data
+            match data
                 .input_message
                 .as_ref()
                 .and_then(|m| m.sender.get(index))
             {
-                stack.push(*word);
+                Some(word) => {
+                    stack.push(*word);
+                }
+                None => bail!("{:?} access out of bounds", access),
             }
         }
-        Access::InputMsgSender => {
-            if let Some(m) = &data.input_message {
+        Access::InputMsgSender => match &data.input_message {
+            Some(m) => {
                 stack.extend(m.sender);
             }
-        }
+            None => bail!("{:?} access out of bounds", access),
+        },
         Access::InputMsgArgWord => {
             let (arg_index, word_index) = pop_two(stack)?;
             let arg_index: usize = arg_index.try_into()?;
             let word_index: usize = word_index.try_into()?;
-            if let Some(word) = data
+            match data
                 .input_message
                 .as_ref()
                 .and_then(|m| m.args.get(arg_index))
                 .and_then(|a| a.get(word_index))
             {
-                stack.push(*word);
+                Some(word) => {
+                    stack.push(*word);
+                }
+                None => bail!("{:?} access out of bounds", access),
             }
         }
         Access::InputMsgArgRange => {
@@ -360,40 +409,85 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
             let index: usize = index.try_into()?;
             let start: usize = start.try_into()?;
             let end: usize = end.try_into()?;
-            if let Some(iter) = data
+            match data
                 .input_message
                 .as_ref()
                 .and_then(|m| m.args.get(index))
                 .and_then(|a| a.get(start..end))
             {
-                stack.extend(iter);
+                Some(iter) => {
+                    stack.extend(iter);
+                }
+                None => bail!("{:?} access out of bounds", access),
             }
         }
         Access::InputMsgArg => {
             let index = pop_one(stack)?;
             let index: usize = index.try_into()?;
-            if let Some(iter) = data.input_message.as_ref().and_then(|m| m.args.get(index)) {
-                stack.extend(iter);
+            match data.input_message.as_ref().and_then(|m| m.args.get(index)) {
+                Some(iter) => {
+                    let before = stack.len();
+                    stack.extend(iter);
+                    let after = stack.len();
+                    stack.push((after - before).try_into()?);
+                }
+                None => bail!("{:?} access out of bounds", access),
             }
         }
         Access::OutputMsgArgWord => {
             let (arg_index, word_index) = pop_two(stack)?;
             let msg_index = pop_one(stack)?;
-            let word = data.output_messages[msg_index as usize].args[arg_index as usize]
-                [word_index as usize];
-            stack.push(word);
+            let msg_index: usize = msg_index.try_into()?;
+            let arg_index: usize = arg_index.try_into()?;
+            let word_index: usize = word_index.try_into()?;
+            let word = data
+                .output_messages
+                .get(msg_index)
+                .and_then(|m| m.args.get(arg_index))
+                .and_then(|a| a.get(word_index));
+            match word {
+                Some(word) => {
+                    stack.push(*word);
+                }
+                None => bail!("{:?} access out of bounds", access),
+            }
         }
         Access::OutputMsgArgRange => {
             let (start, end) = pop_two(stack)?;
             let (msg_index, arg_index) = pop_two(stack)?;
-            let iter = &data.output_messages[msg_index as usize].args[arg_index as usize]
-                [start as usize..end as usize];
-            stack.extend(iter);
+            let msg_index: usize = msg_index.try_into()?;
+            let arg_index: usize = arg_index.try_into()?;
+            let start: usize = start.try_into()?;
+            let end: usize = end.try_into()?;
+            let iter = data
+                .output_messages
+                .get(msg_index)
+                .and_then(|m| m.args.get(arg_index))
+                .and_then(|a| a.get(start..end).map(|iter| iter.iter().copied()));
+            match iter {
+                Some(iter) => {
+                    stack.extend(iter);
+                }
+                None => bail!("{:?} access out of bounds", access),
+            }
         }
         Access::OutputMsgArg => {
             let (msg_index, arg_index) = pop_two(stack)?;
-            let iter = &data.output_messages[msg_index as usize].args[arg_index as usize];
-            stack.extend(iter);
+            let msg_index: usize = msg_index.try_into()?;
+            let arg_index: usize = arg_index.try_into()?;
+            let iter = data
+                .output_messages
+                .get(msg_index)
+                .and_then(|m| m.args.get(arg_index).map(|iter| iter.iter().copied()));
+            match iter {
+                Some(iter) => {
+                    let before = stack.len();
+                    stack.extend(iter);
+                    let after = stack.len();
+                    stack.push((after - before).try_into()?);
+                }
+                None => bail!("{:?} access out of bounds", access),
+            }
         }
     }
     Ok(())

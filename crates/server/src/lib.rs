@@ -78,14 +78,16 @@ impl Server {
         Ok(utility)
     }
 
-    pub fn submit_intent(&mut self, intent: Intent) -> anyhow::Result<()> {
-        self.intent_pool.insert(intent.address(), intent);
-        Ok(())
+    pub fn submit_intent(&mut self, intent: Intent) -> anyhow::Result<Address> {
+        let address = intent.address();
+        self.intent_pool.insert(address, intent);
+        Ok(address)
     }
 
-    pub fn deploy_intent(&mut self, intent: Intent) -> anyhow::Result<()> {
-        self.deployed_intents.insert(intent.address(), intent);
-        Ok(())
+    pub fn deploy_intent(&mut self, intent: Intent) -> anyhow::Result<Address> {
+        let address = intent.address();
+        self.deployed_intents.insert(address, intent);
+        Ok(address)
     }
 
     pub fn submit_solution(&mut self, solution: Solution) -> anyhow::Result<u64> {
