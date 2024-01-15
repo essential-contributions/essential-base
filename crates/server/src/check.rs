@@ -1,5 +1,7 @@
 use anyhow::bail;
 use anyhow::ensure;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::data::Data;
 use crate::data::InputMessage;
@@ -8,20 +10,22 @@ use crate::data::Slots;
 use crate::db::Address;
 use crate::db::Db;
 use crate::db::Key;
+use crate::intent::Intent;
 use crate::op::Access;
 use crate::op::Alu;
+use crate::op::Crypto;
 use crate::op::Op;
 use crate::op::Pred;
 use crate::state_read::vm;
 use crate::state_read::vm::StateReadOp;
 use crate::state_read::StateSlot;
-use crate::Intent;
 
 pub struct SolvedIntent {
     pub intent: Intent,
     pub solution: Solution,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Directive {
     Satisfy,
     Maximize(Vec<u8>),
@@ -195,6 +199,7 @@ pub fn eval(stack: &mut Vec<u64>, data: &Data, op: Op) -> anyhow::Result<()> {
         Op::Pred(pred) => check_predicate(stack, pred)?,
         Op::Alu(alu) => check_alu(stack, alu)?,
         Op::Access(access) => check_access(data, stack, access)?,
+        Op::Crypto(crypto) => check_crypto(stack, crypto)?,
     }
     println!("Op: {:?}, Stack: {:?}", op, stack);
     Ok(())
@@ -351,6 +356,38 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
         }
     }
     Ok(())
+}
+
+fn check_crypto(stack: &mut Vec<u64>, crypto: Crypto) -> anyhow::Result<()> {
+    match crypto {
+        Crypto::Sha256 => {
+            use sha2::Digest;
+
+            let data_length = pop_one(stack)?;
+            let Some(data_pos) = stack.len().checked_sub(data_length.try_into()?) else {
+                bail!("stack underflow");
+            };
+            let data = stack
+                .drain(data_pos..)
+                .flat_map(|word| word.to_be_bytes())
+                .collect::<Vec<_>>();
+            let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+            hasher.update(&data);
+            let result: [u8; 32] = hasher.finalize().into();
+            for word in result.chunks_exact(8).map(pack_bytes) {
+                stack.push(word);
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn pack_bytes(result: &[u8]) -> u64 {
+    let mut out: u64 = 0;
+    for (i, byte) in result.iter().rev().enumerate() {
+        out |= (*byte as u64) << (i * 8);
+    }
+    out
 }
 
 pub fn pop_one(stack: &mut Vec<u64>) -> anyhow::Result<u64> {

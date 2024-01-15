@@ -3,6 +3,7 @@ use intent_server::check::Solution;
 use intent_server::check::SolvedIntent;
 use intent_server::data::OutputMessage;
 use intent_server::data::Slots;
+use intent_server::intent::Intent;
 use intent_server::op::Access;
 use intent_server::op::Op;
 use intent_server::op::Pred;
@@ -13,7 +14,6 @@ use intent_server::state_read::vm::StateReadOp;
 use intent_server::state_read::StateSlot;
 use intent_server::state_read::StateSlots;
 use intent_server::state_read::VmCall;
-use intent_server::Intent;
 use intent_server::Server;
 
 #[test]
@@ -55,6 +55,8 @@ fn vm_state_reads() {
         directive: Directive::Satisfy,
     };
 
+    let intent_address = intent.address();
+
     let mut server = Server::new();
 
     let solved_intent = SolvedIntent {
@@ -64,7 +66,9 @@ fn vm_state_reads() {
         },
     };
 
-    server.db().stage([0, 0, 0, 0], [14, 14, 14, 14], Some(42));
+    server
+        .db()
+        .stage(intent_address, [14, 14, 14, 14], Some(42));
     server.db().commit();
 
     let solution = server.check(solved_intent, 1).unwrap();

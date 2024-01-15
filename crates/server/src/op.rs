@@ -10,6 +10,7 @@ pub enum Op {
     Pred(Pred),
     Alu(Alu),
     Access(Access),
+    Crypto(Crypto),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -49,4 +50,10 @@ pub enum Alu {
     Mul,
     Div,
     Mod,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum Crypto {
+    /// [{data to hash}, data_len]
+    Sha256,
 }

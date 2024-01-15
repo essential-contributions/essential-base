@@ -6,6 +6,7 @@ use intent_server::check::Solution;
 use intent_server::check::SolvedIntent;
 use intent_server::data::InputMessage;
 use intent_server::data::Slots;
+use intent_server::intent::Intent;
 use intent_server::op::Access;
 use intent_server::op::Alu;
 use intent_server::op::Op;
@@ -17,7 +18,6 @@ use intent_server::state_read::vm::StateReadOp;
 use intent_server::state_read::StateSlot;
 use intent_server::state_read::StateSlots;
 use intent_server::state_read::VmCall;
-use intent_server::Intent;
 use intent_server::Server;
 
 #[test]
@@ -28,8 +28,18 @@ fn sanity() {
     // );
 
     // let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
-    let get_42 = vec![StateReadOp::Constraint(Op::Push(4))];
-    let state_read = vec![get_42];
+    let foo = vec![
+        StateReadOp::Constraint(Op::Push(20)),
+        StateReadOp::Memory(Memory::Alloc),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(0)),
+        StateReadOp::Constraint(Op::Push(10)),
+        StateReadOp::State(State::StateReadWordRange),
+        StateReadOp::ControlFlow(ControlFlow::Halt),
+    ];
+    let state_read = vec![foo];
     let state_read = serde_json::to_vec(&state_read).unwrap();
 
     let constraints = vec![

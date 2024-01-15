@@ -1,3 +1,6 @@
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::db::Address;
 use crate::state_read::StateSlots;
 
@@ -22,7 +25,7 @@ pub struct OutputMessage {
     pub args: Vec<Vec<u64>>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Slots {
     pub decision_variables: u64,
     pub state: StateSlots,

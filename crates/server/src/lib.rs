@@ -1,21 +1,12 @@
-use check::Directive;
 use check::SolvedIntent;
-use data::Slots;
-use db::Address;
 use db::Db;
 
 pub mod check;
 pub mod data;
 pub mod db;
+pub mod intent;
 pub mod op;
 pub mod state_read;
-
-pub struct Intent {
-    pub slots: Slots,
-    pub state_read: Vec<u8>,
-    pub constraints: Vec<Vec<u8>>,
-    pub directive: Directive,
-}
 
 #[derive(Default)]
 pub struct Server {
@@ -40,11 +31,5 @@ impl Server {
 
     pub fn db(&mut self) -> &mut Db {
         &mut self.db
-    }
-}
-
-impl Intent {
-    pub fn address(&self) -> Address {
-        [0; 4]
     }
 }

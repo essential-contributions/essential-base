@@ -1,16 +1,19 @@
+use serde::Deserialize;
+use serde::Serialize;
+
 pub mod vm;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StateSlots(Vec<StateSlot>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateSlot {
     pub index: u64,
     pub amount: u64,
     pub call: VmCall,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VmCall {
     /// Index of bytecode that retrieves the value from the state.
     pub index: u64,
