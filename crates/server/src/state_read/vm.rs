@@ -6,7 +6,10 @@ use serde::Serialize;
 use crate::check::pop_one;
 use crate::check::pop_two;
 use crate::data::Data;
+use crate::db::key_range;
 use crate::db::Db;
+use crate::db::Key;
+use crate::db::KeyRange;
 use crate::op::Op;
 use crate::KeyStore;
 
@@ -16,6 +19,7 @@ pub enum StateReadOp {
     State(State),
     ControlFlow(ControlFlow),
     Memory(Memory),
+    Keys(Keys),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -36,9 +40,26 @@ pub enum Memory {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum Keys {
+    Overwrite,
+    Push,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum State {
     StateReadWordRange,
     StateReadWordRangeExtern,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadOutput {
+    pub keys: Vec<KeyRange>,
+    pub memory: Vec<Option<u64>>,
+}
+
+struct KeysMemory {
+    keys: Vec<KeyRange>,
+    overwritten: bool,
 }
 
 pub fn read(
@@ -46,11 +67,12 @@ pub fn read(
     accounts: &KeyStore,
     data: &Data,
     program: Vec<StateReadOp>,
-) -> anyhow::Result<Vec<Option<u64>>> {
+) -> anyhow::Result<ReadOutput> {
     let mut stack = Vec::new();
     let mut pc = 0;
     let mut running = true;
     let mut memory: Vec<Option<u64>> = Vec::with_capacity(0);
+    let mut keys = KeysMemory::new();
 
     while running {
         let instruction = next_instruction(&program, pc)?;
@@ -60,7 +82,7 @@ pub fn read(
                 pc += 1;
             }
             StateReadOp::State(state) => {
-                eval_state(&mut stack, db, data, &mut memory, &mut pc, state)?;
+                eval_state(&mut stack, db, data, &mut keys, &mut memory, &mut pc, state)?;
             }
             StateReadOp::ControlFlow(cf) => {
                 eval_control_flow(&mut stack, &mut pc, &mut running, cf)?
@@ -68,18 +90,25 @@ pub fn read(
             StateReadOp::Memory(mem) => {
                 eval_memory(&mut stack, &mut pc, &mut memory, mem)?;
             }
+            StateReadOp::Keys(k) => {
+                eval_keys(&mut stack, &mut pc, &mut keys, k)?;
+            }
         }
         if !matches!(instruction, StateReadOp::Constraint(_)) {
             println!("Op: {:?}, Stack: {:?}", instruction, stack);
         }
     }
-    Ok(memory)
+    Ok(ReadOutput {
+        keys: keys.keys,
+        memory,
+    })
 }
 
 fn eval_state(
     stack: &mut Vec<u64>,
     db: &Db,
     data: &Data,
+    keys: &mut KeysMemory,
     memory: &mut Vec<Option<u64>>,
     pc: &mut usize,
     state: State,
@@ -94,6 +123,7 @@ fn eval_state(
             for (s, k) in stack.drain(key_pos..).zip(key.iter_mut()) {
                 *k = s;
             }
+            keys.track(key, amount);
             let result = db.read_range(&data.this_address, &key, amount as i32);
             ensure!(memory.capacity() >= result.len(), "Memory overflow");
             let start = memory.len();
@@ -206,9 +236,65 @@ fn eval_memory(
     Ok(())
 }
 
+fn eval_keys(
+    stack: &mut Vec<u64>,
+    pc: &mut usize,
+    keys: &mut KeysMemory,
+    k: Keys,
+) -> anyhow::Result<()> {
+    match k {
+        Keys::Overwrite => {
+            keys.overwrite();
+            *pc += 1;
+        }
+        Keys::Push => {
+            let amount = pop_one(stack)?;
+            let Some(key_pos) = stack.len().checked_sub(4) else {
+                bail!("stack underflow");
+            };
+            let mut key = [0u64; 4];
+            for (s, k) in stack.drain(key_pos..).zip(key.iter_mut()) {
+                *k = s;
+            }
+            keys.push(key, amount);
+            *pc += 1;
+        }
+    }
+    Ok(())
+}
+
 fn next_instruction(program: &[StateReadOp], pc: usize) -> anyhow::Result<StateReadOp> {
     program
         .get(pc)
         .copied()
         .ok_or_else(|| anyhow::anyhow!("pc out of bounds"))
+}
+
+impl KeysMemory {
+    fn new() -> Self {
+        Self {
+            keys: Vec::new(),
+            overwritten: false,
+        }
+    }
+
+    fn track(&mut self, key: Key, amount: u64) {
+        if self.overwritten {
+            return;
+        }
+        if let Some(kr) = key_range(key, amount) {
+            self.keys.push(kr);
+        }
+    }
+
+    fn overwrite(&mut self) {
+        self.overwritten = true;
+        self.keys.clear();
+    }
+
+    fn push(&mut self, key: Key, amount: u64) {
+        if let Some(kr) = key_range(key, amount) {
+            self.keys.push(kr);
+        }
+    }
 }

@@ -10,6 +10,7 @@ use crate::data::Slots;
 use crate::db::Address;
 use crate::db::Db;
 use crate::db::Key;
+use crate::db::KeyRange;
 use crate::intent::Intent;
 use crate::op::Access;
 use crate::op::Alu;
@@ -17,6 +18,7 @@ use crate::op::Crypto;
 use crate::op::Op;
 use crate::op::Pred;
 use crate::state_read::vm;
+use crate::state_read::vm::ReadOutput;
 use crate::state_read::vm::StateReadOp;
 use crate::state_read::StateSlot;
 use crate::KeyStore;
@@ -63,7 +65,7 @@ pub fn check(db: &mut Db, accounts: &KeyStore, intent: SolvedIntent) -> anyhow::
         output_messages: intent.solution.output_messages.clone(),
     };
 
-    read_state(
+    let keys = read_state(
         &intent.intent.state_read,
         db.clone(),
         accounts,
@@ -74,6 +76,11 @@ pub fn check(db: &mut Db, accounts: &KeyStore, intent: SolvedIntent) -> anyhow::
     )?;
 
     for (key, value) in intent.solution.state_mutations {
+        ensure!(
+            keys.iter().any(|k| k.contains(&key)),
+            "Key {:?} must be included in state reads",
+            key
+        );
         db.stage(data.this_address, key, value);
     }
 
@@ -106,18 +113,20 @@ fn read_state(
     data: &mut Data,
     state: &mut [Option<u64>],
     delta: bool,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<KeyRange>> {
+    let mut all_keys = Vec::new();
     if !read.is_empty() {
         let programs: Vec<Vec<StateReadOp>> = serde_json::from_slice(read)?;
         for slot in state_slots {
             let Some(program) = programs.get(slot.call.index as usize) else {
                 bail!("State read program out of bounds");
             };
-            let result = vm::read(&db, accounts, data, program.clone())?;
-            if result.len() != slot.amount as usize {
+            let ReadOutput { keys, memory } = vm::read(&db, accounts, data, program.clone())?;
+            all_keys.extend(keys);
+            if memory.len() != slot.amount as usize {
                 bail!("State read failed");
             }
-            for (s, r) in state.iter_mut().skip(slot.index as usize).zip(result) {
+            for (s, r) in state.iter_mut().skip(slot.index as usize).zip(memory) {
                 *s = r;
             }
             if delta {
@@ -127,7 +136,7 @@ fn read_state(
             }
         }
     }
-    Ok(())
+    Ok(all_keys)
 }
 
 fn check_slots(slots: &Slots, solution: &Transition) -> anyhow::Result<()> {

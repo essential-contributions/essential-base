@@ -175,6 +175,66 @@ fn message_outputs() {
 }
 
 #[test]
+fn cant_write_outside_reads() {
+    let get_42 = vec![
+        StateReadOp::Constraint(Op::Push(4)),
+        StateReadOp::Memory(Memory::Alloc),
+        StateReadOp::Constraint(Op::Push(14)),
+        StateReadOp::Constraint(Op::Push(14)),
+        StateReadOp::Constraint(Op::Push(14)),
+        StateReadOp::Constraint(Op::Push(14)),
+        StateReadOp::Constraint(Op::Push(1)),
+        StateReadOp::State(State::StateReadWordRange),
+        StateReadOp::ControlFlow(ControlFlow::Halt),
+    ];
+    let state_read = vec![get_42];
+    let state_read = serde_json::to_vec(&state_read).unwrap();
+
+    let constraints = vec![
+        Op::Push(0),
+        Op::Push(0),
+        Op::Access(Access::State),
+        Op::Push(42),
+        Op::Pred(Pred::Eq),
+    ];
+    let constraints = serde_json::to_vec(&constraints).unwrap();
+    let constraints = vec![constraints];
+    let intent = Intent {
+        slots: Slots {
+            state: StateSlots::new(vec![StateSlot {
+                index: 0,
+                amount: 1,
+                call: VmCall { index: 0 },
+            }]),
+            ..Default::default()
+        },
+        state_read,
+        constraints,
+        directive: Directive::Satisfy,
+    };
+
+    let intent_address = intent.address();
+
+    let mut server = Server::new();
+
+    let solved_intent = SolvedIntent {
+        intent,
+        solution: Transition {
+            state_mutations: vec![([1, 1, 1, 1], None)],
+            ..Default::default()
+        },
+    };
+
+    server
+        .db()
+        .stage(intent_address, [14, 14, 14, 14], Some(42));
+    server.db().commit();
+
+    let error = server.check_individual(solved_intent, 1);
+    assert!(error.is_err());
+}
+
+#[test]
 fn naughts_crosses() {
     let mut server = Server::new();
 

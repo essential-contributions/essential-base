@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::iter::Peekable;
+use std::ops::Range;
 
 pub type Key = [u64; 4];
 pub type Address = [u64; 4];
+pub type KeyRange = Range<Key>;
 
 #[derive(Clone, Default)]
 pub struct Db {
@@ -80,6 +82,14 @@ impl Db {
     pub fn rollback(&mut self) {
         self.staged = None;
     }
+}
+
+pub fn key_range(key: Key, amount: u64) -> Option<KeyRange> {
+    let mut end = key;
+    for _ in 0..amount {
+        end = add_one(end, 0)?;
+    }
+    Some(key..end)
 }
 
 fn construct_values<I>(key: InnerKey, amount: u64, mut iter: Peekable<I>) -> Vec<Option<u64>>
