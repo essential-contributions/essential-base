@@ -69,12 +69,28 @@ pub enum Memory {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Keys {
+    /// Set available write keys to be overwritten.
+    /// This means that the keys that are read will
+    /// no longer be tracked.
     Overwrite,
+    /// Push a range of keys into the key memory.
+    /// This makes the key range available for writing.
+    /// params -> {key: list len 4, amount}
     Push,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum State {
+    /// Read a range of words from state starting at the key.
+    /// params -> {key: list len 4, amount}
+    /// return -> address in memory where the words are stored
+    ///
+    /// Panics if not enough memory is allocated.
     StateReadWordRange,
+    /// Read a range of words from external state starting at the key.
+    /// params -> {extern_address: list len 4, key: list len 4, amount}
+    /// return -> address in memory where the words are stored
+    ///
+    /// Panics if not enough memory is allocated.
     StateReadWordRangeExtern,
 }
