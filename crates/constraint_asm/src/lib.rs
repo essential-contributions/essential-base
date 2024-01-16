@@ -3,9 +3,13 @@ use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Op {
+    /// Push word onto stack.
     Push(u64),
+    /// Pop word from stack.
     Pop,
+    /// Duplicate top word on stack.
     Dup,
+    /// Swap top two words on stack.
     Swap,
     Pred(Pred),
     Alu(Alu),
@@ -97,34 +101,60 @@ pub enum Access {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Pred {
+    /// params -> {lhs, rhs}
+    /// return -> bool
     Eq,
+    /// params -> {lhs, rhs}
+    /// return -> bool
     Gt,
+    /// params -> {lhs, rhs}
+    /// return -> bool
     Lt,
+    /// params -> {lhs, rhs}
+    /// return -> bool
     Gte,
+    /// params -> {lhs, rhs}
+    /// return -> bool
     Lte,
+    /// params -> {lhs, rhs}
+    /// return -> bool
     And,
+    /// params -> {lhs, rhs}
+    /// return -> bool
     Or,
+    /// params -> word
+    /// return -> bool
     Not,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Alu {
+    /// params -> {lhs, rhs}
+    /// return -> word
     Add,
+    /// params -> {lhs, rhs}
+    /// return -> word
     Sub,
+    /// params -> {lhs, rhs}
+    /// return -> word
     Mul,
+    /// params -> {lhs, rhs}
+    /// return -> word
     Div,
+    /// params -> {lhs, rhs}
+    /// return -> word
     Mod,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Crypto {
-    /// [{data to hash}, data_len]
-    /// [{hash: [u64; 4]}]
+    /// params -> {data, data_len}
+    /// return -> hash: list len 4
     Sha256,
-    /// [{data to sign}, data_len, account_index]
-    /// [{signature: [u64; 8]}]
+    /// params -> {data, data_len, account_index}
+    /// return -> signature: list len 8
     SignEd25519,
-    /// [{data to verify}, data_len, {signature: [u64; 8]}, account_index]
-    /// [verified]
+    /// params -> {data, data_len, signature: list len 8, account_index}
+    /// return -> bool
     VerifyEd25519,
 }
