@@ -6,6 +6,7 @@ use anyhow::ensure;
 use check::SolvedIntent;
 use db::Address;
 use db::Db;
+use intent::intent_set_address;
 use intent::Intent;
 use solution::Solution;
 
@@ -13,7 +14,6 @@ pub mod check;
 pub mod data;
 pub mod db;
 pub mod intent;
-pub mod op;
 pub mod solution;
 pub mod state_read;
 
@@ -21,7 +21,7 @@ pub mod state_read;
 pub struct Server {
     db: Db,
     intent_pool: HashMap<Address, Intent>,
-    deployed_intents: HashMap<Address, Intent>,
+    deployed_intents: HashMap<Address, HashMap<Address, Intent>>,
     accounts: KeyStore,
 }
 
@@ -59,7 +59,7 @@ impl Server {
             let Some(intent) = self
                 .intent_pool
                 .get(&transition.intent)
-                .or_else(|| self.deployed_intents.get(&transition.intent))
+                .or_else(|| self.get_deployed(&transition.set, &transition.intent))
             else {
                 bail!("Intent not found");
             };
@@ -84,9 +84,11 @@ impl Server {
         Ok(address)
     }
 
-    pub fn deploy_intent(&mut self, intent: Intent) -> anyhow::Result<Address> {
-        let address = intent.address();
-        self.deployed_intents.insert(address, intent);
+    pub fn deploy_intent_set(&mut self, intents: Vec<Intent>) -> anyhow::Result<Address> {
+        let intents: HashMap<Address, Intent> =
+            intents.into_iter().map(|i| (i.address(), i)).collect();
+        let address = intent_set_address(intents.keys());
+        self.deployed_intents.insert(address, intents);
         Ok(address)
     }
 
@@ -100,15 +102,25 @@ impl Server {
         self.intent_pool.iter()
     }
 
-    pub fn list_deployed(&self) -> impl Iterator<Item = (&Address, &Intent)> {
-        self.deployed_intents.iter()
+    pub fn list_deployed(
+        &self,
+    ) -> impl Iterator<Item = (&Address, impl Iterator<Item = (&Address, &Intent)>)> {
+        self.deployed_intents.iter().map(|(k, v)| (k, v.iter()))
+    }
+
+    pub fn list_deployed_sets(&self) -> impl Iterator<Item = &Address> {
+        self.deployed_intents.keys()
     }
 
     pub fn get_intent(&self, address: &Address) -> Option<&Intent> {
         self.intent_pool.get(address)
     }
 
-    pub fn get_deployed(&self, address: &Address) -> Option<&Intent> {
+    pub fn get_deployed(&self, set: &Address, address: &Address) -> Option<&Intent> {
+        self.deployed_intents.get(set).and_then(|s| s.get(address))
+    }
+
+    pub fn get_deployed_set(&self, address: &Address) -> Option<&HashMap<Address, Intent>> {
         self.deployed_intents.get(address)
     }
 

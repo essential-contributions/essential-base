@@ -12,16 +12,16 @@ use crate::db::Db;
 use crate::db::Key;
 use crate::db::KeyRange;
 use crate::intent::Intent;
-use crate::op::Access;
-use crate::op::Alu;
-use crate::op::Crypto;
-use crate::op::Op;
-use crate::op::Pred;
 use crate::state_read::vm;
 use crate::state_read::vm::ReadOutput;
-use crate::state_read::vm::StateReadOp;
 use crate::state_read::StateSlot;
 use crate::KeyStore;
+use state_asm::constraint_asm::Access;
+use state_asm::constraint_asm::Alu;
+use state_asm::constraint_asm::Crypto;
+use state_asm::constraint_asm::Op;
+use state_asm::constraint_asm::Pred;
+use state_asm::StateReadOp;
 
 pub struct SolvedIntent {
     pub intent: Intent,
@@ -37,6 +37,7 @@ pub enum Directive {
 
 #[derive(Debug, Default, Clone)]
 pub struct Transition {
+    pub set: Address,
     pub intent: Address,
     pub decision_variables: Vec<u64>,
     pub input_message: Option<InputMessage>,

@@ -4,17 +4,12 @@ use intent_server::check::Transition;
 use intent_server::data::OutputMessage;
 use intent_server::data::Slots;
 use intent_server::intent::Intent;
-use intent_server::op::Access;
-use intent_server::op::Op;
-use intent_server::op::Pred;
-use intent_server::state_read::vm::ControlFlow;
-use intent_server::state_read::vm::Memory;
-use intent_server::state_read::vm::State;
-use intent_server::state_read::vm::StateReadOp;
 use intent_server::state_read::StateSlot;
 use intent_server::state_read::StateSlots;
 use intent_server::state_read::VmCall;
 use intent_server::Server;
+use state_asm::constraint_asm::*;
+use state_asm::*;
 
 #[test]
 fn vm_state_reads() {
@@ -323,5 +318,5 @@ fn naughts_crosses() {
         directive: Directive::Satisfy,
     };
 
-    let deployed_address = server.deploy_intent(deployed_intent).unwrap();
+    let deployed_address = server.deploy_intent_set(vec![deployed_intent]).unwrap();
 }

@@ -1,7 +1,5 @@
 use anyhow::bail;
 use anyhow::ensure;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::check::pop_one;
 use crate::check::pop_two;
@@ -10,47 +8,9 @@ use crate::db::key_range;
 use crate::db::Db;
 use crate::db::Key;
 use crate::db::KeyRange;
-use crate::op::Op;
 use crate::KeyStore;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum StateReadOp {
-    Constraint(Op),
-    State(State),
-    ControlFlow(ControlFlow),
-    Memory(Memory),
-    Keys(Keys),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum ControlFlow {
-    Halt,
-    Jump,
-    JumpIf,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum Memory {
-    Alloc,
-    Free,
-    Load,
-    Store,
-    Clear,
-    ClearRange,
-    IsSome,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum Keys {
-    Overwrite,
-    Push,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum State {
-    StateReadWordRange,
-    StateReadWordRangeExtern,
-}
+use state_asm::*;
 
 #[derive(Debug, Clone)]
 pub struct ReadOutput {

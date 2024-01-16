@@ -1,5 +1,3 @@
 [workspace]
-members = [
-    "crates/server",
-]
+members = ["crates/constraint_asm", "crates/server", "crates/state_asm"]
 resolver = "2"

@@ -1,18 +1,11 @@
 [package]
 edition = "2021"
-name = "intent-server"
+name = "constraint_asm"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.79"
-ed25519-dalek = { version = "2.1.0", features = ["rand_core"] }
-rand_core = { version = "0.6.4", features = ["getrandom"] }
-sha2 = "0.10.8"
-
-state_asm = { path = "../state_asm" }
-
 # TODO: Choose or build a better bytecode encoding
 serde = { version = "1.0.195", features = ["derive"] }
 serde_json = "1.0.111"
