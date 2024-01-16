@@ -36,6 +36,7 @@ pub enum Memory {
     Load,
     Store,
     Clear,
+    ClearRange,
     IsSome,
 }
 
@@ -222,6 +223,23 @@ fn eval_memory(
             let index = pop_one(stack)?;
             match memory.get_mut(index as usize) {
                 Some(m) => *m = None,
+                None => bail!("index out of bounds"),
+            }
+            *pc += 1;
+        }
+        Memory::ClearRange => {
+            let (index, amount) = pop_two(stack)?;
+            let index: usize = index.try_into()?;
+            let amount: usize = amount.try_into()?;
+            let Some(end) = index.checked_add(amount) else {
+                bail!("index out of bounds");
+            };
+            match memory.get_mut(index..end) {
+                Some(mem) => {
+                    for m in mem {
+                        *m = None;
+                    }
+                }
                 None => bail!("index out of bounds"),
             }
             *pc += 1;
