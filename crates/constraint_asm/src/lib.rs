@@ -144,6 +144,10 @@ pub enum Alu {
     /// params -> {lhs, rhs}
     /// return -> word
     Mod,
+    /// Adds the offset to the hash.
+    /// params -> {hash: list len 4, offset}
+    /// return -> new_hash: list len 4
+    HashOffset,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]

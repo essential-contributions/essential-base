@@ -154,7 +154,7 @@ fn eval_memory(
         Memory::Alloc => {
             let size = pop_one(stack)?;
             let size: usize = size.try_into()?;
-            memory.reserve(size);
+            memory.reserve_exact(size);
             *pc += 1;
         }
         Memory::Free => {
@@ -162,6 +162,12 @@ fn eval_memory(
             let size: usize = size.try_into()?;
             let new_size = memory.capacity().saturating_sub(size);
             memory.shrink_to(new_size);
+            *pc += 1;
+        }
+        Memory::Truncate => {
+            let size = pop_one(stack)?;
+            let size: usize = size.try_into()?;
+            memory.truncate(size);
             *pc += 1;
         }
         Memory::Load => {
@@ -187,6 +193,11 @@ fn eval_memory(
             let value = pop_one(stack)?;
             ensure!(memory.capacity() > memory.len(), "Memory overflow");
             memory.push(Some(value));
+            *pc += 1;
+        }
+        Memory::PushNone => {
+            ensure!(memory.capacity() > memory.len(), "Memory overflow");
+            memory.push(None);
             *pc += 1;
         }
         Memory::Clear => {
@@ -223,6 +234,14 @@ fn eval_memory(
                 Some(v) => stack.push(v),
                 None => bail!("index out of bounds"),
             }
+            *pc += 1;
+        }
+        Memory::Capacity => {
+            stack.push(memory.capacity() as u64);
+            *pc += 1;
+        }
+        Memory::Length => {
+            stack.push(memory.len() as u64);
             *pc += 1;
         }
     }

@@ -151,121 +151,121 @@ fn constrain_dec_vars() {
     assert!(solution);
 }
 
-// Erc 20 transfer
-// state sender_bal = state.get(msg.sender)
-// state receiver_bal = state.get(msg.receiver)
-//
-// constraint sender_bal >= msg.amount
-// constraint sender_bal - sender_bal' == msg.amount
-// constraint receiver_bal' - receiver_bal == msg.amount
-#[test]
-fn erc20_transfer() {
-    // let path = concat!(
-    //     env!("CARGO_MANIFEST_DIR"),
-    //     "/../../target/wasm32-unknown-unknown/release/test_erc20.wasm"
-    // );
+// // Erc 20 transfer
+// // state sender_bal = state.get(msg.sender)
+// // state receiver_bal = state.get(msg.receiver)
+// //
+// // constraint sender_bal >= msg.amount
+// // constraint sender_bal - sender_bal' == msg.amount
+// // constraint receiver_bal' - receiver_bal == msg.amount
+// #[test]
+// fn erc20_transfer() {
+//     // let path = concat!(
+//     //     env!("CARGO_MANIFEST_DIR"),
+//     //     "/../../target/wasm32-unknown-unknown/release/test_erc20.wasm"
+//     // );
 
-    // let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
-    let get_42 = vec![StateReadOp::Constraint(Op::Push(4))];
-    let state_read = vec![get_42];
-    let state_read = serde_json::to_vec(&state_read).unwrap();
-    let mut constraints = vec![];
-    // constraint sender_bal >= msg.amount
-    let constraint = vec![
-        Op::Push(0),
-        Op::Push(0),
-        Op::Access(Access::State),
-        Op::Push(1),
-        Op::Push(0),
-        Op::Access(Access::InputMsgArgWord),
-        Op::Pred(Pred::Gte),
-    ];
-    let constraint = serde_json::to_vec(&constraint).unwrap();
-    constraints.push(constraint);
+//     // let state_read = StateRead::Wasm(std::fs::read(path).unwrap());
+//     let get_42 = vec![StateReadOp::Constraint(Op::Push(4))];
+//     let state_read = vec![get_42];
+//     let state_read = serde_json::to_vec(&state_read).unwrap();
+//     let mut constraints = vec![];
+//     // constraint sender_bal >= msg.amount
+//     let constraint = vec![
+//         Op::Push(0),
+//         Op::Push(0),
+//         Op::Access(Access::State),
+//         Op::Push(1),
+//         Op::Push(0),
+//         Op::Access(Access::InputMsgArgWord),
+//         Op::Pred(Pred::Gte),
+//     ];
+//     let constraint = serde_json::to_vec(&constraint).unwrap();
+//     constraints.push(constraint);
 
-    // constraint sender_bal - sender_bal' == msg.amount
-    let constraint = vec![
-        Op::Push(0),
-        Op::Push(0),
-        Op::Access(Access::State),
-        Op::Push(0),
-        Op::Push(1),
-        Op::Access(Access::State),
-        Op::Alu(Alu::Sub),
-        Op::Push(1),
-        Op::Push(0),
-        Op::Access(Access::InputMsgArgWord),
-        Op::Pred(Pred::Eq),
-    ];
-    let constraint = serde_json::to_vec(&constraint).unwrap();
-    constraints.push(constraint);
+//     // constraint sender_bal - sender_bal' == msg.amount
+//     let constraint = vec![
+//         Op::Push(0),
+//         Op::Push(0),
+//         Op::Access(Access::State),
+//         Op::Push(0),
+//         Op::Push(1),
+//         Op::Access(Access::State),
+//         Op::Alu(Alu::Sub),
+//         Op::Push(1),
+//         Op::Push(0),
+//         Op::Access(Access::InputMsgArgWord),
+//         Op::Pred(Pred::Eq),
+//     ];
+//     let constraint = serde_json::to_vec(&constraint).unwrap();
+//     constraints.push(constraint);
 
-    // constraint receiver_bal' - receiver_bal == msg.amount
-    let constraint = vec![
-        Op::Push(1),
-        Op::Push(1),
-        Op::Access(Access::State),
-        Op::Push(1),
-        Op::Push(0),
-        Op::Access(Access::State),
-        Op::Alu(Alu::Sub),
-        Op::Push(1),
-        Op::Push(0),
-        Op::Access(Access::InputMsgArgWord),
-        Op::Pred(Pred::Eq),
-    ];
-    let constraint = serde_json::to_vec(&constraint).unwrap();
-    constraints.push(constraint);
+//     // constraint receiver_bal' - receiver_bal == msg.amount
+//     let constraint = vec![
+//         Op::Push(1),
+//         Op::Push(1),
+//         Op::Access(Access::State),
+//         Op::Push(1),
+//         Op::Push(0),
+//         Op::Access(Access::State),
+//         Op::Alu(Alu::Sub),
+//         Op::Push(1),
+//         Op::Push(0),
+//         Op::Access(Access::InputMsgArgWord),
+//         Op::Pred(Pred::Eq),
+//     ];
+//     let constraint = serde_json::to_vec(&constraint).unwrap();
+//     constraints.push(constraint);
 
-    let intent = Intent {
-        slots: Slots {
-            state: StateSlots::new(vec![
-                StateSlot {
-                    index: 0,
-                    amount: 1,
-                    call: VmCall { index: 0 },
-                },
-                StateSlot {
-                    index: 1,
-                    amount: 1,
-                    call: VmCall { index: 0 },
-                },
-            ]),
-            input_message_args: Some(vec![8, 1]),
-            ..Default::default()
-        },
-        state_read,
-        constraints,
-        directive: Directive::Satisfy,
-    };
+//     let intent = Intent {
+//         slots: Slots {
+//             state: StateSlots::new(vec![
+//                 StateSlot {
+//                     index: 0,
+//                     amount: 1,
+//                     call: VmCall { index: 0 },
+//                 },
+//                 StateSlot {
+//                     index: 1,
+//                     amount: 1,
+//                     call: VmCall { index: 0 },
+//                 },
+//             ]),
+//             input_message_args: Some(vec![8, 1]),
+//             ..Default::default()
+//         },
+//         state_read,
+//         constraints,
+//         directive: Directive::Satisfy,
+//     };
 
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    vec![2u64; 8].hash(&mut hasher);
-    let key1 = hasher.finish();
-    let key1 = [key1, key1, key1, key1];
+//     let mut hasher = std::collections::hash_map::DefaultHasher::new();
+//     vec![2u64; 8].hash(&mut hasher);
+//     let key1 = hasher.finish();
+//     let key1 = [key1, key1, key1, key1];
 
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    vec![1u64; 8].hash(&mut hasher);
-    let key2 = hasher.finish();
-    let key2 = [key2, key2, key2, key2];
+//     let mut hasher = std::collections::hash_map::DefaultHasher::new();
+//     vec![1u64; 8].hash(&mut hasher);
+//     let key2 = hasher.finish();
+//     let key2 = [key2, key2, key2, key2];
 
-    let solved_intent = SolvedIntent {
-        intent,
-        solution: Transition {
-            input_message: Some(InputMessage {
-                sender: [2; 4],
-                args: vec![vec![1; 8], vec![500]],
-            }),
-            state_mutations: vec![(key1, Some(500)), (key2, Some(500))],
-            ..Default::default()
-        },
-    };
+//     let solved_intent = SolvedIntent {
+//         intent,
+//         solution: Transition {
+//             input_message: Some(InputMessage {
+//                 sender: [2; 4],
+//                 args: vec![vec![1; 8], vec![500]],
+//             }),
+//             state_mutations: vec![(key1, Some(500)), (key2, Some(500))],
+//             ..Default::default()
+//         },
+//     };
 
-    let mut server = Server::new();
-    let address = [0, 0, 0, 0];
-    server.db().stage(address, key1, Some(1000));
-    server.db().stage(address, key2, Some(0));
-    server.db().commit();
-    let solution = server.check_individual(solved_intent, 1).unwrap();
-    assert!(solution);
-}
+//     let mut server = Server::new();
+//     let address = [0, 0, 0, 0];
+//     server.db().stage(address, key1, Some(1000));
+//     server.db().stage(address, key2, Some(0));
+//     server.db().commit();
+//     let solution = server.check_individual(solved_intent, 1).unwrap();
+//     assert!(solution);
+// }

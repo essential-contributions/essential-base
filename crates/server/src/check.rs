@@ -7,6 +7,7 @@ use crate::data::Data;
 use crate::data::InputMessage;
 use crate::data::OutputMessage;
 use crate::data::Slots;
+use crate::db::add_to_key;
 use crate::db::Address;
 use crate::db::Db;
 use crate::db::Key;
@@ -23,6 +24,9 @@ use state_asm::constraint_asm::Op;
 use state_asm::constraint_asm::Pred;
 use state_asm::StateReadOp;
 
+#[cfg(test)]
+mod tests;
+
 pub struct SolvedIntent {
     pub intent: Intent,
     pub solution: Transition,
@@ -38,7 +42,6 @@ pub enum Directive {
 #[derive(Debug, Default, Clone)]
 pub struct Transition {
     pub set: Address,
-    pub intent: Address,
     pub decision_variables: Vec<u64>,
     pub input_message: Option<InputMessage>,
     pub output_messages: Vec<OutputMessage>,
@@ -125,7 +128,11 @@ fn read_state(
             let ReadOutput { keys, memory } = vm::read(&db, accounts, data, program.clone())?;
             all_keys.extend(keys);
             if memory.len() != slot.amount as usize {
-                bail!("State read failed");
+                bail!(
+                    "State read failed, read {} words, expected {}",
+                    memory.len(),
+                    slot.amount
+                );
             }
             for (s, r) in state.iter_mut().skip(slot.index as usize).zip(memory) {
                 *s = r;
@@ -181,6 +188,10 @@ fn check_constraints(
 
 fn check_constraint(data: &Data, accounts: &KeyStore, ops: Vec<Op>) -> anyhow::Result<()> {
     let mut output = run(data, accounts, ops)?;
+    ensure!(
+        output.len() == 1,
+        "Constraint failed with multiple return values"
+    );
     let output = pop_one(&mut output)?;
 
     if output != 1 {
@@ -214,8 +225,8 @@ pub fn eval(stack: &mut Vec<u64>, accounts: &KeyStore, data: &Data, op: Op) -> a
         }
         Op::Swap => {
             let (word1, word2) = pop_two(stack)?;
-            stack.push(word1);
             stack.push(word2);
+            stack.push(word1);
         }
         Op::Pred(pred) => check_predicate(stack, pred)?,
         Op::Alu(alu) => check_alu(stack, alu)?,
@@ -251,13 +262,28 @@ fn check_predicate(stack: &mut Vec<u64>, pred: Pred) -> anyhow::Result<()> {
 fn check_alu(stack: &mut Vec<u64>, alu: Alu) -> anyhow::Result<()> {
     let (word1, word2) = pop_two(stack)?;
     let result = match alu {
-        Alu::Add => word1 + word2,
-        Alu::Sub => word1 - word2,
-        Alu::Mul => word1 * word2,
-        Alu::Div => word1 / word2,
-        Alu::Mod => word1 % word2,
+        Alu::Add => Some(word1 + word2),
+        Alu::Sub => Some(word1 - word2),
+        Alu::Mul => Some(word1 * word2),
+        Alu::Div => Some(word1 / word2),
+        Alu::Mod => Some(word1 % word2),
+        Alu::HashOffset => {
+            let offset = word2;
+            let hash3 = word1;
+            let hash2 = pop_one(stack)?;
+            let hash1 = pop_one(stack)?;
+            let hash0 = pop_one(stack)?;
+            let hash = [hash0, hash1, hash2, hash3];
+            let Some(hash) = add_to_key(hash, 0, offset) else {
+                bail!("Hash offset overflow. Hash: {:?}, Offset: {}", hash, offset);
+            };
+            stack.extend(hash);
+            None
+        }
     };
-    stack.push(result);
+    if let Some(result) = result {
+        stack.push(result);
+    }
     Ok(())
 }
 
@@ -514,7 +540,7 @@ fn check_crypto(stack: &mut Vec<u64>, accounts: &KeyStore, crypto: Crypto) -> an
             };
             let data = stack
                 .drain(data_pos..)
-                .flat_map(|word| word.to_be_bytes())
+                .flat_map(unpack_bytes)
                 .collect::<Vec<_>>();
             let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
             hasher.update(&data);
@@ -563,6 +589,10 @@ fn check_crypto(stack: &mut Vec<u64>, accounts: &KeyStore, crypto: Crypto) -> an
         }
     }
     Ok(())
+}
+
+pub fn pack_n_bytes(result: &[u8]) -> Vec<u64> {
+    result.chunks(8).map(pack_bytes).collect()
 }
 
 pub fn pack_bytes(result: &[u8]) -> u64 {

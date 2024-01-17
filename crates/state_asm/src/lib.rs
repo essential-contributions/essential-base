@@ -32,6 +32,10 @@ pub enum Memory {
     /// Free the given size of memory from the end of the memory.
     /// params -> size
     Free,
+    /// Truncate the memory to the given size.
+    /// This does not effect the capacity of the memory.
+    /// params -> size
+    Truncate,
     /// Load the index of memory onto the stack.
     /// params -> index
     /// return -> value
@@ -50,6 +54,10 @@ pub enum Memory {
     ///
     /// Panics if not enough memory is allocated.
     Push,
+    /// Similar to push except that it pushes a None value.
+    ///
+    /// Panics if not enough memory is allocated.
+    PushNone,
     /// Set the value at the index of memory to None.
     /// params -> index
     ///
@@ -65,6 +73,12 @@ pub enum Memory {
     ///
     /// Panics if the index is out of bounds.
     IsSome,
+    /// Get the current capacity of the memory.
+    /// return -> capacity
+    Capacity,
+    /// Get the current length of the memory.
+    /// return -> length
+    Length,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]

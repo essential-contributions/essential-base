@@ -3,12 +3,16 @@ use std::collections::HashSet;
 
 use anyhow::bail;
 use anyhow::ensure;
+use check::pack_bytes;
 use check::SolvedIntent;
 use db::Address;
 use db::Db;
+use db::PubKey;
 use intent::intent_set_address;
 use intent::Intent;
 use solution::Solution;
+
+use crate::check::unpack_bytes;
 
 pub mod check;
 pub mod data;
@@ -54,13 +58,14 @@ impl Server {
     pub fn check(&mut self, solution: Solution) -> anyhow::Result<u64> {
         self.db.rollback();
         let mut utility = 0;
-        let intents: HashSet<Address> = solution.transitions.iter().map(|t| t.intent).collect();
+        let intents: HashSet<Address> = solution.transitions.iter().map(|t| t.set).collect();
         for transition in solution.transitions {
-            let Some(intent) = self
-                .intent_pool
-                .get(&transition.intent)
-                .or_else(|| self.get_deployed(&transition.set, &transition.intent))
-            else {
+            let Some(intent) = self.intent_pool.get(&transition.set).or_else(|| {
+                transition
+                    .input_message
+                    .as_ref()
+                    .and_then(|m| self.get_deployed(&transition.set, &m.recipient))
+            }) else {
                 bail!("Intent not found");
             };
             if let Some(msg_input_intent) = &transition.input_message {
@@ -134,7 +139,57 @@ impl Server {
         Ok(index)
     }
 
+    pub fn get_public_key(&self, index: u64) -> anyhow::Result<PubKey> {
+        let signing_key = self
+            .accounts
+            .accounts
+            .get(&index)
+            .ok_or_else(|| anyhow::anyhow!("Account not found"))?;
+        let key: Vec<_> = signing_key
+            .verifying_key()
+            .as_bytes()
+            .chunks_exact(8)
+            .map(pack_bytes)
+            .collect();
+        let Ok(key) = key.try_into() else {
+            bail!("Invalid key length");
+        };
+        Ok(key)
+    }
+
     pub fn db(&mut self) -> &mut Db {
         &mut self.db
     }
+}
+
+pub fn hash(bytes: &[u8]) -> Address {
+    use sha2::Digest;
+
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(bytes);
+    let hash: [u8; 32] = hasher.finalize().into();
+    let mut out = [0u64; 4];
+    for (o, h) in out.iter_mut().zip(hash.chunks_exact(8)) {
+        *o = pack_bytes(h);
+    }
+    out
+}
+
+pub fn hash_words(bytes: &[u64]) -> Address {
+    use sha2::Digest;
+
+    let bytes = bytes
+        .iter()
+        .copied()
+        .flat_map(unpack_bytes)
+        .collect::<Vec<_>>();
+
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(bytes);
+    let hash: [u8; 32] = hasher.finalize().into();
+    let mut out = [0u64; 4];
+    for (o, h) in out.iter_mut().zip(hash.chunks_exact(8)) {
+        *o = pack_bytes(h);
+    }
+    out
 }

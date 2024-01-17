@@ -17,6 +17,7 @@ pub struct Data {
 #[derive(Clone, Debug, Default)]
 pub struct InputMessage {
     pub sender: Address,
+    pub recipient: Address,
     pub args: Vec<Vec<u64>>,
 }
 

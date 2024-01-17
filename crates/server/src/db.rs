@@ -4,6 +4,7 @@ use std::ops::Range;
 
 pub type Key = [u64; 4];
 pub type Address = [u64; 4];
+pub type PubKey = [u64; 4];
 pub type KeyRange = Range<Key>;
 
 #[derive(Clone, Default)]
@@ -121,15 +122,19 @@ impl Iterator for KeyIter {
     }
 }
 
-fn add_one(mut key: Key, index: usize) -> Option<Key> {
+fn add_one(key: Key, index: usize) -> Option<Key> {
+    add_to_key(key, index, 1)
+}
+
+pub fn add_to_key(mut key: Key, index: usize, amount: u64) -> Option<Key> {
     if index >= key.len() {
         return None;
     }
-    match key[index].checked_add(1) {
+    match key[index].checked_add(amount) {
         Some(n) => {
             key[index] = n;
             Some(key)
         }
-        None => add_one(key, index + 1),
+        None => add_to_key(key, index + 1, amount),
     }
 }
