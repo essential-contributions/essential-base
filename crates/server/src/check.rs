@@ -10,9 +10,14 @@ use crate::data::Slots;
 use crate::db::add_to_key;
 use crate::db::Address;
 use crate::db::Db;
-use crate::db::Key;
 use crate::db::KeyRange;
+use crate::db::KeyRangeIter;
 use crate::intent::Intent;
+use crate::solution::KeyMutation;
+use crate::solution::Mutation;
+use crate::solution::RangeMutation;
+use crate::solution::StateMutation;
+use crate::solution::StateMutations;
 use crate::state_read::vm;
 use crate::state_read::vm::ReadOutput;
 use crate::state_read::StateSlot;
@@ -30,6 +35,7 @@ mod tests;
 pub struct SolvedIntent {
     pub intent: Intent,
     pub solution: Transition,
+    pub state_mutations: StateMutations,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +51,6 @@ pub struct Transition {
     pub decision_variables: Vec<u64>,
     pub input_message: Option<InputMessage>,
     pub output_messages: Vec<OutputMessage>,
-    pub state_mutations: Vec<(Key, Option<u64>)>,
 }
 
 impl SolvedIntent {
@@ -79,13 +84,41 @@ pub fn check(db: &mut Db, accounts: &KeyStore, intent: SolvedIntent) -> anyhow::
         false,
     )?;
 
-    for (key, value) in intent.solution.state_mutations {
-        ensure!(
-            keys.iter().any(|k| k.contains(&key)),
-            "Key {:?} must be included in state reads",
-            key
-        );
-        db.stage(data.this_address, key, value);
+    for StateMutation { address, mutations } in intent.state_mutations.mutations {
+        for mutation in mutations {
+            match mutation {
+                Mutation::Key(KeyMutation { key, value }) => {
+                    if address == data.this_address {
+                        ensure!(
+                            keys.iter().any(|k| k.contains(&key)),
+                            "Key {:?} must be included in state reads",
+                            key
+                        );
+                    }
+
+                    db.stage(address, key, value);
+                }
+                Mutation::Range(RangeMutation { key_range, values }) => {
+                    if address == data.this_address {
+                        ensure!(
+                            keys.iter()
+                                .any(|k| KeyRangeIter::new(key_range.clone())
+                                    .all(|k2| k.contains(&k2))),
+                            "Key {:?} must be included in state reads",
+                            key_range
+                        );
+                    }
+                    let len = KeyRangeIter::new(key_range.clone()).count();
+                    ensure!(
+                        len == values.len(),
+                        "Key range and values must be the same length"
+                    );
+                    for (key, value) in KeyRangeIter::new(key_range).zip(values) {
+                        db.stage(address, key, value);
+                    }
+                }
+            }
+        }
     }
 
     read_state(

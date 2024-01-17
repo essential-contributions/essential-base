@@ -138,6 +138,8 @@ fn eval_control_flow(
             let (new_pc, cond) = pop_two(stack)?;
             if cond != 0 {
                 *pc = new_pc as usize;
+            } else {
+                *pc += 1;
             }
         }
     }

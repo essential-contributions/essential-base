@@ -77,6 +77,7 @@ impl Server {
             let solved_intent = SolvedIntent {
                 intent: intent.clone(),
                 solution: transition,
+                state_mutations: solution.state_mutations.clone(),
             };
             utility += check::check(&mut self.db, &self.accounts, solved_intent)?;
         }

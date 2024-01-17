@@ -8,7 +8,12 @@ use intent_server::data::Slots;
 use intent_server::db::add_to_key;
 use intent_server::hash_words;
 use intent_server::intent::Intent;
+use intent_server::solution::KeyMutation;
+use intent_server::solution::Mutation;
+use intent_server::solution::RangeMutation;
 use intent_server::solution::Solution;
+use intent_server::solution::StateMutation;
+use intent_server::solution::StateMutations;
 use intent_server::state_read::StateSlot;
 use intent_server::state_read::StateSlots;
 use intent_server::state_read::VmCall;
@@ -64,6 +69,7 @@ fn vm_state_reads() {
         solution: Transition {
             ..Default::default()
         },
+        state_mutations: Default::default(),
     };
 
     server
@@ -126,6 +132,7 @@ fn extern_state_reads() {
         solution: Transition {
             ..Default::default()
         },
+        state_mutations: Default::default(),
     };
 
     server.db().stage([1, 1, 1, 1], [14, 14, 14, 14], Some(42));
@@ -168,6 +175,7 @@ fn message_outputs() {
             }],
             ..Default::default()
         },
+        state_mutations: Default::default(),
     };
 
     let solution = server.check_individual(solved_intent, 1).unwrap();
@@ -220,8 +228,16 @@ fn cant_write_outside_reads() {
     let solved_intent = SolvedIntent {
         intent,
         solution: Transition {
-            state_mutations: vec![([1, 1, 1, 1], None)],
             ..Default::default()
+        },
+        state_mutations: StateMutations {
+            mutations: vec![StateMutation {
+                address: intent_address,
+                mutations: vec![Mutation::Key(KeyMutation {
+                    key: [1, 1, 1, 1],
+                    value: None,
+                })],
+            }],
         },
     };
 
@@ -717,10 +733,10 @@ fn naughts_crosses() {
     let mut constraint: Vec<_> = (0..4)
         .flat_map(|i| {
             [
-                Op::Push(i),
+                Op::Push(1 + i),
                 Op::Push(1),
                 Op::Access(Access::StateIsSome),
-                Op::Push(i),
+                Op::Push(1 + i),
                 Op::Push(1),
                 Op::Access(Access::State),
                 Op::Push(my_key[i as usize]),
@@ -786,28 +802,25 @@ fn naughts_crosses() {
                     recipient: game_intent_address,
                     ..Default::default()
                 }),
-                state_mutations: vec![
-                    (add_to_key(board_address, 0, pos).unwrap(), Some(the_move)),
-                    (
-                        add_to_key(player_address, 0, pos * 4).unwrap(),
-                        Some(my_key[0]),
-                    ),
-                    (
-                        add_to_key(player_address, 0, pos * 4 + 1).unwrap(),
-                        Some(my_key[1]),
-                    ),
-                    (
-                        add_to_key(player_address, 0, pos * 4 + 2).unwrap(),
-                        Some(my_key[2]),
-                    ),
-                    (
-                        add_to_key(player_address, 0, pos * 4 + 3).unwrap(),
-                        Some(my_key[3]),
-                    ),
-                ],
                 ..Default::default()
             },
         ],
+        state_mutations: StateMutations {
+            mutations: vec![StateMutation {
+                address: deployed_address,
+                mutations: vec![
+                    Mutation::Key(KeyMutation {
+                        key: add_to_key(board_address, 0, pos).unwrap(),
+                        value: Some(the_move),
+                    }),
+                    Mutation::Range(RangeMutation {
+                        key_range: add_to_key(player_address, 0, pos * 4).unwrap()
+                            ..add_to_key(player_address, 0, pos * 4 + 4).unwrap(),
+                        values: my_key.iter().map(|&k| Some(k)).collect(),
+                    }),
+                ],
+            }],
+        },
     };
 
     server.check(solution).unwrap();

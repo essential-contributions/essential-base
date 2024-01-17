@@ -19,7 +19,12 @@ struct InnerKey {
     key: Key,
 }
 
-struct KeyIter {
+pub struct KeyRangeIter {
+    key: Option<Key>,
+    until: Key,
+}
+
+struct InnerKeyIter {
     key: Option<InnerKey>,
 }
 
@@ -97,7 +102,7 @@ fn construct_values<I>(key: InnerKey, amount: u64, mut iter: Peekable<I>) -> Vec
 where
     I: Iterator<Item = (InnerKey, u64)>,
 {
-    KeyIter { key: Some(key) }
+    InnerKeyIter { key: Some(key) }
         .map(|k| (k, None::<u64>))
         .map(|(k, _)| match iter.peek() {
             Some((k2, _)) if k == *k2 => iter.next().map(|(_, v)| v),
@@ -107,7 +112,7 @@ where
         .collect()
 }
 
-impl Iterator for KeyIter {
+impl Iterator for InnerKeyIter {
     type Item = InnerKey;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -117,6 +122,30 @@ impl Iterator for KeyIter {
                 address: key.address,
                 key: k,
             });
+        }
+        r
+    }
+}
+
+impl KeyRangeIter {
+    pub fn new(key: KeyRange) -> Self {
+        Self {
+            key: Some(key.start),
+            until: key.end,
+        }
+    }
+}
+
+impl Iterator for KeyRangeIter {
+    type Item = Key;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let r = self.key;
+        if let Some(key) = self.key {
+            self.key = add_one(key, 0);
+            if self.key == Some(self.until) {
+                self.key = None;
+            }
         }
         r
     }
