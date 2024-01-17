@@ -28,7 +28,7 @@ fn sanity_happy() {
     }];
 
     let solution = Solution {
-        transitions: transitions,
+        transitions,
         state_mutations: Default::default(),
     };
 
@@ -53,7 +53,7 @@ fn sanity_unhappy() {
     }];
 
     let solution = Solution {
-        transitions: transitions,
+        transitions,
         state_mutations: Default::default(),
     };
 

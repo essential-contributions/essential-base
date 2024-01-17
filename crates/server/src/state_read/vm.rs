@@ -8,7 +8,6 @@ use crate::db::key_range;
 use crate::db::Db;
 use crate::db::Key;
 use crate::db::KeyRange;
-use crate::KeyStore;
 
 use state_asm::*;
 
@@ -23,12 +22,7 @@ struct KeysMemory {
     overwritten: bool,
 }
 
-pub fn read(
-    db: &Db,
-    accounts: &KeyStore,
-    data: &Data,
-    program: Vec<StateReadOp>,
-) -> anyhow::Result<ReadOutput> {
+pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<ReadOutput> {
     let mut stack = Vec::new();
     let mut pc = 0;
     let mut running = true;
@@ -39,7 +33,7 @@ pub fn read(
         let instruction = next_instruction(&program, pc)?;
         match instruction {
             StateReadOp::Constraint(op) => {
-                crate::check::eval(&mut stack, accounts, data, op)?;
+                crate::check::eval(&mut stack, data, op)?;
                 pc += 1;
             }
             StateReadOp::State(state) => {

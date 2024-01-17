@@ -21,7 +21,6 @@ use crate::solution::StateMutations;
 use crate::state_read::vm;
 use crate::state_read::vm::ReadOutput;
 use crate::state_read::StateSlot;
-use crate::KeyStore;
 use state_asm::constraint_asm::Access;
 use state_asm::constraint_asm::Alu;
 use state_asm::constraint_asm::Crypto;
@@ -59,7 +58,7 @@ impl SolvedIntent {
     }
 }
 
-pub fn check(db: &mut Db, accounts: &KeyStore, intent: SolvedIntent) -> anyhow::Result<u64> {
+pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     check_slots(&intent.intent.slots, &intent.solution)?;
     let len = intent.intent.slots.state.len();
     let mut state = vec![None; len];
@@ -77,7 +76,6 @@ pub fn check(db: &mut Db, accounts: &KeyStore, intent: SolvedIntent) -> anyhow::
     let keys = read_state(
         &intent.intent.state_read,
         db.clone(),
-        accounts,
         intent.intent.slots.state.as_slice(),
         &mut data,
         &mut state,
@@ -124,20 +122,19 @@ pub fn check(db: &mut Db, accounts: &KeyStore, intent: SolvedIntent) -> anyhow::
     read_state(
         &intent.intent.state_read,
         db.clone(),
-        accounts,
         intent.intent.slots.state.as_slice(),
         &mut data,
         &mut state_delta,
         true,
     )?;
 
-    check_constraints(&data, accounts, &intent.intent.constraints)?;
+    check_constraints(&data, &intent.intent.constraints)?;
 
     match intent.intent.directive {
         Directive::Satisfy => Ok(1),
         Directive::Maximize(code) | Directive::Minimize(code) => {
             let ops = serde_json::from_slice(&code)?;
-            pop_one(&mut run(&data, accounts, ops)?)
+            pop_one(&mut run(&data, ops)?)
         }
     }
 }
@@ -145,7 +142,6 @@ pub fn check(db: &mut Db, accounts: &KeyStore, intent: SolvedIntent) -> anyhow::
 fn read_state(
     read: &[u8],
     db: Db,
-    accounts: &KeyStore,
     state_slots: &[StateSlot],
     data: &mut Data,
     state: &mut [Option<u64>],
@@ -158,7 +154,7 @@ fn read_state(
             let Some(program) = programs.get(slot.call.index as usize) else {
                 bail!("State read program out of bounds");
             };
-            let ReadOutput { keys, memory } = vm::read(&db, accounts, data, program.clone())?;
+            let ReadOutput { keys, memory } = vm::read(&db, data, program.clone())?;
             all_keys.extend(keys);
             if memory.len() != slot.amount as usize {
                 bail!(
@@ -206,21 +202,17 @@ fn check_slots(slots: &Slots, solution: &Transition) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn check_constraints(
-    data: &Data,
-    accounts: &KeyStore,
-    constraints: &Vec<Vec<u8>>,
-) -> anyhow::Result<()> {
+fn check_constraints(data: &Data, constraints: &Vec<Vec<u8>>) -> anyhow::Result<()> {
     for constraint in constraints {
         let ops = serde_json::from_slice(constraint)?;
-        check_constraint(data, accounts, ops)?;
+        check_constraint(data, ops)?;
     }
 
     Ok(())
 }
 
-fn check_constraint(data: &Data, accounts: &KeyStore, ops: Vec<Op>) -> anyhow::Result<()> {
-    let mut output = run(data, accounts, ops)?;
+fn check_constraint(data: &Data, ops: Vec<Op>) -> anyhow::Result<()> {
+    let mut output = run(data, ops)?;
     ensure!(
         output.len() == 1,
         "Constraint failed with multiple return values"
@@ -234,16 +226,16 @@ fn check_constraint(data: &Data, accounts: &KeyStore, ops: Vec<Op>) -> anyhow::R
     Ok(())
 }
 
-fn run(data: &Data, accounts: &KeyStore, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
+fn run(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
     let mut stack = Vec::new();
     println!("Result: {:?}", stack);
     for op in ops {
-        eval(&mut stack, accounts, data, op)?;
+        eval(&mut stack, data, op)?;
     }
     Ok(stack)
 }
 
-pub fn eval(stack: &mut Vec<u64>, accounts: &KeyStore, data: &Data, op: Op) -> anyhow::Result<()> {
+pub fn eval(stack: &mut Vec<u64>, data: &Data, op: Op) -> anyhow::Result<()> {
     match op {
         Op::Push(word) => {
             stack.push(word);
@@ -264,7 +256,7 @@ pub fn eval(stack: &mut Vec<u64>, accounts: &KeyStore, data: &Data, op: Op) -> a
         Op::Pred(pred) => check_predicate(stack, pred)?,
         Op::Alu(alu) => check_alu(stack, alu)?,
         Op::Access(access) => check_access(data, stack, access)?,
-        Op::Crypto(crypto) => check_crypto(stack, accounts, crypto)?,
+        Op::Crypto(crypto) => check_crypto(stack, crypto)?,
     }
     println!("Op: {:?}, Stack: {:?}", op, stack);
     Ok(())
@@ -562,7 +554,7 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
     Ok(())
 }
 
-fn check_crypto(stack: &mut Vec<u64>, accounts: &KeyStore, crypto: Crypto) -> anyhow::Result<()> {
+fn check_crypto(stack: &mut Vec<u64>, crypto: Crypto) -> anyhow::Result<()> {
     match crypto {
         Crypto::Sha256 => {
             use sha2::Digest;
@@ -582,28 +574,15 @@ fn check_crypto(stack: &mut Vec<u64>, accounts: &KeyStore, crypto: Crypto) -> an
                 stack.push(word);
             }
         }
-        Crypto::SignEd25519 => {
-            use ed25519_dalek::Signer;
-            let (data_length, account_index) = pop_two(stack)?;
-            let Some(data_pos) = stack.len().checked_sub(data_length.try_into()?) else {
-                bail!("stack underflow");
-            };
-            let data: Vec<u8> = stack.drain(data_pos..).flat_map(unpack_bytes).collect();
-            let Some(account) = accounts.accounts.get(&account_index) else {
-                bail!("Account not found");
-            };
-            for word in account
-                .sign(&data)
-                .to_bytes()
-                .chunks_exact(8)
-                .map(pack_bytes)
-            {
-                stack.push(word);
-            }
-        }
         Crypto::VerifyEd25519 => {
             use ed25519_dalek::Signature;
-            let account_index = pop_one(stack)?;
+            use ed25519_dalek::Verifier;
+            use ed25519_dalek::VerifyingKey;
+
+            let public_key: Vec<u8> = stack.drain(4..).flat_map(unpack_bytes).collect();
+            let Ok(public_key): Result<[u8; 32], _> = public_key.try_into() else {
+                bail!("Invalid public key")
+            };
             let signature: Vec<u8> = stack.drain(8..).flat_map(unpack_bytes).collect();
             let Ok(signature): Result<[u8; 64], _> = signature.try_into() else {
                 bail!("Invalid signature")
@@ -613,11 +592,9 @@ fn check_crypto(stack: &mut Vec<u64>, accounts: &KeyStore, crypto: Crypto) -> an
                 bail!("stack underflow");
             };
             let data: Vec<u8> = stack.drain(data_pos..).flat_map(unpack_bytes).collect();
-            let Some(account) = accounts.accounts.get(&account_index) else {
-                bail!("Account not found");
-            };
             let sig = Signature::from_bytes(&signature);
-            let result = account.verify(&data, &sig).is_ok();
+            let pub_key = VerifyingKey::from_bytes(&public_key)?;
+            let result = pub_key.verify(&data, &sig).is_ok();
             stack.push(result as u64);
         }
     }

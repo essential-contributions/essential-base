@@ -155,10 +155,7 @@ pub enum Crypto {
     /// params -> {data, data_len}
     /// return -> hash: list len 4
     Sha256,
-    /// params -> {data, data_len, account_index}
-    /// return -> signature: list len 8
-    SignEd25519,
-    /// params -> {data, data_len, signature: list len 8, account_index}
+    /// params -> {data, data_len, signature: list len 8, public_key: list len 4}
     /// return -> bool
     VerifyEd25519,
 }

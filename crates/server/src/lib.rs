@@ -45,7 +45,7 @@ impl Server {
         intent: SolvedIntent,
         target_utility: u64,
     ) -> anyhow::Result<bool> {
-        let solution = check::check(&mut self.db, &self.accounts, intent)?;
+        let solution = check::check(&mut self.db, intent)?;
         if solution == target_utility {
             self.db.commit();
             Ok(true)
@@ -79,7 +79,7 @@ impl Server {
                 solution: transition,
                 state_mutations: solution.state_mutations.clone(),
             };
-            utility += check::check(&mut self.db, &self.accounts, solved_intent)?;
+            utility += check::check(&mut self.db, solved_intent)?;
         }
         Ok(utility)
     }
