@@ -12,6 +12,7 @@ rand_core = { version = "0.6.4", features = ["getrandom"] }
 sha2 = "0.10.8"
 
 state_asm = { path = "../state_asm" }
+essential_types = { path = "../types" }
 
 # TODO: Choose or build a better bytecode encoding
 serde = { version = "1.0.195", features = ["derive"] }

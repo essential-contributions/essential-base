@@ -1,7 +1,5 @@
 use anyhow::bail;
 use anyhow::ensure;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::data::Data;
 use crate::data::InputMessage;
@@ -13,6 +11,7 @@ use crate::db::Db;
 use crate::db::KeyRange;
 use crate::db::KeyRangeIter;
 use crate::intent::Intent;
+use crate::intent::IntentAddress;
 use crate::solution::KeyMutation;
 use crate::solution::Mutation;
 use crate::solution::RangeMutation;
@@ -28,6 +27,8 @@ use state_asm::constraint_asm::Op;
 use state_asm::constraint_asm::Pred;
 use state_asm::StateReadOp;
 
+pub use essential_types::intent::Directive;
+
 #[cfg(test)]
 mod tests;
 
@@ -35,13 +36,6 @@ pub struct SolvedIntent {
     pub intent: Intent,
     pub solution: Transition,
     pub state_mutations: StateMutations,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Directive {
-    Satisfy,
-    Maximize(Vec<u8>),
-    Minimize(Vec<u8>),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -60,7 +54,8 @@ impl SolvedIntent {
 
 pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     check_slots(&intent.intent.slots, &intent.solution)?;
-    let len = intent.intent.slots.state.len();
+    let len =
+        essential_types::slots::state_len(&intent.intent.slots.state).unwrap_or_default() as usize;
     let mut state = vec![None; len];
     let mut state_delta = vec![None; len];
 
@@ -140,7 +135,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
 }
 
 fn read_state(
-    read: &[u8],
+    read: &[Vec<u8>],
     db: Db,
     state_slots: &[StateSlot],
     data: &mut Data,
@@ -149,9 +144,12 @@ fn read_state(
 ) -> anyhow::Result<Vec<KeyRange>> {
     let mut all_keys = Vec::new();
     if !read.is_empty() {
-        let programs: Vec<Vec<StateReadOp>> = serde_json::from_slice(read)?;
+        let programs: Vec<Vec<StateReadOp>> = read
+            .iter()
+            .map(|read| serde_json::from_slice(read))
+            .collect::<Result<_, _>>()?;
         for slot in state_slots {
-            let Some(program) = programs.get(slot.call.index as usize) else {
+            let Some(program) = programs.get(slot.program_index as usize) else {
                 bail!("State read program out of bounds");
             };
             let ReadOutput { keys, memory } = vm::read(&db, data, program.clone())?;
@@ -177,14 +175,14 @@ fn read_state(
 }
 
 fn check_slots(slots: &Slots, solution: &Transition) -> anyhow::Result<()> {
-    ensure!(slots.decision_variables == solution.decision_variables.len() as u64);
+    ensure!(slots.decision_variables == solution.decision_variables.len() as u32);
     match (&slots.input_message_args, &solution.input_message) {
         (None, None) => (),
         (None, Some(_)) | (Some(_), None) => bail!("Input message mismatch"),
         (Some(slot_args), Some(solution_args)) => {
             ensure!(slot_args.len() == solution_args.args.len());
             for (expected, args) in slot_args.iter().zip(solution_args.args.iter()) {
-                ensure!(*expected == args.len() as u64);
+                ensure!(*expected == args.len() as u16);
             }
         }
     }
@@ -196,7 +194,7 @@ fn check_slots(slots: &Slots, solution: &Transition) -> anyhow::Result<()> {
     {
         ensure!(expected.len() == args.args.len());
         for (len, got) in expected.iter().zip(args.args.iter()) {
-            ensure!(*len == got.len() as u64);
+            ensure!(*len == got.len() as u16);
         }
     }
     Ok(())

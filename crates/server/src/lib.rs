@@ -10,6 +10,7 @@ use db::Db;
 use db::PubKey;
 use intent::intent_set_address;
 use intent::Intent;
+use intent::IntentAddress;
 use solution::Solution;
 
 use crate::check::unpack_bytes;

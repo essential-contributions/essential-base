@@ -8,6 +8,7 @@ use intent_server::data::Slots;
 use intent_server::db::add_to_key;
 use intent_server::hash_words;
 use intent_server::intent::Intent;
+use intent_server::intent::IntentAddress;
 use intent_server::solution::KeyMutation;
 use intent_server::solution::Mutation;
 use intent_server::solution::RangeMutation;
@@ -15,8 +16,6 @@ use intent_server::solution::Solution;
 use intent_server::solution::StateMutation;
 use intent_server::solution::StateMutations;
 use intent_server::state_read::StateSlot;
-use intent_server::state_read::StateSlots;
-use intent_server::state_read::VmCall;
 use intent_server::Server;
 use state_asm::constraint_asm::*;
 use state_asm::*;
@@ -34,8 +33,8 @@ fn vm_state_reads() {
         StateReadOp::State(State::StateReadWordRange),
         StateReadOp::ControlFlow(ControlFlow::Halt),
     ];
-    let state_read = vec![get_42];
-    let state_read = serde_json::to_vec(&state_read).unwrap();
+    let state_read = serde_json::to_vec(&get_42).unwrap();
+    let state_read = vec![state_read];
 
     let constraints = vec![
         Op::Push(0),
@@ -48,11 +47,11 @@ fn vm_state_reads() {
     let constraints = vec![constraints];
     let intent = Intent {
         slots: Slots {
-            state: StateSlots::new(vec![StateSlot {
+            state: vec![StateSlot {
                 index: 0,
                 amount: 1,
-                call: VmCall { index: 0 },
-            }]),
+                program_index: 0,
+            }],
             ..Default::default()
         },
         state_read,
@@ -99,8 +98,8 @@ fn extern_state_reads() {
         StateReadOp::State(State::StateReadWordRangeExtern),
         StateReadOp::ControlFlow(ControlFlow::Halt),
     ];
-    let state_read = vec![get_42];
-    let state_read = serde_json::to_vec(&state_read).unwrap();
+    let state_read = serde_json::to_vec(&get_42).unwrap();
+    let state_read = vec![state_read];
 
     let constraints = vec![
         Op::Push(0),
@@ -113,11 +112,11 @@ fn extern_state_reads() {
     let constraints = vec![constraints];
     let intent = Intent {
         slots: Slots {
-            state: StateSlots::new(vec![StateSlot {
+            state: vec![StateSlot {
                 index: 0,
                 amount: 1,
-                call: VmCall { index: 0 },
-            }]),
+                program_index: 0,
+            }],
             ..Default::default()
         },
         state_read,
@@ -195,8 +194,8 @@ fn cant_write_outside_reads() {
         StateReadOp::State(State::StateReadWordRange),
         StateReadOp::ControlFlow(ControlFlow::Halt),
     ];
-    let state_read = vec![get_42];
-    let state_read = serde_json::to_vec(&state_read).unwrap();
+    let state_read = serde_json::to_vec(&get_42).unwrap();
+    let state_read = vec![state_read];
 
     let constraints = vec![
         Op::Push(0),
@@ -209,11 +208,11 @@ fn cant_write_outside_reads() {
     let constraints = vec![constraints];
     let intent = Intent {
         slots: Slots {
-            state: StateSlots::new(vec![StateSlot {
+            state: vec![StateSlot {
                 index: 0,
                 amount: 1,
-                call: VmCall { index: 0 },
-            }]),
+                program_index: 0,
+            }],
             ..Default::default()
         },
         state_read,
@@ -281,8 +280,9 @@ fn naughts_crosses() {
         StateReadOp::State(State::StateReadWordRange),
         StateReadOp::ControlFlow(ControlFlow::Halt),
     ];
+    let get_board = serde_json::to_vec(&get_board).unwrap();
+    let get_player_moves = serde_json::to_vec(&get_player_moves).unwrap();
     let state_read = vec![get_board, get_player_moves];
-    let state_read = serde_json::to_vec(&state_read).unwrap();
 
     let mut constraints = vec![];
 
@@ -493,18 +493,18 @@ fn naughts_crosses() {
 
     let deployed_intent = Intent {
         slots: Slots {
-            state: StateSlots::new(vec![
+            state: vec![
                 StateSlot {
                     index: 0,
                     amount: 9,
-                    call: VmCall { index: 0 },
+                    program_index: 0,
                 },
                 StateSlot {
                     index: 9,
                     amount: 9 * 4,
-                    call: VmCall { index: 1 },
+                    program_index: 1,
                 },
-            ]),
+            ],
             decision_variables: 8,
             input_message_args: Some(vec![]),
             ..Default::default()
@@ -691,6 +691,8 @@ fn naughts_crosses() {
         StateReadOp::Memory(Memory::PushNone),
         StateReadOp::ControlFlow(ControlFlow::Halt), // 38
     ];
+
+    let read = serde_json::to_vec(&read).unwrap();
     state_read.push(read);
 
     // state player_pos: Option<[int; 4]> = state.extern.get(game_address, player_pos_hash, 4);
@@ -709,6 +711,7 @@ fn naughts_crosses() {
         StateReadOp::State(State::StateReadWordRangeExtern), // [mem_address]
         StateReadOp::ControlFlow(ControlFlow::Halt),
     ];
+    let read = serde_json::to_vec(&read).unwrap();
     state_read.push(read);
 
     // constraint is_some(board_pos') && board_pos' == move;
@@ -750,22 +753,20 @@ fn naughts_crosses() {
     constraint.remove(9);
     add_constraint(&mut constraints, constraint);
 
-    let state_read = serde_json::to_vec(&state_read).unwrap();
-
     let move_one_intent = Intent {
         slots: Slots {
-            state: StateSlots::new(vec![
+            state: vec![
                 StateSlot {
                     index: 0,
                     amount: 1,
-                    call: VmCall { index: 0 },
+                    program_index: 0,
                 },
                 StateSlot {
                     index: 1,
                     amount: 4,
-                    call: VmCall { index: 1 },
+                    program_index: 1,
                 },
-            ]),
+            ],
             decision_variables: 14,
             input_message_args: None,
             ..Default::default()

@@ -2,10 +2,9 @@ use intent_server::check::Directive;
 use intent_server::check::Transition;
 use intent_server::data::Slots;
 use intent_server::intent::Intent;
+use intent_server::intent::IntentAddress;
 use intent_server::solution::Solution;
 use intent_server::state_read::StateSlot;
-use intent_server::state_read::StateSlots;
-use intent_server::state_read::VmCall;
 use intent_server::Server;
 use state_asm::constraint_asm::Access;
 use state_asm::constraint_asm::Pred;
@@ -121,16 +120,17 @@ fn sanity_test(server: &mut Server) -> (Intent, [u64; 4]) {
 
     constraints.push(constraint);
 
-    let state_read = serde_json::to_vec(&vec![state_read]).unwrap();
+    let state_read = serde_json::to_vec(&state_read).unwrap();
+    let state_read = vec![state_read];
 
     let intent = Intent {
         slots: Slots {
             decision_variables: 1,
-            state: StateSlots::new(vec![StateSlot {
+            state: vec![StateSlot {
                 index: 0,
                 amount: 1,
-                call: VmCall { index: 0 },
-            }]),
+                program_index: 0,
+            }],
             ..Default::default()
         },
         state_read,

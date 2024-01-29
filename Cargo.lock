@@ -136,6 +136,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "essential_types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fiat-crypto"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -168,6 +176,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ed25519-dalek",
+ "essential_types",
  "rand_core",
  "serde",
  "serde_json",
