@@ -17,3 +17,10 @@ essential_types = { path = "../types" }
 # TODO: Choose or build a better bytecode encoding
 serde = { version = "1.0.195", features = ["derive"] }
 serde_json = "1.0.111"
+
+yurtc = { git = "ssh://git@github.com/essential-contributions/yurt.git", default-features = false, optional = true, branch = "freesig/asm_gen" }
+tempfile = { version = "3.9.0", optional = true }
+
+[features]
+default = []
+yurt = ["dep:yurtc", "dep:tempfile"]

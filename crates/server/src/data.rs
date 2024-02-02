@@ -23,3 +23,21 @@ pub struct InputMessage {
 pub struct OutputMessage {
     pub args: Vec<Vec<u64>>,
 }
+
+impl From<essential_types::solution::InputMessage> for InputMessage {
+    fn from(input_message: essential_types::solution::InputMessage) -> Self {
+        Self {
+            sender: input_message.sender.into(),
+            recipient: input_message.recipient.into(),
+            args: input_message.args,
+        }
+    }
+}
+
+impl From<essential_types::solution::OutputMessage> for OutputMessage {
+    fn from(output_message: essential_types::solution::OutputMessage) -> Self {
+        Self {
+            args: output_message.args,
+        }
+    }
+}

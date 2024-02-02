@@ -1,9 +1,12 @@
 use anyhow::bail;
 use anyhow::ensure;
+use essential_types::solution::KeyMutation;
+use essential_types::solution::Mutation;
+use essential_types::solution::RangeMutation;
+use essential_types::solution::SolutionData;
+use essential_types::solution::StateMutation;
 
 use crate::data::Data;
-use crate::data::InputMessage;
-use crate::data::OutputMessage;
 use crate::data::Slots;
 use crate::db::add_to_key;
 use crate::db::Address;
@@ -11,12 +14,7 @@ use crate::db::Db;
 use crate::db::KeyRange;
 use crate::db::KeyRangeIter;
 use crate::intent::Intent;
-use crate::intent::IntentAddress;
-use crate::solution::KeyMutation;
-use crate::solution::Mutation;
-use crate::solution::RangeMutation;
-use crate::solution::StateMutation;
-use crate::solution::StateMutations;
+use crate::intent::ToIntentAddress;
 use crate::state_read::vm;
 use crate::state_read::vm::ReadOutput;
 use crate::state_read::StateSlot;
@@ -34,16 +32,8 @@ mod tests;
 
 pub struct SolvedIntent {
     pub intent: Intent,
-    pub solution: Transition,
-    pub state_mutations: StateMutations,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct Transition {
-    pub set: Address,
-    pub decision_variables: Vec<u64>,
-    pub input_message: Option<InputMessage>,
-    pub output_messages: Vec<OutputMessage>,
+    pub solution: SolutionData,
+    pub state_mutations: Vec<StateMutation>,
 }
 
 impl SolvedIntent {
@@ -64,8 +54,14 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         decision_variables: intent.solution.decision_variables.clone(),
         state: state.clone(),
         state_delta: state_delta.clone(),
-        input_message: intent.solution.input_message.clone(),
-        output_messages: intent.solution.output_messages.clone(),
+        input_message: intent.solution.input_message.clone().map(Into::into),
+        output_messages: intent
+            .solution
+            .output_messages
+            .clone()
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     };
 
     let keys = read_state(
@@ -77,7 +73,8 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
         false,
     )?;
 
-    for StateMutation { address, mutations } in intent.state_mutations.mutations {
+    for StateMutation { address, mutations } in intent.state_mutations {
+        let address: Address = address.into();
         for mutation in mutations {
             match mutation {
                 Mutation::Key(KeyMutation { key, value }) => {
@@ -174,7 +171,7 @@ fn read_state(
     Ok(all_keys)
 }
 
-fn check_slots(slots: &Slots, solution: &Transition) -> anyhow::Result<()> {
+fn check_slots(slots: &Slots, solution: &SolutionData) -> anyhow::Result<()> {
     ensure!(slots.decision_variables == solution.decision_variables.len() as u32);
     match (&slots.input_message_args, &solution.input_message) {
         (None, None) => (),

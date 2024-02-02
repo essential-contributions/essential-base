@@ -1,20 +1,17 @@
+use essential_types::solution::KeyMutation;
+use essential_types::solution::Mutation;
+use essential_types::solution::RangeMutation;
+use essential_types::solution::SolutionData;
+use essential_types::solution::StateMutation;
 use intent_server::check::pack_n_bytes;
 use intent_server::check::Directive;
 use intent_server::check::SolvedIntent;
-use intent_server::check::Transition;
-use intent_server::data::InputMessage;
-use intent_server::data::OutputMessage;
 use intent_server::data::Slots;
 use intent_server::db::add_to_key;
 use intent_server::hash_words;
 use intent_server::intent::Intent;
-use intent_server::intent::IntentAddress;
-use intent_server::solution::KeyMutation;
-use intent_server::solution::Mutation;
-use intent_server::solution::RangeMutation;
+use intent_server::intent::ToIntentAddress;
 use intent_server::solution::Solution;
-use intent_server::solution::StateMutation;
-use intent_server::solution::StateMutations;
 use intent_server::state_read::StateSlot;
 use intent_server::Server;
 use state_asm::constraint_asm::*;
@@ -65,7 +62,7 @@ fn vm_state_reads() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Transition {
+        solution: SolutionData {
             ..Default::default()
         },
         state_mutations: Default::default(),
@@ -128,7 +125,7 @@ fn extern_state_reads() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Transition {
+        solution: SolutionData {
             ..Default::default()
         },
         state_mutations: Default::default(),
@@ -168,8 +165,8 @@ fn message_outputs() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Transition {
-            output_messages: vec![OutputMessage {
+        solution: SolutionData {
+            output_messages: vec![essential_types::solution::OutputMessage {
                 args: vec![vec![42]],
             }],
             ..Default::default()
@@ -226,18 +223,16 @@ fn cant_write_outside_reads() {
 
     let solved_intent = SolvedIntent {
         intent,
-        solution: Transition {
+        solution: SolutionData {
             ..Default::default()
         },
-        state_mutations: StateMutations {
-            mutations: vec![StateMutation {
-                address: intent_address,
-                mutations: vec![Mutation::Key(KeyMutation {
-                    key: [1, 1, 1, 1],
-                    value: None,
-                })],
-            }],
-        },
+        state_mutations: vec![StateMutation {
+            address: intent_address.into(),
+            mutations: vec![Mutation::Key(KeyMutation {
+                key: [1, 1, 1, 1],
+                value: None,
+            })],
+        }],
     };
 
     server
@@ -788,40 +783,44 @@ fn naughts_crosses() {
     game_dec_vars.extend(&player_address);
 
     let solution = Solution {
-        transitions: vec![
-            Transition {
-                set: move_one_intent_address,
-                decision_variables,
-                input_message: None,
-                ..Default::default()
-            },
-            Transition {
-                set: deployed_address,
-                decision_variables: game_dec_vars,
-                input_message: Some(InputMessage {
-                    sender: move_one_intent_address,
-                    recipient: game_intent_address,
+        data: [
+            (
+                move_one_intent_address.into(),
+                SolutionData {
+                    decision_variables,
+                    input_message: None,
                     ..Default::default()
+                },
+            ),
+            (
+                deployed_address.into(),
+                SolutionData {
+                    decision_variables: game_dec_vars,
+                    input_message: Some(essential_types::solution::InputMessage {
+                        sender: move_one_intent_address.into(),
+                        recipient: game_intent_address.into(),
+                        args: Default::default(),
+                    }),
+                    ..Default::default()
+                },
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        state_mutations: vec![StateMutation {
+            address: deployed_address.into(),
+            mutations: vec![
+                Mutation::Key(KeyMutation {
+                    key: add_to_key(board_address, 0, pos).unwrap(),
+                    value: Some(the_move),
                 }),
-                ..Default::default()
-            },
-        ],
-        state_mutations: StateMutations {
-            mutations: vec![StateMutation {
-                address: deployed_address,
-                mutations: vec![
-                    Mutation::Key(KeyMutation {
-                        key: add_to_key(board_address, 0, pos).unwrap(),
-                        value: Some(the_move),
-                    }),
-                    Mutation::Range(RangeMutation {
-                        key_range: add_to_key(player_address, 0, pos * 4).unwrap()
-                            ..add_to_key(player_address, 0, pos * 4 + 4).unwrap(),
-                        values: my_key.iter().map(|&k| Some(k)).collect(),
-                    }),
-                ],
-            }],
-        },
+                Mutation::Range(RangeMutation {
+                    key_range: add_to_key(player_address, 0, pos * 4).unwrap()
+                        ..add_to_key(player_address, 0, pos * 4 + 4).unwrap(),
+                    values: my_key.iter().map(|&k| Some(k)).collect(),
+                }),
+            ],
+        }],
     };
 
     server.check(solution).unwrap();

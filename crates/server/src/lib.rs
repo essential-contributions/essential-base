@@ -10,7 +10,7 @@ use db::Db;
 use db::PubKey;
 use intent::intent_set_address;
 use intent::Intent;
-use intent::IntentAddress;
+use intent::ToIntentAddress;
 use solution::Solution;
 
 use crate::check::unpack_bytes;
@@ -59,21 +59,20 @@ impl Server {
     pub fn check(&mut self, solution: Solution) -> anyhow::Result<u64> {
         self.db.rollback();
         let mut utility = 0;
-        let intents: HashSet<Address> = solution.transitions.iter().map(|t| t.set).collect();
-        for transition in solution.transitions {
-            let Some(intent) = self.intent_pool.get(&transition.set).or_else(|| {
+        let intents: HashSet<Address> = solution.data.iter().map(|t| t.0.clone().into()).collect();
+        for (set, transition) in solution.data {
+            let set: Address = set.into();
+            let Some(intent) = self.intent_pool.get(&set).or_else(|| {
                 transition
                     .input_message
                     .as_ref()
-                    .and_then(|m| self.get_deployed(&transition.set, &m.recipient))
+                    .and_then(|m| self.get_deployed(&set, &m.recipient.clone().into()))
             }) else {
                 bail!("Intent not found");
             };
             if let Some(msg_input_intent) = &transition.input_message {
-                ensure!(
-                    intents.contains(&msg_input_intent.sender),
-                    "Message input Intent not found"
-                );
+                let sender: Address = msg_input_intent.sender.clone().into();
+                ensure!(intents.contains(&sender), "Message input Intent not found");
             }
             let solved_intent = SolvedIntent {
                 intent: intent.clone(),

@@ -1,3 +1,4 @@
+use essential_types::IntentAddress;
 use serde::Serialize;
 use sha2::Digest;
 
@@ -7,7 +8,7 @@ use crate::db::Address;
 
 pub use essential_types::intent::Intent;
 
-pub trait IntentAddress: Serialize {
+pub trait ToIntentAddress: Serialize {
     fn address(&self) -> Address {
         let bytes = serde_json::to_vec(&self).expect("I don't think this serialization can fail");
         let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
@@ -19,9 +20,17 @@ pub trait IntentAddress: Serialize {
         }
         out
     }
+
+    fn intent_address(&self) -> IntentAddress {
+        let bytes = serde_json::to_vec(&self).expect("I don't think this serialization can fail");
+        let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+        hasher.update(&bytes);
+        let result: [u8; 32] = hasher.finalize().into();
+        essential_types::IntentAddress(result)
+    }
 }
 
-impl IntentAddress for Intent {}
+impl ToIntentAddress for Intent {}
 
 pub fn intent_set_address<'a>(addresses: impl Iterator<Item = &'a Address>) -> Address {
     let mut hasher = <sha2::Sha256 as sha2::Digest>::new();

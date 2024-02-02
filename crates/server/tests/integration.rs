@@ -1,8 +1,8 @@
+use essential_types::solution::SolutionData;
 use intent_server::check::Directive;
-use intent_server::check::Transition;
 use intent_server::data::Slots;
 use intent_server::intent::Intent;
-use intent_server::intent::IntentAddress;
+use intent_server::intent::ToIntentAddress;
 use intent_server::solution::Solution;
 use intent_server::state_read::StateSlot;
 use intent_server::Server;
@@ -20,14 +20,16 @@ fn sanity_happy() {
 
     let (intent, deployed_address) = sanity_test(&mut server);
 
-    let transitions = vec![Transition {
-        set: intent.address(),
-        decision_variables: vec![11],
-        ..Default::default()
-    }];
+    let transitions = [(
+        intent.intent_address(),
+        SolutionData {
+            decision_variables: vec![11],
+            ..Default::default()
+        },
+    )];
 
     let solution = Solution {
-        transitions,
+        data: transitions.into_iter().collect(),
         state_mutations: Default::default(),
     };
 
@@ -45,14 +47,16 @@ fn sanity_unhappy() {
 
     let (intent, deployed_address) = sanity_test(&mut server);
 
-    let transitions = vec![Transition {
-        set: intent.address(),
-        decision_variables: vec![11],
-        ..Default::default()
-    }];
+    let transitions = [(
+        intent.intent_address(),
+        SolutionData {
+            decision_variables: vec![11],
+            ..Default::default()
+        },
+    )];
 
     let solution = Solution {
-        transitions,
+        data: transitions.into_iter().collect(),
         state_mutations: Default::default(),
     };
 
