@@ -32,6 +32,7 @@ mod tests;
 
 pub struct SolvedIntent {
     pub intent: Intent,
+    pub deployed_address: Address,
     pub solution: SolutionData,
     pub state_mutations: Vec<StateMutation>,
 }
@@ -51,6 +52,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
 
     let mut data = Data {
         this_address: intent.address(),
+        deployed_address: intent.deployed_address,
         decision_variables: intent.solution.decision_variables.clone(),
         state: state.clone(),
         state_delta: state_delta.clone(),
@@ -63,6 +65,8 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
             .map(Into::into)
             .collect(),
     };
+
+    db.rollback();
 
     let keys = read_state(
         &intent.intent.state_read,

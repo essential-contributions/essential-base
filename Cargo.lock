@@ -206,7 +206,7 @@ dependencies = [
 [[package]]
 name = "constraint_asm"
 version = "0.1.0"
-source = "git+ssh://git@github.com/essential-contributions/intent-server.git#97074206e8dab4c8048d8c4109f7bea53c9b9ede"
+source = "git+ssh://git@github.com/essential-contributions/intent-server.git#a91f1ea78547b9230d72eaf85c5a70b2f4955b75"
 dependencies = [
  "serde",
  "serde_json",
@@ -391,7 +391,7 @@ dependencies = [
 [[package]]
 name = "essential_types"
 version = "0.1.0"
-source = "git+ssh://git@github.com/essential-contributions/intent-server.git#97074206e8dab4c8048d8c4109f7bea53c9b9ede"
+source = "git+ssh://git@github.com/essential-contributions/intent-server.git#a91f1ea78547b9230d72eaf85c5a70b2f4955b75"
 dependencies = [
  "serde",
  "serde_json",
@@ -1021,7 +1021,7 @@ dependencies = [
 [[package]]
 name = "state_asm"
 version = "0.1.0"
-source = "git+ssh://git@github.com/essential-contributions/intent-server.git#97074206e8dab4c8048d8c4109f7bea53c9b9ede"
+source = "git+ssh://git@github.com/essential-contributions/intent-server.git#a91f1ea78547b9230d72eaf85c5a70b2f4955b75"
 dependencies = [
  "constraint_asm 0.1.0 (git+ssh://git@github.com/essential-contributions/intent-server.git)",
  "serde",
@@ -1319,7 +1319,7 @@ checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
 [[package]]
 name = "yurtc"
 version = "0.1.0"
-source = "git+ssh://git@github.com/essential-contributions/yurt.git?branch=freesig/asm_gen#c7043bc1057270600775fe1834ea81855969da4c"
+source = "git+ssh://git@github.com/essential-contributions/yurt.git?branch=freesig/asm_gen#2e0d82a1df19c54ff1ae53ba02fc04af7840cd55"
 dependencies = [
  "anyhow",
  "ariadne",

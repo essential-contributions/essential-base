@@ -80,7 +80,7 @@ fn eval_state(
             }
             keys.track(key, amount);
             let amount: i32 = amount.try_into()?;
-            let result = db.read_range(&data.this_address, &key, amount);
+            let result = db.read_range(&data.deployed_address, &key, amount);
             ensure!(memory.capacity() >= result.len(), "Memory overflow");
             let start = memory.len();
             memory.extend(result);

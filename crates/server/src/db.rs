@@ -7,7 +7,7 @@ pub type Address = [u64; 4];
 pub type PubKey = [u64; 4];
 pub type KeyRange = Range<Key>;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Db {
     data: BTreeMap<InnerKey, u64>,
     staged: Option<BTreeMap<InnerKey, u64>>,

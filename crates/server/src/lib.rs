@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use anyhow::bail;
 use anyhow::ensure;
@@ -59,8 +58,7 @@ impl Server {
     pub fn check(&mut self, solution: Solution) -> anyhow::Result<u64> {
         self.db.rollback();
         let mut utility = 0;
-        let intents: HashSet<Address> = solution.data.iter().map(|t| t.0.clone().into()).collect();
-        for (set, transition) in solution.data {
+        for (set, transition) in solution.data.clone() {
             let set: Address = set.into();
             let Some(intent) = self.intent_pool.get(&set).or_else(|| {
                 transition
@@ -71,11 +69,18 @@ impl Server {
                 bail!("Intent not found");
             };
             if let Some(msg_input_intent) = &transition.input_message {
-                let sender: Address = msg_input_intent.sender.clone().into();
-                ensure!(intents.contains(&sender), "Message input Intent not found");
+                let Some(message_intent) = solution.data.get(&msg_input_intent.sender) else {
+                    bail!("Message input Intent not found");
+                };
+                let output_message_matches = message_intent
+                    .output_messages
+                    .iter()
+                    .any(|o| o.args == msg_input_intent.args);
+                ensure!(output_message_matches, "No matching output message found");
             }
             let solved_intent = SolvedIntent {
                 intent: intent.clone(),
+                deployed_address: set,
                 solution: transition,
                 state_mutations: solution.state_mutations.clone(),
             };

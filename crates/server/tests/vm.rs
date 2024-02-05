@@ -62,6 +62,7 @@ fn vm_state_reads() {
 
     let solved_intent = SolvedIntent {
         intent,
+        deployed_address: intent_address,
         solution: SolutionData {
             ..Default::default()
         },
@@ -121,10 +122,13 @@ fn extern_state_reads() {
         directive: Directive::Satisfy,
     };
 
+    let intent_address = intent.address();
+
     let mut server = Server::new();
 
     let solved_intent = SolvedIntent {
         intent,
+        deployed_address: intent_address,
         solution: SolutionData {
             ..Default::default()
         },
@@ -161,10 +165,13 @@ fn message_outputs() {
         directive: Directive::Satisfy,
     };
 
+    let intent_address = intent.address();
+
     let mut server = Server::new();
 
     let solved_intent = SolvedIntent {
         intent,
+        deployed_address: intent_address,
         solution: SolutionData {
             output_messages: vec![essential_types::solution::OutputMessage {
                 args: vec![vec![42]],
@@ -223,6 +230,7 @@ fn cant_write_outside_reads() {
 
     let solved_intent = SolvedIntent {
         intent,
+        deployed_address: intent_address,
         solution: SolutionData {
             ..Default::default()
         },
