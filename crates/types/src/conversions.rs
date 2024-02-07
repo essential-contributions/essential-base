@@ -42,3 +42,9 @@ impl From<[u64; 4]> for IntentAddress {
         IntentAddress(out)
     }
 }
+
+impl From<IntentAddress> for [u8; 32] {
+    fn from(address: IntentAddress) -> Self {
+        address.0
+    }
+}

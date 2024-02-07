@@ -88,6 +88,10 @@ impl Db {
     pub fn rollback(&mut self) {
         self.staged = None;
     }
+
+    pub fn set_values(&self) -> impl Iterator<Item = (Address, Key, u64)> + '_ {
+        self.data.iter().map(|(k, v)| (k.address, k.key, *v))
+    }
 }
 
 pub fn key_range(key: Key, amount: u64) -> Option<KeyRange> {
