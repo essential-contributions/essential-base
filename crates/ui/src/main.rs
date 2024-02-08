@@ -87,7 +87,7 @@ impl App {
         if !self.compiled_intents.is_empty() {
             if self.compiled_intents.len() == 1 && ui.button("Submit").clicked() {
                 let mut intent = self.compiled_intents[0].clone();
-                intent.slots.output_messages_args = vec![vec![]];
+                intent.slots.output_messages = 1;
                 if let Err(e) = self.server.submit_intent(intent) {
                     ui.monospace(format!("{}", e));
                 }

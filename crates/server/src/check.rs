@@ -187,17 +187,7 @@ fn check_slots(slots: &Slots, solution: &SolutionData) -> anyhow::Result<()> {
             }
         }
     }
-    ensure!(slots.output_messages_args.len() == solution.output_messages.len());
-    for (expected, args) in slots
-        .output_messages_args
-        .iter()
-        .zip(solution.output_messages.iter())
-    {
-        ensure!(expected.len() == args.args.len());
-        for (len, got) in expected.iter().zip(args.args.iter()) {
-            ensure!(*len == got.len() as u16);
-        }
-    }
+    ensure!(slots.output_messages as usize == solution.output_messages.len());
     Ok(())
 }
 

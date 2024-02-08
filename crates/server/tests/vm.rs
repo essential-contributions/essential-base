@@ -157,7 +157,7 @@ fn message_outputs() {
     let constraints = vec![constraints];
     let intent = Intent {
         slots: Slots {
-            output_messages_args: vec![vec![1]],
+            output_messages: 1,
             ..Default::default()
         },
         state_read: Default::default(),

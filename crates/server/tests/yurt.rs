@@ -50,7 +50,7 @@ solve satisfy;
 "#;
 
     let mut intent = compile_yurt(code);
-    intent.slots.output_messages_args = vec![vec![]];
+    intent.slots.output_messages = 1;
     let transient_address = intent.intent_address();
 
     let mut server = Server::new();
