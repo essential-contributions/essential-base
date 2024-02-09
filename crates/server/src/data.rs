@@ -1,5 +1,3 @@
-use crate::db::Address;
-
 pub use essential_types::slots::Slots;
 use essential_types::{solution::Sender, SourceAddress};
 

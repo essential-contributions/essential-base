@@ -1,6 +1,6 @@
 use essential_types::{
-    solution::{KeyMutation, Mutation, RangeMutation, StateMutation},
-    IntentAddress,
+    solution::{KeyMutation, Mutation, RangeMutation, Sender, SolutionData, StateMutation},
+    IntentAddress, SourceAddress,
 };
 use intent_server::{
     intent::{Intent, ToIntentAddress},
@@ -113,7 +113,7 @@ impl App {
         ui.heading("Solution Editor");
         ui.monospace("Choose intents to solve");
 
-        let addresses: Vec<IntentAddress> = self.solution_editor.data.keys().cloned().collect();
+        let addresses: Vec<SourceAddress> = self.solution_editor.data.keys().cloned().collect();
         for mut address in addresses {
             let mut old = None;
             ui.monospace("Intent Address:");
@@ -139,50 +139,6 @@ impl App {
             }
             if ui.button("Add Decision Variable").clicked() {
                 data.decision_variables.push(0);
-            }
-            if let Some(input) = &mut data.input_message {
-                ui.monospace("Input Message:");
-                hex_line("Sender: ", ui, &mut input.sender);
-                hex_line("Recipient: ", ui, &mut input.recipient);
-                for (i, arg) in input.args.iter_mut().enumerate() {
-                    ui.monospace(format!("Arg {}", i));
-                    for arg in arg.iter_mut() {
-                        num_line(ui, arg);
-                    }
-                    if ui.button("Add Word").clicked() {
-                        arg.push(0);
-                    }
-                }
-                if ui.button("Add Argument").clicked() {
-                    input.args.push(Default::default());
-                }
-            }
-            for output in &mut data.output_messages {
-                ui.monospace("Output Message:");
-                for (i, arg) in output.args.iter_mut().enumerate() {
-                    ui.monospace(format!("Arg {}", i));
-                    for arg in arg.iter_mut() {
-                        num_line(ui, arg);
-                    }
-                    if ui.button("Add Word").clicked() {
-                        arg.push(0);
-                    }
-                }
-                if ui.button("Add Argument").clicked() {
-                    output.args.push(Default::default());
-                }
-            }
-            if data.input_message.is_none() && ui.button("Add Input Message").clicked() {
-                data.input_message = Some(InputMessage {
-                    sender: IntentAddress([0; 32]),
-                    recipient: IntentAddress([0; 32]),
-                    args: Default::default(),
-                });
-            }
-            if ui.button("Add Output Message").clicked() {
-                data.output_messages.push(OutputMessage {
-                    args: Default::default(),
-                });
             }
         }
         for (i, mutation) in self.solution_editor.state_mutations.iter_mut().enumerate() {
@@ -262,10 +218,14 @@ impl App {
             }
         }
 
-        if ui.button("Add Intent").clicked() {
-            self.solution_editor
-                .data
-                .insert(IntentAddress([0; 32]), Default::default());
+        if ui.button("Add Persistent Intent").clicked() {
+            self.solution_editor.data.insert(
+                SourceAddress::persistent(IntentAddress([0; 32]), IntentAddress([0; 32])),
+                SolutionData {
+                    decision_variables: Default::default(),
+                    sender: Sender::eao([0; 4]),
+                }
+            );
         }
 
         if ui.button("Add Mutation").clicked() {

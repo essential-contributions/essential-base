@@ -413,7 +413,7 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
             }
             Sender::Persistent(PersistentSender { set, .. }) => {
                 let set: Address = set.clone().into();
-                stack.extend(set.into_iter());
+                stack.extend(set);
             }
         },
     }
