@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Slots {
     pub decision_variables: u32,
     pub state: Vec<StateSlot>,
-    pub input_message_args: Option<Vec<u16>>,
-    pub output_messages: u16,
+    pub permits: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use anyhow::bail;
-use anyhow::ensure;
 use check::pack_bytes;
 use check::SolvedIntent;
 use db::Address;
 use db::Db;
 use db::PubKey;
+use essential_types::PersistentAddress;
+use essential_types::SourceAddress;
 use intent::intent_set_address;
 use intent::Intent;
 use intent::ToIntentAddress;
@@ -58,31 +59,43 @@ impl Server {
     pub fn check(&mut self, solution: Solution) -> anyhow::Result<u64> {
         self.db.rollback();
         let mut utility = 0;
-        for (set, transition) in solution.data.clone() {
-            let set: Address = set.into();
-            let Some(intent) = self.intent_pool.get(&set).or_else(|| {
-                transition
-                    .input_message
-                    .as_ref()
-                    .and_then(|m| self.get_deployed(&set, &m.recipient.clone().into()))
-            }) else {
+        let permits = solution
+            .data
+            .values()
+            .fold(HashMap::new(), |mut map, data| {
+                if let Some(sender_intent) = data.sender.source_intent() {
+                    map.entry(sender_intent)
+                        .and_modify(|p| *p += 1)
+                        .or_insert(1);
+                }
+                map
+            });
+        for (address, transition) in solution.data.clone() {
+            let intent = match address.clone() {
+                SourceAddress::Transient(address) => {
+                    let address: Address = address.into();
+                    self.intent_pool.get(&address)
+                }
+                SourceAddress::Persistent(PersistentAddress { set, intent }) => {
+                    let set: Address = set.into();
+                    let intent: Address = intent.into();
+                    self.get_deployed(&set, &intent)
+                }
+            };
+            let Some(intent) = intent else {
                 bail!("Intent not found");
             };
-            if let Some(msg_input_intent) = &transition.input_message {
-                let Some(message_intent) = solution.data.get(&msg_input_intent.sender) else {
-                    bail!("Message input Intent not found");
+            if let Some(sender_intent) = &transition.sender.source_intent() {
+                if !solution.data.contains_key(sender_intent) {
+                    bail!("Sender intent set not found");
                 };
-                let output_message_matches = message_intent
-                    .output_messages
-                    .iter()
-                    .any(|o| o.args == msg_input_intent.args);
-                ensure!(output_message_matches, "No matching output message found");
             }
             let solved_intent = SolvedIntent {
                 intent: intent.clone(),
-                deployed_address: set,
+                source_address: address.clone(),
                 solution: transition,
                 state_mutations: solution.state_mutations.clone(),
+                permits_used: permits.get(&address).copied().unwrap_or(0),
             };
             utility += check::check(&mut self.db, solved_intent)?;
         }

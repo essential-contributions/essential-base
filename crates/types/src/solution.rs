@@ -1,30 +1,36 @@
 use std::collections::BTreeMap;
 
-use crate::{IntentAddress, Key, KeyRange, Word};
+use crate::{IntentAddress, Key, KeyRange, PersistentAddress, SourceAddress, Word};
 
 #[derive(Debug, Clone)]
 pub struct Solution {
-    pub data: BTreeMap<IntentAddress, SolutionData>,
+    pub data: BTreeMap<SourceAddress, SolutionData>,
     pub state_mutations: Vec<StateMutation>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SolutionData {
     pub decision_variables: Vec<Word>,
-    pub input_message: Option<InputMessage>,
-    pub output_messages: Vec<OutputMessage>,
+    pub sender: Sender,
 }
 
 #[derive(Debug, Clone)]
-pub struct InputMessage {
-    pub sender: IntentAddress,
-    pub recipient: IntentAddress,
-    pub args: Vec<Vec<Word>>,
+pub enum Sender {
+    Eoa([Word; 4]),
+    Transient(TransientSender),
+    Persistent(PersistentSender),
 }
 
 #[derive(Debug, Clone)]
-pub struct OutputMessage {
-    pub args: Vec<Vec<Word>>,
+pub struct TransientSender {
+    pub eoa: [Word; 4],
+    pub intent: IntentAddress,
+}
+
+#[derive(Debug, Clone)]
+pub struct PersistentSender {
+    pub set: IntentAddress,
+    pub intent: IntentAddress,
 }
 
 #[derive(Debug, Clone)]
@@ -49,4 +55,26 @@ pub enum Mutation {
 pub struct StateMutation {
     pub address: IntentAddress,
     pub mutations: Vec<Mutation>,
+}
+
+impl Sender {
+    pub fn eao(eoa: [Word; 4]) -> Self {
+        Sender::Eoa(eoa)
+    }
+    pub fn transient(eoa: [Word; 4], intent: IntentAddress) -> Self {
+        Sender::Transient(TransientSender { eoa, intent })
+    }
+    pub fn persistent(set: IntentAddress, intent: IntentAddress) -> Self {
+        Sender::Persistent(PersistentSender { set, intent })
+    }
+    pub fn source_intent(&self) -> Option<SourceAddress> {
+        match self {
+            Sender::Eoa(_) => None,
+            Sender::Transient(sender) => Some(SourceAddress::Transient(sender.intent.clone())),
+            Sender::Persistent(sender) => Some(SourceAddress::Persistent(PersistentAddress {
+                set: sender.set.clone(),
+                intent: sender.intent.clone(),
+            })),
+        }
+    }
 }

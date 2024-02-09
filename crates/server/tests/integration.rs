@@ -1,4 +1,6 @@
+use essential_types::solution::Sender;
 use essential_types::solution::SolutionData;
+use essential_types::SourceAddress;
 use intent_server::check::Directive;
 use intent_server::data::Slots;
 use intent_server::intent::Intent;
@@ -21,10 +23,10 @@ fn sanity_happy() {
     let (intent, deployed_address) = sanity_test(&mut server);
 
     let transitions = [(
-        intent.intent_address(),
+        SourceAddress::persistent(deployed_address.into(), intent.intent_address()),
         SolutionData {
             decision_variables: vec![11],
-            ..Default::default()
+            sender: Sender::Eoa([0; 4]),
         },
     )];
 
@@ -48,10 +50,10 @@ fn sanity_unhappy() {
     let (intent, deployed_address) = sanity_test(&mut server);
 
     let transitions = [(
-        intent.intent_address(),
+        SourceAddress::persistent(deployed_address.into(), intent.intent_address()),
         SolutionData {
             decision_variables: vec![11],
-            ..Default::default()
+            sender: Sender::Eoa([0; 4]),
         },
     )];
 

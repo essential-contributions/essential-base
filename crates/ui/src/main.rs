@@ -1,5 +1,5 @@
 use essential_types::{
-    solution::{InputMessage, KeyMutation, Mutation, OutputMessage, RangeMutation, StateMutation},
+    solution::{KeyMutation, Mutation, RangeMutation, StateMutation},
     IntentAddress,
 };
 use intent_server::{
@@ -87,20 +87,13 @@ impl App {
         if !self.compiled_intents.is_empty() {
             if self.compiled_intents.len() == 1 && ui.button("Submit").clicked() {
                 let mut intent = self.compiled_intents[0].clone();
-                intent.slots.output_messages = 1;
+                intent.slots.permits = 1;
                 if let Err(e) = self.server.submit_intent(intent) {
                     ui.monospace(format!("{}", e));
                 }
             }
             if ui.button("Deploy").clicked() {
                 let intents = self.compiled_intents.clone();
-                let intents = intents
-                    .into_iter()
-                    .map(|mut i| {
-                        i.slots.input_message_args = Some(vec![]);
-                        i
-                    })
-                    .collect();
                 match self.server.deploy_intent_set(intents) {
                     Ok(hash) => {
                         ui.monospace(format!("Deployed at: {:?}", hash));

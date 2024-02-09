@@ -2,9 +2,13 @@ use anyhow::bail;
 use anyhow::ensure;
 use essential_types::solution::KeyMutation;
 use essential_types::solution::Mutation;
+use essential_types::solution::PersistentSender;
 use essential_types::solution::RangeMutation;
+use essential_types::solution::Sender;
 use essential_types::solution::SolutionData;
 use essential_types::solution::StateMutation;
+use essential_types::solution::TransientSender;
+use essential_types::SourceAddress;
 
 use crate::data::Data;
 use crate::data::Slots;
@@ -32,9 +36,10 @@ mod tests;
 
 pub struct SolvedIntent {
     pub intent: Intent,
-    pub deployed_address: Address,
+    pub source_address: SourceAddress,
     pub solution: SolutionData,
     pub state_mutations: Vec<StateMutation>,
+    pub permits_used: usize,
 }
 
 impl SolvedIntent {
@@ -44,26 +49,18 @@ impl SolvedIntent {
 }
 
 pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
-    check_slots(&intent.intent.slots, &intent.solution)?;
+    check_slots(&intent.intent.slots, &intent.solution, intent.permits_used)?;
     let len =
         essential_types::slots::state_len(&intent.intent.slots.state).unwrap_or_default() as usize;
     let mut state = vec![None; len];
     let mut state_delta = vec![None; len];
 
     let mut data = Data {
-        this_address: intent.address(),
-        deployed_address: intent.deployed_address,
+        source_address: intent.source_address,
         decision_variables: intent.solution.decision_variables.clone(),
         state: state.clone(),
         state_delta: state_delta.clone(),
-        input_message: intent.solution.input_message.clone().map(Into::into),
-        output_messages: intent
-            .solution
-            .output_messages
-            .clone()
-            .into_iter()
-            .map(Into::into)
-            .collect(),
+        sender: intent.solution.sender.clone(),
     };
 
     db.rollback();
@@ -78,11 +75,10 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
     )?;
 
     for StateMutation { address, mutations } in intent.state_mutations {
-        let address: Address = address.into();
         for mutation in mutations {
             match mutation {
                 Mutation::Key(KeyMutation { key, value }) => {
-                    if address == data.this_address {
+                    if address == *data.source_address.set_address() {
                         ensure!(
                             keys.iter().any(|k| k.contains(&key)),
                             "Key {:?} must be included in state reads",
@@ -90,10 +86,10 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
                         );
                     }
 
-                    db.stage(address, key, value);
+                    db.stage(address.clone().into(), key, value);
                 }
                 Mutation::Range(RangeMutation { key_range, values }) => {
-                    if address == data.this_address {
+                    if address == *data.source_address.set_address() {
                         ensure!(
                             keys.iter()
                                 .any(|k| KeyRangeIter::new(key_range.clone())
@@ -108,7 +104,7 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
                         "Key range and values must be the same length"
                     );
                     for (key, value) in KeyRangeIter::new(key_range).zip(values) {
-                        db.stage(address, key, value);
+                        db.stage(address.clone().into(), key, value);
                     }
                 }
             }
@@ -175,19 +171,9 @@ fn read_state(
     Ok(all_keys)
 }
 
-fn check_slots(slots: &Slots, solution: &SolutionData) -> anyhow::Result<()> {
+fn check_slots(slots: &Slots, solution: &SolutionData, permits_used: usize) -> anyhow::Result<()> {
     ensure!(slots.decision_variables == solution.decision_variables.len() as u32);
-    match (&slots.input_message_args, &solution.input_message) {
-        (None, None) => (),
-        (None, Some(_)) | (Some(_), None) => bail!("Input message mismatch"),
-        (Some(slot_args), Some(solution_args)) => {
-            ensure!(slot_args.len() == solution_args.args.len());
-            for (expected, args) in slot_args.iter().zip(solution_args.args.iter()) {
-                ensure!(*expected == args.len() as u16);
-            }
-        }
-    }
-    ensure!(slots.output_messages as usize == solution.output_messages.len());
+    ensure!(slots.permits as usize >= permits_used);
     Ok(())
 }
 
@@ -418,127 +404,18 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
                 _ => bail!("{:?} Invalid state access", access),
             }
         }
-        Access::InputMsgSenderWord => {
-            let index: usize = pop_one(stack)?.try_into()?;
-            match data
-                .input_message
-                .as_ref()
-                .and_then(|m| m.sender.get(index))
-            {
-                Some(word) => {
-                    stack.push(*word);
-                }
-                None => bail!("{:?} access out of bounds", access),
+        Access::Sender => match &data.sender {
+            Sender::Eoa(eoa) => {
+                stack.extend(eoa.iter().copied());
             }
-        }
-        Access::InputMsgSender => match &data.input_message {
-            Some(m) => {
-                stack.extend(m.sender);
+            Sender::Transient(TransientSender { eoa, .. }) => {
+                stack.extend(eoa.iter().copied());
             }
-            None => bail!("{:?} access out of bounds", access),
+            Sender::Persistent(PersistentSender { set, .. }) => {
+                let set: Address = set.clone().into();
+                stack.extend(set.into_iter());
+            }
         },
-        Access::InputMsgArgWord => {
-            let (arg_index, word_index) = pop_two(stack)?;
-            let arg_index: usize = arg_index.try_into()?;
-            let word_index: usize = word_index.try_into()?;
-            match data
-                .input_message
-                .as_ref()
-                .and_then(|m| m.args.get(arg_index))
-                .and_then(|a| a.get(word_index))
-            {
-                Some(word) => {
-                    stack.push(*word);
-                }
-                None => bail!("{:?} access out of bounds", access),
-            }
-        }
-        Access::InputMsgArgRange => {
-            let index = pop_one(stack)?;
-            let (start, end) = pop_two(stack)?;
-            let index: usize = index.try_into()?;
-            let start: usize = start.try_into()?;
-            let end: usize = end.try_into()?;
-            match data
-                .input_message
-                .as_ref()
-                .and_then(|m| m.args.get(index))
-                .and_then(|a| a.get(start..end))
-            {
-                Some(iter) => {
-                    stack.extend(iter);
-                }
-                None => bail!("{:?} access out of bounds", access),
-            }
-        }
-        Access::InputMsgArg => {
-            let index = pop_one(stack)?;
-            let index: usize = index.try_into()?;
-            match data.input_message.as_ref().and_then(|m| m.args.get(index)) {
-                Some(iter) => {
-                    let before = stack.len();
-                    stack.extend(iter);
-                    let after = stack.len();
-                    stack.push((after - before).try_into()?);
-                }
-                None => bail!("{:?} access out of bounds", access),
-            }
-        }
-        Access::OutputMsgArgWord => {
-            let (arg_index, word_index) = pop_two(stack)?;
-            let msg_index = pop_one(stack)?;
-            let msg_index: usize = msg_index.try_into()?;
-            let arg_index: usize = arg_index.try_into()?;
-            let word_index: usize = word_index.try_into()?;
-            let word = data
-                .output_messages
-                .get(msg_index)
-                .and_then(|m| m.args.get(arg_index))
-                .and_then(|a| a.get(word_index));
-            match word {
-                Some(word) => {
-                    stack.push(*word);
-                }
-                None => bail!("{:?} access out of bounds", access),
-            }
-        }
-        Access::OutputMsgArgRange => {
-            let (start, end) = pop_two(stack)?;
-            let (msg_index, arg_index) = pop_two(stack)?;
-            let msg_index: usize = msg_index.try_into()?;
-            let arg_index: usize = arg_index.try_into()?;
-            let start: usize = start.try_into()?;
-            let end: usize = end.try_into()?;
-            let iter = data
-                .output_messages
-                .get(msg_index)
-                .and_then(|m| m.args.get(arg_index))
-                .and_then(|a| a.get(start..end).map(|iter| iter.iter().copied()));
-            match iter {
-                Some(iter) => {
-                    stack.extend(iter);
-                }
-                None => bail!("{:?} access out of bounds", access),
-            }
-        }
-        Access::OutputMsgArg => {
-            let (msg_index, arg_index) = pop_two(stack)?;
-            let msg_index: usize = msg_index.try_into()?;
-            let arg_index: usize = arg_index.try_into()?;
-            let iter = data
-                .output_messages
-                .get(msg_index)
-                .and_then(|m| m.args.get(arg_index).map(|iter| iter.iter().copied()));
-            match iter {
-                Some(iter) => {
-                    let before = stack.len();
-                    stack.extend(iter);
-                    let after = stack.len();
-                    stack.push((after - before).try_into()?);
-                }
-                None => bail!("{:?} access out of bounds", access),
-            }
-        }
     }
     Ok(())
 }
