@@ -98,9 +98,10 @@ impl Server {
     }
 
     pub fn deploy_intent_set(&mut self, intents: Vec<Intent>) -> anyhow::Result<Address> {
+        let addresses = intents.iter().map(|i| i.address());
+        let address = intent_set_address(addresses);
         let intents: HashMap<Address, Intent> =
             intents.into_iter().map(|i| (i.address(), i)).collect();
-        let address = intent_set_address(intents.keys());
         self.deployed_intents.insert(address, intents);
         Ok(address)
     }
@@ -130,7 +131,10 @@ impl Server {
     }
 
     pub fn get_deployed(&self, set: &Address, address: &Address) -> Option<&Intent> {
-        self.deployed_intents.get(set).and_then(|s| s.get(address))
+        self.deployed_intents.get(set).and_then(|s| {
+            dbg!(s.keys().collect::<Vec<_>>());
+            s.get(address)
+        })
     }
 
     pub fn get_deployed_set(&self, address: &Address) -> Option<&HashMap<Address, Intent>> {

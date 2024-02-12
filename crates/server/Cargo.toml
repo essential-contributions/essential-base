@@ -20,7 +20,8 @@ serde_json = "1.0.111"
 
 yurtc = { git = "ssh://git@github.com/essential-contributions/yurt.git", default-features = false, optional = true, branch = "freesig/asm_gen" }
 tempfile = { version = "3.9.0", optional = true }
+hex = { version = "0.4.3", optional = true }
 
 [features]
 default = []
-yurt = ["dep:yurtc", "dep:tempfile"]
+yurt = ["dep:yurtc", "dep:tempfile", "dep:hex"]

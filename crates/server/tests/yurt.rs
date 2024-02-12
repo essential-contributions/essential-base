@@ -5,7 +5,7 @@ use std::io::Write;
 use essential_types::{
     intent::Intent,
     solution::{KeyMutation, Mutation, Sender, Solution, SolutionData, StateMutation},
-    SourceAddress,
+    IntentAddress, SourceAddress,
 };
 use intent_server::{db::Address, intent::ToIntentAddress, Server};
 use tempfile::NamedTempFile;
@@ -36,10 +36,16 @@ solve satisfy;
 
     let deployed_intent = compile_yurt(code);
 
+    let mut server = Server::new();
+
+    let deployed_address = server
+        .deploy_intent_set(vec![deployed_intent.clone()])
+        .unwrap();
+
     let code = r#"
-state x: int = storage::get_extern(0xC7F646FFC0E4BB73AD1E919E800486F8725966B4C0E21214A47FAE03FF45797B, 0x0000000000000000000000000000000000000000000000000000000000000000); // 42
-state y: int = storage::get_extern(0xC7F646FFC0E4BB73AD1E919E800486F8725966B4C0E21214A47FAE03FF45797B, 0x0000000000000000000000000000000000000000000000000000000000000001); // 42
-state z: int = storage::get_extern(0xC7F646FFC0E4BB73AD1E919E800486F8725966B4C0E21214A47FAE03FF45797B, 0x0000000000000000000000000000000000000000000000000000000000000002); // 42
+state x: int = storage::get_extern(${deployed_address}, 0x0000000000000000000000000000000000000000000000000000000000000000); // 42
+state y: int = storage::get_extern(${deployed_address}, 0x0000000000000000000000000000000000000000000000000000000000000001); // 42
+state z: int = storage::get_extern(${deployed_address}, 0x0000000000000000000000000000000000000000000000000000000000000002); // 42
 
 constraint x' - x == 1; // x' == 43
 constraint y' == y + 4; // y' == 47
@@ -47,16 +53,15 @@ constraint x' + y' > 89 && x' * y' > 1932;
 constraint x < y;
 solve satisfy;
 "#;
+    let code = code.replace(
+        "${deployed_address}",
+        &format!("0x{}", hex::encode(IntentAddress::from(deployed_address).0)),
+    );
 
-    let mut intent = compile_yurt(code);
+    let mut intent = compile_yurt(&code);
     intent.slots.permits = 1;
     let transient_address = intent.intent_address();
 
-    let mut server = Server::new();
-
-    let deployed_address = server
-        .deploy_intent_set(vec![deployed_intent.clone()])
-        .unwrap();
     let transitions = [
         SolutionData {
             intent_to_solve: SourceAddress::transient(transient_address.clone()),
@@ -66,7 +71,7 @@ solve satisfy;
         SolutionData {
             intent_to_solve: SourceAddress::persistent(
                 deployed_address.into(),
-                transient_address.clone(),
+                deployed_intent.intent_address(),
             ),
             decision_variables: vec![141, 129, 1936, 0, 1, 4, 9, 16],
             sender: Sender::transient([0; 4], transient_address),

@@ -32,7 +32,7 @@ pub trait ToIntentAddress: Serialize {
 
 impl ToIntentAddress for Intent {}
 
-pub fn intent_set_address<'a>(addresses: impl Iterator<Item = &'a Address>) -> Address {
+pub fn intent_set_address(addresses: impl Iterator<Item = Address>) -> Address {
     let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
     for address in addresses {
         let mut bytes = [0u8; 32];
