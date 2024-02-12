@@ -61,8 +61,6 @@ fn vm_state_reads() {
         directive: Directive::Satisfy,
     };
 
-    let intent_address = intent.address();
-
     let mut server = Server::new();
     let deploy_address = server.deploy_intent_set(vec![intent.clone()]).unwrap();
     let source_address = SourceAddress::persistent(deploy_address.into(), intent.intent_address());
