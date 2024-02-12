@@ -1,7 +1,12 @@
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+//! # Assembly for checking constraints.
+
 use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Set of operations that can be performed to check constraints.
 pub enum Op {
     /// Push word onto stack.
     Push(u64),
@@ -11,13 +16,18 @@ pub enum Op {
     Dup,
     /// Swap top two words on stack.
     Swap,
+    /// Operations for computing predicates.
     Pred(Pred),
+    /// Operations for computing arithmetic and logic.
     Alu(Alu),
+    /// Operations for accessing input data.
     Access(Access),
+    /// Operations for performing cryptographic operations.
     Crypto(Crypto),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Operations for accessing input data.
 pub enum Access {
     /// params -> slot
     /// return -> decision_word
@@ -59,6 +69,7 @@ pub enum Access {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Operations for computing predicates.
 pub enum Pred {
     /// params -> {lhs, rhs}
     /// return -> bool
@@ -87,6 +98,7 @@ pub enum Pred {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Operations for computing arithmetic and logic.
 pub enum Alu {
     /// params -> {lhs, rhs}
     /// return -> word
@@ -110,6 +122,7 @@ pub enum Alu {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Operations for performing cryptographic operations.
 pub enum Crypto {
     /// params -> {data, data_len}
     /// return -> hash: list len 4

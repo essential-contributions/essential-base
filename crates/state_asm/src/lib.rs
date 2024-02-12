@@ -1,18 +1,29 @@
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+//! # Assembly for state read operations.
+
 pub use constraint_asm;
 pub use constraint_asm::Op;
 use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Set of operations that can be performed on the state.
 pub enum StateReadOp {
+    /// All the operations available to the constraint checker.
     Constraint(Op),
+    /// Operations for reading state.
     State(State),
+    /// Operations for controlling the flow of the program.
     ControlFlow(ControlFlow),
+    /// Operations for controlling the memory.
     Memory(Memory),
+    /// Operations for manipulating the write keys.
     Keys(Keys),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Control flow operations.
 pub enum ControlFlow {
     /// End the execution of the program and return the keys and memory.
     Halt,
@@ -25,6 +36,7 @@ pub enum ControlFlow {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Memory operations.
 pub enum Memory {
     /// Allocate new memory to the end of the memory.
     /// params -> size
@@ -82,6 +94,7 @@ pub enum Memory {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Operations for manipulating the write keys.
 pub enum Keys {
     /// Set available write keys to be overwritten.
     /// This means that the keys that are read will
@@ -94,6 +107,7 @@ pub enum Keys {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+/// Operations for reading state.
 pub enum State {
     /// Read a range of words from state starting at the key.
     /// params -> {key: list len 4, amount}
