@@ -22,13 +22,11 @@ fn sanity_happy() {
 
     let (intent, deployed_address) = sanity_test(&mut server);
 
-    let transitions = [(
-        SourceAddress::transient(intent.intent_address()),
-        SolutionData {
-            decision_variables: vec![11],
-            sender: Sender::Eoa([0; 4]),
-        },
-    )];
+    let transitions = [SolutionData {
+        intent_to_solve: SourceAddress::transient(intent.intent_address()),
+        decision_variables: vec![11],
+        sender: Sender::Eoa([0; 4]),
+    }];
 
     let solution = Solution {
         data: transitions.into_iter().collect(),
@@ -53,13 +51,11 @@ fn sanity_unhappy() {
 
     let (intent, deployed_address) = sanity_test(&mut server);
 
-    let transitions = [(
-        SourceAddress::transient(intent.intent_address()),
-        SolutionData {
-            decision_variables: vec![11],
-            sender: Sender::Eoa([0; 4]),
-        },
-    )];
+    let transitions = [SolutionData {
+        intent_to_solve: SourceAddress::transient(intent.intent_address()),
+        decision_variables: vec![11],
+        sender: Sender::Eoa([0; 4]),
+    }];
 
     let solution = Solution {
         data: transitions.into_iter().collect(),

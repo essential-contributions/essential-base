@@ -67,13 +67,11 @@ fn vm_state_reads() {
 
     let solution = Solution {
         state_mutations: Default::default(),
-        data: [(
-            source_address,
-            SolutionData {
-                decision_variables: Default::default(),
-                sender: eoa_sender(),
-            },
-        )]
+        data: [SolutionData {
+            intent_to_solve: source_address,
+            decision_variables: Default::default(),
+            sender: eoa_sender(),
+        }]
         .into_iter()
         .collect(),
     };
@@ -137,13 +135,11 @@ fn extern_state_reads() {
 
     let solution = Solution {
         state_mutations: Default::default(),
-        data: [(
-            source_address,
-            SolutionData {
-                decision_variables: Default::default(),
-                sender: eoa_sender(),
-            },
-        )]
+        data: [SolutionData {
+            intent_to_solve: source_address,
+            decision_variables: Default::default(),
+            sender: eoa_sender(),
+        }]
         .into_iter()
         .collect(),
     };
@@ -208,13 +204,11 @@ fn cant_write_outside_reads() {
                 value: None,
             })],
         }],
-        data: [(
-            source_address,
-            SolutionData {
-                decision_variables: Default::default(),
-                sender: eoa_sender(),
-            },
-        )]
+        data: [SolutionData {
+            intent_to_solve: source_address,
+            decision_variables: Default::default(),
+            sender: eoa_sender(),
+        }]
         .into_iter()
         .collect(),
     };
@@ -766,20 +760,19 @@ fn naughts_crosses() {
 
     let solution = Solution {
         data: [
-            (
-                SourceAddress::transient(move_one_intent_address.into()),
-                SolutionData {
-                    decision_variables,
-                    sender: eoa_sender(),
-                },
-            ),
-            (
-                SourceAddress::persistent(deployed_address.into(), game_intent_address.into()),
-                SolutionData {
-                    decision_variables: game_dec_vars,
-                    sender: Sender::transient([0; 4], move_one_intent_address.into()),
-                },
-            ),
+            SolutionData {
+                intent_to_solve: SourceAddress::transient(move_one_intent_address.into()),
+                decision_variables,
+                sender: eoa_sender(),
+            },
+            SolutionData {
+                intent_to_solve: SourceAddress::persistent(
+                    deployed_address.into(),
+                    game_intent_address.into(),
+                ),
+                decision_variables: game_dec_vars,
+                sender: Sender::transient([0; 4], move_one_intent_address.into()),
+            },
         ]
         .into_iter()
         .collect(),

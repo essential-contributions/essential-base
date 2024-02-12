@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use anyhow::bail;
 use check::pack_bytes;
@@ -44,18 +45,21 @@ impl Server {
     pub fn check(&mut self, solution: Solution) -> anyhow::Result<u64> {
         self.db.rollback();
         let mut utility = 0;
-        let permits = solution
+        let permits = solution.data.iter().fold(HashMap::new(), |mut map, data| {
+            if let Some(sender_intent) = data.sender.source_intent() {
+                map.entry(sender_intent)
+                    .and_modify(|p| *p += 1)
+                    .or_insert(1);
+            }
+            map
+        });
+        let set_of_addresses: HashSet<_> = solution
             .data
-            .values()
-            .fold(HashMap::new(), |mut map, data| {
-                if let Some(sender_intent) = data.sender.source_intent() {
-                    map.entry(sender_intent)
-                        .and_modify(|p| *p += 1)
-                        .or_insert(1);
-                }
-                map
-            });
-        for (address, transition) in solution.data.clone() {
+            .iter()
+            .map(|d| d.intent_to_solve.clone())
+            .collect();
+        for data in solution.data.clone() {
+            let address = data.intent_to_solve.clone();
             let intent = match address.clone() {
                 SourceAddress::Transient(address) => {
                     let address: Address = address.into();
@@ -70,15 +74,15 @@ impl Server {
             let Some(intent) = intent else {
                 bail!("Intent not found");
             };
-            if let Some(sender_intent) = &transition.sender.source_intent() {
-                if !solution.data.contains_key(sender_intent) {
+            if let Some(sender_intent) = &data.sender.source_intent() {
+                if !set_of_addresses.contains(sender_intent) {
                     bail!("Sender intent set not found");
                 };
             }
             let solved_intent = SolvedIntent {
                 intent: intent.clone(),
                 source_address: address.clone(),
-                solution: transition,
+                solution: data,
                 state_mutations: solution.state_mutations.clone(),
                 permits_used: permits.get(&address).copied().unwrap_or(0),
             };

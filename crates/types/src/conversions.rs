@@ -1,3 +1,5 @@
+//! Helper functions for converting between byte and word representations.
+
 use crate::IntentAddress;
 
 fn pack_bytes(result: &[u8]) -> u64 {

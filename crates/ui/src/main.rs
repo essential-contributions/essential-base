@@ -113,17 +113,34 @@ impl App {
         ui.heading("Solution Editor");
         ui.monospace("Choose intents to solve");
 
-        let addresses: Vec<SourceAddress> = self.solution_editor.data.keys().cloned().collect();
+        let addresses: Vec<SourceAddress> = self
+            .solution_editor
+            .data
+            .iter()
+            .map(|d| d.intent_to_solve.clone())
+            .collect();
         for mut address in addresses {
             ui.monospace("Intent Address:");
             let change = source_to_line(ui, address.clone(), &mut self.errors);
             if let Some(change) = change {
-                if let Some(i) = self.solution_editor.data.remove(&address) {
-                    self.solution_editor.data.insert(change.clone(), i);
-                    address = change;
-                }
+                let pos = self
+                    .solution_editor
+                    .data
+                    .iter()
+                    .position(|d| d.intent_to_solve == address)
+                    .unwrap();
+                let mut i = self.solution_editor.data.remove(pos);
+                i.intent_to_solve = change.clone();
+                self.solution_editor.data.push(i);
+                address = change;
             }
-            let data = &mut self.solution_editor.data.get_mut(&address).unwrap();
+            let pos = self
+                .solution_editor
+                .data
+                .iter()
+                .position(|d| d.intent_to_solve == address)
+                .unwrap();
+            let data = &mut self.solution_editor.data.get_mut(pos).unwrap();
             for v in &mut data.decision_variables {
                 num_line(ui, v);
             }
@@ -209,13 +226,14 @@ impl App {
         }
 
         if ui.button("Add Persistent Intent").clicked() {
-            self.solution_editor.data.insert(
-                SourceAddress::persistent(IntentAddress([0; 32]), IntentAddress([0; 32])),
-                SolutionData {
-                    decision_variables: Default::default(),
-                    sender: Sender::eao([0; 4]),
-                },
-            );
+            self.solution_editor.data.push(SolutionData {
+                intent_to_solve: SourceAddress::persistent(
+                    IntentAddress([0; 32]),
+                    IntentAddress([0; 32]),
+                ),
+                decision_variables: Default::default(),
+                sender: Sender::eao([0; 4]),
+            });
         }
 
         if ui.button("Add Mutation").clicked() {

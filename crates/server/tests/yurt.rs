@@ -58,20 +58,19 @@ solve satisfy;
         .deploy_intent_set(vec![deployed_intent.clone()])
         .unwrap();
     let transitions = [
-        (
-            SourceAddress::transient(transient_address.clone()),
-            SolutionData {
-                decision_variables: vec![],
-                sender: Sender::Eoa([0; 4]),
-            },
-        ),
-        (
-            SourceAddress::persistent(deployed_address.into(), transient_address.clone()),
-            SolutionData {
-                decision_variables: vec![141, 129, 1936, 0, 1, 4, 9, 16],
-                sender: Sender::transient([0; 4], transient_address),
-            },
-        ),
+        SolutionData {
+            intent_to_solve: SourceAddress::transient(transient_address.clone()),
+            decision_variables: vec![],
+            sender: Sender::Eoa([0; 4]),
+        },
+        SolutionData {
+            intent_to_solve: SourceAddress::persistent(
+                deployed_address.into(),
+                transient_address.clone(),
+            ),
+            decision_variables: vec![141, 129, 1936, 0, 1, 4, 9, 16],
+            sender: Sender::transient([0; 4], transient_address),
+        },
     ];
 
     let solution = Solution {
