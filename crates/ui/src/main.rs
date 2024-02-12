@@ -1,6 +1,6 @@
 use essential_types::{
     solution::{KeyMutation, Mutation, RangeMutation, Sender, SolutionData, StateMutation},
-    IntentAddress, SourceAddress,
+    IntentAddress, PersistentAddress, SourceAddress,
 };
 use intent_server::{
     intent::{Intent, ToIntentAddress},
@@ -115,22 +115,12 @@ impl App {
 
         let addresses: Vec<SourceAddress> = self.solution_editor.data.keys().cloned().collect();
         for mut address in addresses {
-            let mut old = None;
             ui.monospace("Intent Address:");
-            let mut val = to_hex(address.clone());
-            ui.text_edit_singleline(&mut val);
-            match from_hex(&val) {
-                Some(a) => {
-                    old = (a != address).then_some(address);
-                    address = a
-                }
-                None => {
-                    self.errors.push(format!("Invalid address: {}", val));
-                }
-            }
-            if let Some(old) = old {
-                if let Some(i) = self.solution_editor.data.remove(&old) {
-                    self.solution_editor.data.insert(address.clone(), i);
+            let change = source_to_line(ui, address.clone(), &mut self.errors);
+            if let Some(change) = change {
+                if let Some(i) = self.solution_editor.data.remove(&address) {
+                    self.solution_editor.data.insert(change.clone(), i);
+                    address = change;
                 }
             }
             let data = &mut self.solution_editor.data.get_mut(&address).unwrap();
@@ -224,7 +214,7 @@ impl App {
                 SolutionData {
                     decision_variables: Default::default(),
                     sender: Sender::eao([0; 4]),
-                }
+                },
             );
         }
 
@@ -408,6 +398,45 @@ fn compile_intent(code: &str) -> Option<Intent> {
     let intent = yurtc::asm_gen::intent_to_asm(&intent).ok()?;
     let intent = serde_json::to_string(&intent).ok()?;
     serde_json::from_str(&intent).ok()
+}
+
+fn source_to_line(
+    ui: &mut egui::Ui,
+    s: SourceAddress,
+    errors: &mut Vec<String>,
+) -> Option<SourceAddress> {
+    let old = s.clone();
+    let s = match s {
+        SourceAddress::Transient(address) => {
+            let mut val = to_hex(address.0);
+            ui.text_edit_singleline(&mut val);
+            if let Some(a) = from_hex(&val) {
+                Some(SourceAddress::Transient(a))
+            } else {
+                errors.push(format!("Invalid address: {}", val));
+                None
+            }
+        }
+        SourceAddress::Persistent(PersistentAddress { set, intent }) => {
+            let mut a = to_hex(set.0);
+            let mut b = to_hex(intent.0);
+            ui.text_edit_singleline(&mut a);
+            ui.text_edit_singleline(&mut b);
+            if let (Some(set), Some(intent)) = (from_hex(&a), from_hex(&b)) {
+                Some(SourceAddress::Persistent(PersistentAddress { set, intent }))
+            } else {
+                errors.push(format!("Invalid address: {}", a));
+                errors.push(format!("Invalid address: {}", b));
+                None
+            }
+        }
+    };
+    if let Some(s) = s {
+        if s != old {
+            return Some(s);
+        }
+    }
+    None
 }
 
 fn to_hex<T: Into<[u8; 32]>>(t: T) -> String {

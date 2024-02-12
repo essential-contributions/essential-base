@@ -41,21 +41,6 @@ impl Server {
         Self::default()
     }
 
-    pub fn check_individual(
-        &mut self,
-        intent: SolvedIntent,
-        target_utility: u64,
-    ) -> anyhow::Result<bool> {
-        let solution = check::check(&mut self.db, intent)?;
-        if solution == target_utility {
-            self.db.commit();
-            Ok(true)
-        } else {
-            self.db.rollback();
-            Ok(false)
-        }
-    }
-
     pub fn check(&mut self, solution: Solution) -> anyhow::Result<u64> {
         self.db.rollback();
         let mut utility = 0;
