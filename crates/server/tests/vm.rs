@@ -1,11 +1,12 @@
 use essential_types::solution::KeyMutation;
 use essential_types::solution::Mutation;
 use essential_types::solution::RangeMutation;
+use essential_types::solution::Sender;
 use essential_types::solution::SolutionData;
 use essential_types::solution::StateMutation;
+use essential_types::SourceAddress;
 use intent_server::check::pack_n_bytes;
 use intent_server::check::Directive;
-use intent_server::check::SolvedIntent;
 use intent_server::data::Slots;
 use intent_server::db::add_to_key;
 use intent_server::hash_words;
@@ -16,6 +17,10 @@ use intent_server::state_read::StateSlot;
 use intent_server::Server;
 use state_asm::constraint_asm::*;
 use state_asm::*;
+
+fn eoa_sender() -> Sender {
+    Sender::Eoa([0; 4])
+}
 
 #[test]
 fn vm_state_reads() {
@@ -59,23 +64,29 @@ fn vm_state_reads() {
     let intent_address = intent.address();
 
     let mut server = Server::new();
+    let deploy_address = server.deploy_intent_set(vec![intent.clone()]).unwrap();
+    let source_address = SourceAddress::persistent(deploy_address.into(), intent.intent_address());
 
-    let solved_intent = SolvedIntent {
-        intent,
-        deployed_address: intent_address,
-        solution: SolutionData {
-            ..Default::default()
-        },
+    let solution = Solution {
         state_mutations: Default::default(),
+        data: [(
+            source_address,
+            SolutionData {
+                decision_variables: Default::default(),
+                sender: eoa_sender(),
+            },
+        )]
+        .into_iter()
+        .collect(),
     };
 
     server
         .db()
-        .stage(intent_address, [14, 14, 14, 14], Some(42));
+        .stage(deploy_address, [14, 14, 14, 14], Some(42));
     server.db().commit();
 
-    let solution = server.check_individual(solved_intent, 1).unwrap();
-    assert!(solution);
+    let solution = server.check(solution).unwrap();
+    assert_eq!(solution, 1);
 }
 
 // Extern state reads
@@ -122,67 +133,28 @@ fn extern_state_reads() {
         directive: Directive::Satisfy,
     };
 
-    let intent_address = intent.address();
-
     let mut server = Server::new();
+    let deploy_address = server.deploy_intent_set(vec![intent.clone()]).unwrap();
+    let source_address = SourceAddress::persistent(deploy_address.into(), intent.intent_address());
 
-    let solved_intent = SolvedIntent {
-        intent,
-        deployed_address: intent_address,
-        solution: SolutionData {
-            ..Default::default()
-        },
+    let solution = Solution {
         state_mutations: Default::default(),
+        data: [(
+            source_address,
+            SolutionData {
+                decision_variables: Default::default(),
+                sender: eoa_sender(),
+            },
+        )]
+        .into_iter()
+        .collect(),
     };
 
     server.db().stage([1, 1, 1, 1], [14, 14, 14, 14], Some(42));
     server.db().commit();
 
-    let solution = server.check_individual(solved_intent, 1).unwrap();
-    assert!(solution);
-}
-
-// Message outputs
-#[test]
-fn message_outputs() {
-    let constraints = vec![
-        Op::Push(0),
-        Op::Push(0),
-        Op::Push(0),
-        Op::Access(Access::OutputMsgArgWord),
-        Op::Push(42),
-        Op::Pred(Pred::Eq),
-    ];
-    let constraints = serde_json::to_vec(&constraints).unwrap();
-    let constraints = vec![constraints];
-    let intent = Intent {
-        slots: Slots {
-            output_messages: 1,
-            ..Default::default()
-        },
-        state_read: Default::default(),
-        constraints,
-        directive: Directive::Satisfy,
-    };
-
-    let intent_address = intent.address();
-
-    let mut server = Server::new();
-
-    let solved_intent = SolvedIntent {
-        intent,
-        deployed_address: intent_address,
-        solution: SolutionData {
-            output_messages: vec![essential_types::solution::OutputMessage {
-                args: vec![vec![42]],
-            }],
-            ..Default::default()
-        },
-        state_mutations: Default::default(),
-    };
-
-    let solution = server.check_individual(solved_intent, 1).unwrap();
-    assert!(solution);
+    let solution = server.check(solution).unwrap();
+    assert_eq!(solution, 1);
 }
 
 #[test]
@@ -227,13 +199,10 @@ fn cant_write_outside_reads() {
     let intent_address = intent.address();
 
     let mut server = Server::new();
+    let deploy_address = server.deploy_intent_set(vec![intent.clone()]).unwrap();
+    let source_address = SourceAddress::persistent(deploy_address.into(), intent.intent_address());
 
-    let solved_intent = SolvedIntent {
-        intent,
-        deployed_address: intent_address,
-        solution: SolutionData {
-            ..Default::default()
-        },
+    let solution = Solution {
         state_mutations: vec![StateMutation {
             address: intent_address.into(),
             mutations: vec![Mutation::Key(KeyMutation {
@@ -241,6 +210,15 @@ fn cant_write_outside_reads() {
                 value: None,
             })],
         }],
+        data: [(
+            source_address,
+            SolutionData {
+                decision_variables: Default::default(),
+                sender: eoa_sender(),
+            },
+        )]
+        .into_iter()
+        .collect(),
     };
 
     server
@@ -248,7 +226,7 @@ fn cant_write_outside_reads() {
         .stage(intent_address, [14, 14, 14, 14], Some(42));
     server.db().commit();
 
-    let error = server.check_individual(solved_intent, 1);
+    let error = server.check(solution);
     assert!(error.is_err());
 }
 
@@ -509,7 +487,6 @@ fn naughts_crosses() {
                 },
             ],
             decision_variables: 8,
-            input_message_args: Some(vec![]),
             ..Default::default()
         },
         state_read,
@@ -771,8 +748,7 @@ fn naughts_crosses() {
                 },
             ],
             decision_variables: 14,
-            input_message_args: None,
-            ..Default::default()
+            permits: 1,
         },
         state_read,
         constraints,
@@ -793,23 +769,17 @@ fn naughts_crosses() {
     let solution = Solution {
         data: [
             (
-                move_one_intent_address.into(),
+                SourceAddress::transient(move_one_intent_address.into()),
                 SolutionData {
                     decision_variables,
-                    input_message: None,
-                    ..Default::default()
+                    sender: eoa_sender(),
                 },
             ),
             (
-                deployed_address.into(),
+                SourceAddress::persistent(deployed_address.into(), game_intent_address.into()),
                 SolutionData {
                     decision_variables: game_dec_vars,
-                    input_message: Some(essential_types::solution::InputMessage {
-                        sender: move_one_intent_address.into(),
-                        recipient: game_intent_address.into(),
-                        args: Default::default(),
-                    }),
-                    ..Default::default()
+                    sender: Sender::transient([0; 4], move_one_intent_address.into()),
                 },
             ),
         ]

@@ -53,50 +53,9 @@ pub enum Access {
     ///
     /// Slot..(Slot + Range) must be in range or vm will panic.
     StateIsSomeRange,
-    /// params -> word_index
-    /// return -> word
-    ///
-    /// Word index must be in range or vm will panic.
-    /// There must be an input message or vm will panic.
-    InputMsgSenderWord,
-    /// params -> ()
     /// return -> words: list with len 4
-    ///
-    /// There must be an input message or vm will panic.
-    InputMsgSender,
-    /// params -> {arg_index, word_index}
-    /// return -> arg_word
-    ///
-    /// Arg and word index must be in range or vm will panic.
-    /// There must be an input message or vm will panic.
-    InputMsgArgWord,
-    /// params -> {arg_index, start, end}
-    /// return -> arg_words: list with len (end - start)
-    ///
-    /// Arg and start..end must be in range or vm will panic.
-    /// There must be an input message or vm will panic.
-    InputMsgArgRange,
-    /// params -> arg_index
-    /// return -> {arg_words: list, arg_len}
-    ///
-    /// Arg index must be in range or vm will panic.
-    /// There must be an input message or vm will panic.
-    InputMsgArg,
-    /// params -> {msg_index, arg_index, word_index}
-    /// return -> arg_word
-    ///
-    /// Msg, arg and word index must be in range or vm will panic.
-    OutputMsgArgWord,
-    /// params -> {msg_index, arg_index, start, end}
-    /// return -> arg_words: list with len (end - start)
-    ///
-    /// Msg, arg and start..end must be in range or vm will panic.
-    OutputMsgArgRange,
-    /// params -> {msg_index, arg_index}
-    /// return -> {arg_words: list, arg_len}
-    ///
-    /// Msg and arg index must be in range or vm will panic.
-    OutputMsgArg,
+    /// Returns the sender that permitted this intent.
+    Sender,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]

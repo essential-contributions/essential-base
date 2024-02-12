@@ -1,6 +1,6 @@
 use essential_types::{
-    solution::{InputMessage, KeyMutation, Mutation, OutputMessage, RangeMutation, StateMutation},
-    IntentAddress,
+    solution::{KeyMutation, Mutation, RangeMutation, Sender, SolutionData, StateMutation},
+    IntentAddress, PersistentAddress, SourceAddress,
 };
 use intent_server::{
     intent::{Intent, ToIntentAddress},
@@ -87,20 +87,13 @@ impl App {
         if !self.compiled_intents.is_empty() {
             if self.compiled_intents.len() == 1 && ui.button("Submit").clicked() {
                 let mut intent = self.compiled_intents[0].clone();
-                intent.slots.output_messages = 1;
+                intent.slots.permits = 1;
                 if let Err(e) = self.server.submit_intent(intent) {
                     ui.monospace(format!("{}", e));
                 }
             }
             if ui.button("Deploy").clicked() {
                 let intents = self.compiled_intents.clone();
-                let intents = intents
-                    .into_iter()
-                    .map(|mut i| {
-                        i.slots.input_message_args = Some(vec![]);
-                        i
-                    })
-                    .collect();
                 match self.server.deploy_intent_set(intents) {
                     Ok(hash) => {
                         ui.monospace(format!("Deployed at: {:?}", hash));
@@ -120,24 +113,14 @@ impl App {
         ui.heading("Solution Editor");
         ui.monospace("Choose intents to solve");
 
-        let addresses: Vec<IntentAddress> = self.solution_editor.data.keys().cloned().collect();
+        let addresses: Vec<SourceAddress> = self.solution_editor.data.keys().cloned().collect();
         for mut address in addresses {
-            let mut old = None;
             ui.monospace("Intent Address:");
-            let mut val = to_hex(address.clone());
-            ui.text_edit_singleline(&mut val);
-            match from_hex(&val) {
-                Some(a) => {
-                    old = (a != address).then_some(address);
-                    address = a
-                }
-                None => {
-                    self.errors.push(format!("Invalid address: {}", val));
-                }
-            }
-            if let Some(old) = old {
-                if let Some(i) = self.solution_editor.data.remove(&old) {
-                    self.solution_editor.data.insert(address.clone(), i);
+            let change = source_to_line(ui, address.clone(), &mut self.errors);
+            if let Some(change) = change {
+                if let Some(i) = self.solution_editor.data.remove(&address) {
+                    self.solution_editor.data.insert(change.clone(), i);
+                    address = change;
                 }
             }
             let data = &mut self.solution_editor.data.get_mut(&address).unwrap();
@@ -146,50 +129,6 @@ impl App {
             }
             if ui.button("Add Decision Variable").clicked() {
                 data.decision_variables.push(0);
-            }
-            if let Some(input) = &mut data.input_message {
-                ui.monospace("Input Message:");
-                hex_line("Sender: ", ui, &mut input.sender);
-                hex_line("Recipient: ", ui, &mut input.recipient);
-                for (i, arg) in input.args.iter_mut().enumerate() {
-                    ui.monospace(format!("Arg {}", i));
-                    for arg in arg.iter_mut() {
-                        num_line(ui, arg);
-                    }
-                    if ui.button("Add Word").clicked() {
-                        arg.push(0);
-                    }
-                }
-                if ui.button("Add Argument").clicked() {
-                    input.args.push(Default::default());
-                }
-            }
-            for output in &mut data.output_messages {
-                ui.monospace("Output Message:");
-                for (i, arg) in output.args.iter_mut().enumerate() {
-                    ui.monospace(format!("Arg {}", i));
-                    for arg in arg.iter_mut() {
-                        num_line(ui, arg);
-                    }
-                    if ui.button("Add Word").clicked() {
-                        arg.push(0);
-                    }
-                }
-                if ui.button("Add Argument").clicked() {
-                    output.args.push(Default::default());
-                }
-            }
-            if data.input_message.is_none() && ui.button("Add Input Message").clicked() {
-                data.input_message = Some(InputMessage {
-                    sender: IntentAddress([0; 32]),
-                    recipient: IntentAddress([0; 32]),
-                    args: Default::default(),
-                });
-            }
-            if ui.button("Add Output Message").clicked() {
-                data.output_messages.push(OutputMessage {
-                    args: Default::default(),
-                });
             }
         }
         for (i, mutation) in self.solution_editor.state_mutations.iter_mut().enumerate() {
@@ -269,10 +208,14 @@ impl App {
             }
         }
 
-        if ui.button("Add Intent").clicked() {
-            self.solution_editor
-                .data
-                .insert(IntentAddress([0; 32]), Default::default());
+        if ui.button("Add Persistent Intent").clicked() {
+            self.solution_editor.data.insert(
+                SourceAddress::persistent(IntentAddress([0; 32]), IntentAddress([0; 32])),
+                SolutionData {
+                    decision_variables: Default::default(),
+                    sender: Sender::eao([0; 4]),
+                },
+            );
         }
 
         if ui.button("Add Mutation").clicked() {
@@ -455,6 +398,45 @@ fn compile_intent(code: &str) -> Option<Intent> {
     let intent = yurtc::asm_gen::intent_to_asm(&intent).ok()?;
     let intent = serde_json::to_string(&intent).ok()?;
     serde_json::from_str(&intent).ok()
+}
+
+fn source_to_line(
+    ui: &mut egui::Ui,
+    s: SourceAddress,
+    errors: &mut Vec<String>,
+) -> Option<SourceAddress> {
+    let old = s.clone();
+    let s = match s {
+        SourceAddress::Transient(address) => {
+            let mut val = to_hex(address.0);
+            ui.text_edit_singleline(&mut val);
+            if let Some(a) = from_hex(&val) {
+                Some(SourceAddress::Transient(a))
+            } else {
+                errors.push(format!("Invalid address: {}", val));
+                None
+            }
+        }
+        SourceAddress::Persistent(PersistentAddress { set, intent }) => {
+            let mut a = to_hex(set.0);
+            let mut b = to_hex(intent.0);
+            ui.text_edit_singleline(&mut a);
+            ui.text_edit_singleline(&mut b);
+            if let (Some(set), Some(intent)) = (from_hex(&a), from_hex(&b)) {
+                Some(SourceAddress::Persistent(PersistentAddress { set, intent }))
+            } else {
+                errors.push(format!("Invalid address: {}", a));
+                errors.push(format!("Invalid address: {}", b));
+                None
+            }
+        }
+    };
+    if let Some(s) = s {
+        if s != old {
+            return Some(s);
+        }
+    }
+    None
 }
 
 fn to_hex<T: Into<[u8; 32]>>(t: T) -> String {

@@ -1,4 +1,6 @@
+use essential_types::solution::Sender;
 use essential_types::solution::SolutionData;
+use essential_types::SourceAddress;
 use intent_server::check::Directive;
 use intent_server::data::Slots;
 use intent_server::intent::Intent;
@@ -21,10 +23,10 @@ fn sanity_happy() {
     let (intent, deployed_address) = sanity_test(&mut server);
 
     let transitions = [(
-        intent.intent_address(),
+        SourceAddress::transient(intent.intent_address()),
         SolutionData {
             decision_variables: vec![11],
-            ..Default::default()
+            sender: Sender::Eoa([0; 4]),
         },
     )];
 
@@ -33,7 +35,11 @@ fn sanity_happy() {
         state_mutations: Default::default(),
     };
 
-    server.db().stage(deployed_address, [1, 1, 1, 1], Some(7));
+    server.db().stage(
+        deployed_address.set_address().clone().into(),
+        [1, 1, 1, 1],
+        Some(7),
+    );
     server.db().commit();
 
     server.submit_intent(intent).unwrap();
@@ -48,10 +54,10 @@ fn sanity_unhappy() {
     let (intent, deployed_address) = sanity_test(&mut server);
 
     let transitions = [(
-        intent.intent_address(),
+        SourceAddress::transient(intent.intent_address()),
         SolutionData {
             decision_variables: vec![11],
-            ..Default::default()
+            sender: Sender::Eoa([0; 4]),
         },
     )];
 
@@ -60,7 +66,11 @@ fn sanity_unhappy() {
         state_mutations: Default::default(),
     };
 
-    server.db().stage(deployed_address, [1, 1, 1, 1], Some(8)); // not 7
+    server.db().stage(
+        deployed_address.set_address().clone().into(),
+        [1, 1, 1, 1],
+        Some(8),
+    ); // not 7
     server.db().commit();
 
     server.submit_intent(intent).unwrap();
@@ -69,7 +79,7 @@ fn sanity_unhappy() {
         .expect_err("Constraint failed");
 }
 
-fn sanity_test(server: &mut Server) -> (Intent, [u64; 4]) {
+fn sanity_test(server: &mut Server) -> (Intent, SourceAddress) {
     let deployed_intent = Intent {
         slots: Slots {
             ..Default::default()
@@ -79,7 +89,9 @@ fn sanity_test(server: &mut Server) -> (Intent, [u64; 4]) {
         directive: Directive::Satisfy,
     };
 
-    let deployed_address = server.deploy_intent_set(vec![deployed_intent]).unwrap();
+    let deployed_address = server
+        .deploy_intent_set(vec![deployed_intent.clone()])
+        .unwrap();
 
     // state foo: int = state.extern.get(extern_address, key, 1);
     let state_read: Vec<StateReadOp> = vec![
@@ -141,6 +153,9 @@ fn sanity_test(server: &mut Server) -> (Intent, [u64; 4]) {
         constraints,
         directive: Directive::Satisfy,
     };
+
+    let deployed_address =
+        SourceAddress::persistent(deployed_address.into(), deployed_intent.intent_address());
 
     (intent, deployed_address)
 }

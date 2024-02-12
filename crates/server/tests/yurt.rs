@@ -4,9 +4,8 @@ use std::io::Write;
 
 use essential_types::{
     intent::Intent,
-    solution::{
-        InputMessage, KeyMutation, Mutation, OutputMessage, Solution, SolutionData, StateMutation,
-    },
+    solution::{KeyMutation, Mutation, Sender, Solution, SolutionData, StateMutation},
+    SourceAddress,
 };
 use intent_server::{db::Address, intent::ToIntentAddress, Server};
 use tempfile::NamedTempFile;
@@ -35,7 +34,7 @@ constraint w + u + v == 2206;
 solve satisfy;
 "#;
 
-    let mut deployed_intent = compile_yurt(code);
+    let deployed_intent = compile_yurt(code);
 
     let code = r#"
 state x: int = storage::get_extern(0xC7F646FFC0E4BB73AD1E919E800486F8725966B4C0E21214A47FAE03FF45797B, 0x0000000000000000000000000000000000000000000000000000000000000000); // 42
@@ -50,34 +49,27 @@ solve satisfy;
 "#;
 
     let mut intent = compile_yurt(code);
-    intent.slots.output_messages = 1;
+    intent.slots.permits = 1;
     let transient_address = intent.intent_address();
 
     let mut server = Server::new();
 
-    deployed_intent.slots.input_message_args = Some(vec![]);
     let deployed_address = server
         .deploy_intent_set(vec![deployed_intent.clone()])
         .unwrap();
     let transitions = [
         (
-            transient_address.clone(),
+            SourceAddress::transient(transient_address.clone()),
             SolutionData {
                 decision_variables: vec![],
-                input_message: None,
-                output_messages: vec![OutputMessage { args: vec![] }],
+                sender: Sender::Eoa([0; 4]),
             },
         ),
         (
-            deployed_address.into(),
+            SourceAddress::persistent(deployed_address.into(), transient_address.clone()),
             SolutionData {
                 decision_variables: vec![141, 129, 1936, 0, 1, 4, 9, 16],
-                input_message: Some(InputMessage {
-                    sender: transient_address,
-                    recipient: deployed_intent.intent_address(),
-                    args: vec![],
-                }),
-                output_messages: vec![],
+                sender: Sender::transient([0; 4], transient_address),
             },
         ),
     ];
