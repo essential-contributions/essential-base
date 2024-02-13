@@ -25,7 +25,7 @@ pub type Hash = [u8; 32];
 pub struct IntentAddress(pub Hash);
 
 /// Single unit of data.
-pub type Word = u64;
+pub type Word = i64;
 
 /// Key for state data.
 pub type Key = [Word; 4];

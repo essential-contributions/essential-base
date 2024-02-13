@@ -1,16 +1,16 @@
 //! Helper functions for converting between byte and word representations.
 
-use crate::IntentAddress;
+use crate::{IntentAddress, Word};
 
-fn pack_bytes(result: &[u8]) -> u64 {
-    let mut out: u64 = 0;
+fn pack_bytes(result: &[u8]) -> Word {
+    let mut out: Word = 0;
     for (i, byte) in result.iter().rev().enumerate() {
-        out |= (*byte as u64) << (i * 8);
+        out |= (*byte as Word) << (i * 8);
     }
     out
 }
 
-fn unpack_bytes(word: u64) -> [u8; 8] {
+fn unpack_bytes(word: Word) -> [u8; 8] {
     let mut out = [0u8; 8];
     for (i, byte) in out.iter_mut().rev().enumerate() {
         *byte = (word >> (i * 8)) as u8;
@@ -18,7 +18,7 @@ fn unpack_bytes(word: u64) -> [u8; 8] {
     out
 }
 
-impl From<IntentAddress> for [u64; 4] {
+impl From<IntentAddress> for [Word; 4] {
     fn from(address: IntentAddress) -> Self {
         address
             .0
@@ -30,8 +30,8 @@ impl From<IntentAddress> for [u64; 4] {
     }
 }
 
-impl From<[u64; 4]> for IntentAddress {
-    fn from(address: [u64; 4]) -> Self {
+impl From<[Word; 4]> for IntentAddress {
+    fn from(address: [Word; 4]) -> Self {
         let mut out = [0u8; 32];
         for (a, b) in address
             .iter()

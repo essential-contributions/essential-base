@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_packing() {
-    let packed: u64 = 0x00ff_ffff_ff00_ff00;
+    let packed: Word = 0x00ff_ffff_ff00_ff00;
     println!("packed: {:064b}", packed);
     let unpacked = unpack_bytes(packed);
     for (i, byte) in unpacked.iter().enumerate() {

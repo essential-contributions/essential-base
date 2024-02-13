@@ -9,6 +9,7 @@ use db::Db;
 use db::PubKey;
 use essential_types::PersistentAddress;
 use essential_types::SourceAddress;
+use essential_types::Word;
 use intent::intent_set_address;
 use intent::Intent;
 use intent::ToIntentAddress;
@@ -33,8 +34,8 @@ pub struct Server {
 
 #[derive(Default)]
 pub struct KeyStore {
-    pub accounts: HashMap<u64, ed25519_dalek::SigningKey>,
-    pub index: u64,
+    pub accounts: HashMap<Word, ed25519_dalek::SigningKey>,
+    pub index: Word,
 }
 
 impl Server {
@@ -42,7 +43,7 @@ impl Server {
         Self::default()
     }
 
-    pub fn check(&mut self, solution: Solution) -> anyhow::Result<u64> {
+    pub fn check(&mut self, solution: Solution) -> anyhow::Result<Word> {
         self.db.rollback();
         let mut utility = 0;
         let permits = solution.data.iter().fold(HashMap::new(), |mut map, data| {
@@ -106,7 +107,7 @@ impl Server {
         Ok(address)
     }
 
-    pub fn submit_solution(&mut self, solution: Solution) -> anyhow::Result<u64> {
+    pub fn submit_solution(&mut self, solution: Solution) -> anyhow::Result<Word> {
         let utility = self.check(solution)?;
         self.db.commit();
         Ok(utility)
@@ -141,7 +142,7 @@ impl Server {
         self.deployed_intents.get(address)
     }
 
-    pub fn generate_account(&mut self) -> anyhow::Result<u64> {
+    pub fn generate_account(&mut self) -> anyhow::Result<Word> {
         use rand_core::OsRng;
 
         let index = self.accounts.index;
@@ -151,7 +152,7 @@ impl Server {
         Ok(index)
     }
 
-    pub fn get_public_key(&self, index: u64) -> anyhow::Result<PubKey> {
+    pub fn get_public_key(&self, index: Word) -> anyhow::Result<PubKey> {
         let signing_key = self
             .accounts
             .accounts
@@ -180,14 +181,14 @@ pub fn hash(bytes: &[u8]) -> Address {
     let mut hasher = sha2::Sha256::new();
     hasher.update(bytes);
     let hash: [u8; 32] = hasher.finalize().into();
-    let mut out = [0u64; 4];
+    let mut out = [0i64; 4];
     for (o, h) in out.iter_mut().zip(hash.chunks_exact(8)) {
         *o = pack_bytes(h);
     }
     out
 }
 
-pub fn hash_words(bytes: &[u64]) -> Address {
+pub fn hash_words(bytes: &[Word]) -> Address {
     use sha2::Digest;
 
     let bytes = bytes
@@ -199,7 +200,7 @@ pub fn hash_words(bytes: &[u64]) -> Address {
     let mut hasher = sha2::Sha256::new();
     hasher.update(bytes);
     let hash: [u8; 32] = hasher.finalize().into();
-    let mut out = [0u64; 4];
+    let mut out = [0i64; 4];
     for (o, h) in out.iter_mut().zip(hash.chunks_exact(8)) {
         *o = pack_bytes(h);
     }

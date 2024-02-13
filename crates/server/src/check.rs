@@ -9,6 +9,7 @@ use essential_types::solution::SolutionData;
 use essential_types::solution::StateMutation;
 use essential_types::solution::TransientSender;
 use essential_types::SourceAddress;
+use essential_types::Word;
 
 use crate::data::Data;
 use crate::data::Slots;
@@ -48,7 +49,7 @@ impl SolvedIntent {
     }
 }
 
-pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<u64> {
+pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<Word> {
     check_slots(&intent.intent.slots, &intent.solution, intent.permits_used)?;
     let len =
         essential_types::slots::state_len(&intent.intent.slots.state).unwrap_or_default() as usize;
@@ -136,7 +137,7 @@ fn read_state(
     db: Db,
     state_slots: &[StateSlot],
     data: &mut Data,
-    state: &mut [Option<u64>],
+    state: &mut [Option<Word>],
     delta: bool,
 ) -> anyhow::Result<Vec<KeyRange>> {
     let mut all_keys = Vec::new();
@@ -201,7 +202,7 @@ fn check_constraint(data: &Data, ops: Vec<Op>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
+fn run(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<Word>> {
     let mut stack = Vec::new();
     println!("Result: {:?}", stack);
     for op in ops {
@@ -210,7 +211,7 @@ fn run(data: &Data, ops: Vec<Op>) -> anyhow::Result<Vec<u64>> {
     Ok(stack)
 }
 
-pub fn eval(stack: &mut Vec<u64>, data: &Data, op: Op) -> anyhow::Result<()> {
+pub fn eval(stack: &mut Vec<Word>, data: &Data, op: Op) -> anyhow::Result<()> {
     match op {
         Op::Push(word) => {
             stack.push(word);
@@ -237,7 +238,7 @@ pub fn eval(stack: &mut Vec<u64>, data: &Data, op: Op) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn check_predicate(stack: &mut Vec<u64>, pred: Pred) -> anyhow::Result<()> {
+fn check_predicate(stack: &mut Vec<Word>, pred: Pred) -> anyhow::Result<()> {
     let word1 = pop_one(stack)?;
     let result = match pred {
         Pred::Eq => pop_one(stack)? == word1,
@@ -255,11 +256,11 @@ fn check_predicate(stack: &mut Vec<u64>, pred: Pred) -> anyhow::Result<()> {
         }
         Pred::Not => word1 == 0,
     };
-    stack.push(result as u64);
+    stack.push(result as Word);
     Ok(())
 }
 
-fn check_alu(stack: &mut Vec<u64>, alu: Alu) -> anyhow::Result<()> {
+fn check_alu(stack: &mut Vec<Word>, alu: Alu) -> anyhow::Result<()> {
     let (word1, word2) = pop_two(stack)?;
     let result = match alu {
         Alu::Add => Some(word1 + word2),
@@ -287,7 +288,7 @@ fn check_alu(stack: &mut Vec<u64>, alu: Alu) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Result<()> {
+fn check_access(data: &Data, stack: &mut Vec<Word>, access: Access) -> anyhow::Result<()> {
     match access {
         Access::DecisionVar => {
             let slot = pop_one(stack)?;
@@ -367,7 +368,7 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
             };
             match state {
                 Some(state) => {
-                    stack.push(state.is_some() as u64);
+                    stack.push(state.is_some() as Word);
                 }
                 None => bail!("{:?} access out of bounds", access),
             }
@@ -381,7 +382,7 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
                     let iter = data
                         .state
                         .get(slot..(slot + range))
-                        .map(|iter| iter.iter().map(|i| i.is_some() as u64));
+                        .map(|iter| iter.iter().map(|i| i.is_some() as Word));
                     match iter {
                         Some(iter) => {
                             stack.extend(iter);
@@ -393,7 +394,7 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
                     let iter = data
                         .state_delta
                         .get(slot..(slot + range))
-                        .map(|iter| iter.iter().map(|i| i.is_some() as u64));
+                        .map(|iter| iter.iter().map(|i| i.is_some() as Word));
                     match iter {
                         Some(iter) => {
                             stack.extend(iter);
@@ -420,7 +421,7 @@ fn check_access(data: &Data, stack: &mut Vec<u64>, access: Access) -> anyhow::Re
     Ok(())
 }
 
-fn check_crypto(stack: &mut Vec<u64>, crypto: Crypto) -> anyhow::Result<()> {
+fn check_crypto(stack: &mut Vec<Word>, crypto: Crypto) -> anyhow::Result<()> {
     match crypto {
         Crypto::Sha256 => {
             use sha2::Digest;
@@ -461,25 +462,25 @@ fn check_crypto(stack: &mut Vec<u64>, crypto: Crypto) -> anyhow::Result<()> {
             let sig = Signature::from_bytes(&signature);
             let pub_key = VerifyingKey::from_bytes(&public_key)?;
             let result = pub_key.verify(&data, &sig).is_ok();
-            stack.push(result as u64);
+            stack.push(result as Word);
         }
     }
     Ok(())
 }
 
-pub fn pack_n_bytes(result: &[u8]) -> Vec<u64> {
+pub fn pack_n_bytes(result: &[u8]) -> Vec<Word> {
     result.chunks(8).map(pack_bytes).collect()
 }
 
-pub fn pack_bytes(result: &[u8]) -> u64 {
-    let mut out: u64 = 0;
+pub fn pack_bytes(result: &[u8]) -> Word {
+    let mut out: Word = 0;
     for (i, byte) in result.iter().rev().enumerate() {
-        out |= (*byte as u64) << (i * 8);
+        out |= (*byte as Word) << (i * 8);
     }
     out
 }
 
-pub fn unpack_bytes(word: u64) -> [u8; 8] {
+pub fn unpack_bytes(word: Word) -> [u8; 8] {
     let mut out = [0u8; 8];
     for (i, byte) in out.iter_mut().rev().enumerate() {
         *byte = (word >> (i * 8)) as u8;
@@ -487,13 +488,13 @@ pub fn unpack_bytes(word: u64) -> [u8; 8] {
     out
 }
 
-pub fn pop_one(stack: &mut Vec<u64>) -> anyhow::Result<u64> {
+pub fn pop_one(stack: &mut Vec<Word>) -> anyhow::Result<Word> {
     stack
         .pop()
         .ok_or_else(|| anyhow::anyhow!("Stack underflow"))
 }
 
-pub fn pop_two(stack: &mut Vec<u64>) -> anyhow::Result<(u64, u64)> {
+pub fn pop_two(stack: &mut Vec<Word>) -> anyhow::Result<(Word, Word)> {
     let word1 = pop_one(stack)?;
     let word2 = pop_one(stack)?;
     Ok((word2, word1))

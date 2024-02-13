@@ -5,6 +5,7 @@ use essential_types::solution::Sender;
 use essential_types::solution::SolutionData;
 use essential_types::solution::StateMutation;
 use essential_types::SourceAddress;
+use essential_types::Word;
 use intent_server::check::pack_n_bytes;
 use intent_server::check::Directive;
 use intent_server::data::Slots;
@@ -270,7 +271,7 @@ fn naughts_crosses() {
         .map(Op::Push)
         .chain([
             Op::Push(0),
-            Op::Push(len as u64),
+            Op::Push(len as Word),
             Op::Crypto(Crypto::Sha256),
         ])
         .collect::<Vec<_>>();
@@ -308,7 +309,7 @@ fn naughts_crosses() {
         .map(Op::Push)
         .chain([
             Op::Push(0),
-            Op::Push(len as u64),
+            Op::Push(len as Word),
             Op::Crypto(Crypto::Sha256),
         ])
         .collect::<Vec<_>>();

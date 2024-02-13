@@ -9,7 +9,7 @@ use serde::Serialize;
 /// Set of operations that can be performed to check constraints.
 pub enum Op {
     /// Push word onto stack.
-    Push(u64),
+    Push(i64),
     /// Pop word from stack.
     Pop,
     /// Duplicate top word on stack.

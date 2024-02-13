@@ -1,5 +1,6 @@
 use anyhow::bail;
 use anyhow::ensure;
+use essential_types::Word;
 
 use crate::check::pop_one;
 use crate::check::pop_two;
@@ -14,7 +15,7 @@ use state_asm::*;
 #[derive(Debug, Clone)]
 pub struct ReadOutput {
     pub keys: Vec<KeyRange>,
-    pub memory: Vec<Option<u64>>,
+    pub memory: Vec<Option<Word>>,
 }
 
 struct KeysMemory {
@@ -26,7 +27,7 @@ pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<R
     let mut stack = Vec::new();
     let mut pc = 0;
     let mut running = true;
-    let mut memory: Vec<Option<u64>> = Vec::with_capacity(0);
+    let mut memory: Vec<Option<Word>> = Vec::with_capacity(0);
     let mut keys = KeysMemory::new();
 
     while running {
@@ -60,11 +61,11 @@ pub fn read(db: &Db, data: &Data, program: Vec<StateReadOp>) -> anyhow::Result<R
 }
 
 fn eval_state(
-    stack: &mut Vec<u64>,
+    stack: &mut Vec<Word>,
     db: &Db,
     data: &Data,
     keys: &mut KeysMemory,
-    memory: &mut Vec<Option<u64>>,
+    memory: &mut Vec<Option<Word>>,
     pc: &mut usize,
     state: State,
 ) -> anyhow::Result<()> {
@@ -74,7 +75,7 @@ fn eval_state(
             let Some(key_pos) = stack.len().checked_sub(4) else {
                 bail!("stack underflow");
             };
-            let mut key = [0u64; 4];
+            let mut key = [0i64; 4];
             for (s, k) in stack.drain(key_pos..).zip(key.iter_mut()) {
                 *k = s;
             }
@@ -88,7 +89,7 @@ fn eval_state(
             ensure!(memory.capacity() >= result.len(), "Memory overflow");
             let start = memory.len();
             memory.extend(result);
-            stack.push(start as u64);
+            stack.push(start as Word);
             *pc += 1;
         }
         State::StateReadWordRangeExtern => {
@@ -96,14 +97,14 @@ fn eval_state(
             let Some(key_pos) = stack.len().checked_sub(4) else {
                 bail!("stack underflow");
             };
-            let mut key = [0u64; 4];
+            let mut key = [0i64; 4];
             for (s, k) in stack.drain(key_pos..).zip(key.iter_mut()) {
                 *k = s;
             }
             let Some(address_pos) = stack.len().checked_sub(4) else {
                 bail!("stack underflow");
             };
-            let mut address = [0u64; 4];
+            let mut address = [0i64; 4];
             for (s, a) in stack.drain(address_pos..).zip(address.iter_mut()) {
                 *a = s;
             }
@@ -111,7 +112,7 @@ fn eval_state(
             ensure!(memory.capacity() >= result.len(), "Memory overflow");
             let start = memory.len();
             memory.extend(result);
-            stack.push(start as u64);
+            stack.push(start as Word);
             *pc += 1;
         }
     }
@@ -119,7 +120,7 @@ fn eval_state(
 }
 
 fn eval_control_flow(
-    stack: &mut Vec<u64>,
+    stack: &mut Vec<Word>,
     pc: &mut usize,
     running: &mut bool,
     cf: ControlFlow,
@@ -145,9 +146,9 @@ fn eval_control_flow(
 }
 
 fn eval_memory(
-    stack: &mut Vec<u64>,
+    stack: &mut Vec<Word>,
     pc: &mut usize,
-    memory: &mut Vec<Option<u64>>,
+    memory: &mut Vec<Option<Word>>,
     op: Memory,
 ) -> anyhow::Result<()> {
     match op {
@@ -229,7 +230,7 @@ fn eval_memory(
         Memory::IsSome => {
             let index = pop_one(stack)?;
             let index: usize = index.try_into()?;
-            let value = memory.get(index).map(|v| v.is_some() as u64);
+            let value = memory.get(index).map(|v| v.is_some() as Word);
             match value {
                 Some(v) => stack.push(v),
                 None => bail!("index out of bounds"),
@@ -237,11 +238,11 @@ fn eval_memory(
             *pc += 1;
         }
         Memory::Capacity => {
-            stack.push(memory.capacity() as u64);
+            stack.push(memory.capacity() as Word);
             *pc += 1;
         }
         Memory::Length => {
-            stack.push(memory.len() as u64);
+            stack.push(memory.len() as Word);
             *pc += 1;
         }
     }
@@ -249,7 +250,7 @@ fn eval_memory(
 }
 
 fn eval_keys(
-    stack: &mut Vec<u64>,
+    stack: &mut Vec<Word>,
     pc: &mut usize,
     keys: &mut KeysMemory,
     k: Keys,
@@ -264,7 +265,7 @@ fn eval_keys(
             let Some(key_pos) = stack.len().checked_sub(4) else {
                 bail!("stack underflow");
             };
-            let mut key = [0u64; 4];
+            let mut key = [0i64; 4];
             for (s, k) in stack.drain(key_pos..).zip(key.iter_mut()) {
                 *k = s;
             }
@@ -290,7 +291,7 @@ impl KeysMemory {
         }
     }
 
-    fn track(&mut self, key: Key, amount: u64) {
+    fn track(&mut self, key: Key, amount: Word) {
         if self.overwritten {
             return;
         }
@@ -304,7 +305,7 @@ impl KeysMemory {
         self.keys.clear();
     }
 
-    fn push(&mut self, key: Key, amount: u64) {
+    fn push(&mut self, key: Key, amount: Word) {
         if let Some(kr) = key_range(key, amount) {
             self.keys.push(kr);
         }

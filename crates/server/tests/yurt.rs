@@ -117,8 +117,8 @@ fn test_erc20() {
 let sender: int[4];
 let to: int[4];
 let amount: int;
-state bal: int = storage::get(sender);
-state to_bal: int = storage::get(to);
+state bal: int = storage::get_arr(sender[0], sender[1], sender[2], sender[3]);
+state to_bal: int = storage::get_arr(to[0], to[1], to[2], to[3]);
 
 constraint bal >= amount;
 constraint bal - bal' == amount;
@@ -137,9 +137,9 @@ solve satisfy;
 
     let code = r#"
 let eoa: int[4] = [0, 0, 0, 0];
-let to = 0x0000000000000000000000000000000000000000000000000000000000000001;
-state bal: int = storage::get_extern(${deployed_address}, eoa); // 42
-state to_bal: int = storage::get_extern(${deployed_address}, to); // 42
+let to: int = 0x0000000000000000000000000000000000000000000000000000000000000001;
+state bal: int = storage::get_extern_int_arr(${deployed_address}, eoa[0], eoa[1], eoa[2], eoa[3]);
+state to_bal: int = storage::get_extern(${deployed_address}, to);
 
 constraint bal - bal' == amount;
 constraint to_bal' - to_bal == amount;

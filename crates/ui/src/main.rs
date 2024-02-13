@@ -1,6 +1,6 @@
 use essential_types::{
     solution::{KeyMutation, Mutation, RangeMutation, Sender, SolutionData, StateMutation},
-    IntentAddress, PersistentAddress, SourceAddress,
+    IntentAddress, PersistentAddress, SourceAddress, Word,
 };
 use intent_server::{
     intent::{Intent, ToIntentAddress},
@@ -30,7 +30,7 @@ pub struct App {
     server: Server,
     window: Window,
     solution_editor: Solution,
-    utility: Option<u64>,
+    utility: Option<Word>,
     errors: Vec<String>,
 }
 
@@ -300,7 +300,7 @@ impl App {
     }
 }
 
-fn num_line(ui: &mut egui::Ui, arg: &mut u64) {
+fn num_line(ui: &mut egui::Ui, arg: &mut Word) {
     let mut val = arg.to_string();
     ui.text_edit_singleline(&mut val);
     if let Ok(val) = val.parse() {

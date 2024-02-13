@@ -2,15 +2,17 @@ use std::collections::BTreeMap;
 use std::iter::Peekable;
 use std::ops::Range;
 
-pub type Key = [u64; 4];
-pub type Address = [u64; 4];
-pub type PubKey = [u64; 4];
+use essential_types::Word;
+
+pub type Key = [Word; 4];
+pub type Address = [Word; 4];
+pub type PubKey = [Word; 4];
 pub type KeyRange = Range<Key>;
 
 #[derive(Clone, Default, Debug)]
 pub struct Db {
-    data: BTreeMap<InnerKey, u64>,
-    staged: Option<BTreeMap<InnerKey, u64>>,
+    data: BTreeMap<InnerKey, Word>,
+    staged: Option<BTreeMap<InnerKey, Word>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -36,7 +38,7 @@ impl Db {
         }
     }
 
-    pub fn read_range(&self, address: &Address, key: &Key, amount: i32) -> Vec<Option<u64>> {
+    pub fn read_range(&self, address: &Address, key: &Key, amount: i32) -> Vec<Option<Word>> {
         let key = InnerKey {
             address: *address,
             key: *key,
@@ -44,16 +46,16 @@ impl Db {
         match &self.staged {
             Some(staged) => {
                 let iter = staged.range(key..).map(|(k, v)| (*k, *v)).peekable();
-                construct_values(key, amount as u64, iter)
+                construct_values(key, amount as Word, iter)
             }
             None => {
                 let iter = self.data.range(key..).map(|(k, v)| (*k, *v)).peekable();
-                construct_values(key, amount as u64, iter)
+                construct_values(key, amount as Word, iter)
             }
         }
     }
 
-    pub fn stage(&mut self, address: Address, key: Key, value: Option<u64>) {
+    pub fn stage(&mut self, address: Address, key: Key, value: Option<Word>) {
         let key = InnerKey { address, key };
         if let Some(staged) = &mut self.staged {
             match value {
@@ -89,12 +91,12 @@ impl Db {
         self.staged = None;
     }
 
-    pub fn set_values(&self) -> impl Iterator<Item = (Address, Key, u64)> + '_ {
+    pub fn set_values(&self) -> impl Iterator<Item = (Address, Key, Word)> + '_ {
         self.data.iter().map(|(k, v)| (k.address, k.key, *v))
     }
 }
 
-pub fn key_range(key: Key, amount: u64) -> Option<KeyRange> {
+pub fn key_range(key: Key, amount: Word) -> Option<KeyRange> {
     let mut end = key;
     for _ in 0..amount {
         end = add_one(end, 0)?;
@@ -102,12 +104,12 @@ pub fn key_range(key: Key, amount: u64) -> Option<KeyRange> {
     Some(key..end)
 }
 
-fn construct_values<I>(key: InnerKey, amount: u64, mut iter: Peekable<I>) -> Vec<Option<u64>>
+fn construct_values<I>(key: InnerKey, amount: Word, mut iter: Peekable<I>) -> Vec<Option<Word>>
 where
-    I: Iterator<Item = (InnerKey, u64)>,
+    I: Iterator<Item = (InnerKey, Word)>,
 {
     InnerKeyIter { key: Some(key) }
-        .map(|k| (k, None::<u64>))
+        .map(|k| (k, None::<Word>))
         .map(|(k, _)| match iter.peek() {
             Some((k2, _)) if k == *k2 => iter.next().map(|(_, v)| v),
             _ => None,
@@ -159,7 +161,7 @@ fn add_one(key: Key, index: usize) -> Option<Key> {
     add_to_key(key, index, 1)
 }
 
-pub fn add_to_key(mut key: Key, index: usize, amount: u64) -> Option<Key> {
+pub fn add_to_key(mut key: Key, index: usize, amount: Word) -> Option<Key> {
     if index >= key.len() {
         return None;
     }
