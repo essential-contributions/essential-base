@@ -16,7 +16,6 @@ use crate::data::Slots;
 use crate::db::add_to_key;
 use crate::db::Address;
 use crate::db::Db;
-use crate::db::KeyRange;
 use crate::db::KeyRangeIter;
 use crate::intent::Intent;
 use crate::intent::ToIntentAddress;
@@ -136,8 +135,7 @@ fn read_state(
     data: &mut Data,
     state: &mut [Option<Word>],
     delta: bool,
-) -> anyhow::Result<Vec<KeyRange>> {
-    let mut all_keys = Vec::new();
+) -> anyhow::Result<()> {
     if !read.is_empty() {
         let programs: Vec<Vec<StateReadOp>> = read
             .iter()
@@ -147,8 +145,7 @@ fn read_state(
             let Some(program) = programs.get(slot.program_index as usize) else {
                 bail!("State read program out of bounds");
             };
-            let ReadOutput { keys, memory } = vm::read(&db, data, program.clone())?;
-            all_keys.extend(keys);
+            let ReadOutput { memory } = vm::read(&db, data, program.clone())?;
             if memory.len() != slot.amount as usize {
                 bail!(
                     "State read failed, read {} words, expected {}",
@@ -166,7 +163,7 @@ fn read_state(
             }
         }
     }
-    Ok(all_keys)
+    Ok(())
 }
 
 fn check_slots(slots: &Slots, solution: &SolutionData, permits_used: usize) -> anyhow::Result<()> {

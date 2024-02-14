@@ -18,8 +18,6 @@ pub enum StateReadOp {
     ControlFlow(ControlFlow),
     /// Operations for controlling the memory.
     Memory(Memory),
-    /// Operations for manipulating the write keys.
-    Keys(Keys),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -91,19 +89,6 @@ pub enum Memory {
     /// Get the current length of the memory.
     /// return -> length
     Length,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-/// Operations for manipulating the write keys.
-pub enum Keys {
-    /// Set available write keys to be overwritten.
-    /// This means that the keys that are read will
-    /// no longer be tracked.
-    Overwrite,
-    /// Push a range of keys into the key memory.
-    /// This makes the key range available for writing.
-    /// params -> {key: list len 4, amount}
-    Push,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
