@@ -132,10 +132,7 @@ impl Server {
     }
 
     pub fn get_deployed(&self, set: &Address, address: &Address) -> Option<&Intent> {
-        self.deployed_intents.get(set).and_then(|s| {
-            dbg!(s.keys().collect::<Vec<_>>());
-            s.get(address)
-        })
+        self.deployed_intents.get(set).and_then(|s| s.get(address))
     }
 
     pub fn get_deployed_set(&self, address: &Address) -> Option<&HashMap<Address, Intent>> {

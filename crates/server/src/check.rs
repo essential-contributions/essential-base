@@ -56,17 +56,31 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<Word> {
     let mut state = vec![None; len];
     let mut state_delta = vec![None; len];
 
+    let mut_keys = intent
+        .state_mutations
+        .iter()
+        .filter(|m| m.address == *intent.source_address.set_address())
+        .flat_map(|m| {
+            m.mutations.iter().flat_map(|m| match m {
+                Mutation::Key(KeyMutation { key, .. }) => vec![*key],
+                Mutation::Range(RangeMutation { key_range, .. }) => {
+                    KeyRangeIter::new(key_range.clone()).collect()
+                }
+            })
+        })
+        .collect();
     let mut data = Data {
         source_address: intent.source_address,
         decision_variables: intent.solution.decision_variables.clone(),
         state: state.clone(),
         state_delta: state_delta.clone(),
         sender: intent.solution.sender.clone(),
+        mut_keys,
     };
 
     db.rollback();
 
-    let keys = read_state(
+    read_state(
         &intent.intent.state_read,
         db.clone(),
         intent.intent.slots.state.as_slice(),
@@ -79,26 +93,9 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<Word> {
         for mutation in mutations {
             match mutation {
                 Mutation::Key(KeyMutation { key, value }) => {
-                    if address == *data.source_address.set_address() {
-                        ensure!(
-                            keys.iter().any(|k| k.contains(&key)),
-                            "Key {:?} must be included in state reads",
-                            key
-                        );
-                    }
-
                     db.stage(address.clone().into(), key, value);
                 }
                 Mutation::Range(RangeMutation { key_range, values }) => {
-                    if address == *data.source_address.set_address() {
-                        ensure!(
-                            keys.iter()
-                                .any(|k| KeyRangeIter::new(key_range.clone())
-                                    .all(|k2| k.contains(&k2))),
-                            "Key {:?} must be included in state reads",
-                            key_range
-                        );
-                    }
                     let len = KeyRangeIter::new(key_range.clone()).count();
                     ensure!(
                         len == values.len(),
@@ -432,6 +429,17 @@ fn check_access(data: &Data, stack: &mut Vec<Word>, access: Access) -> anyhow::R
                 stack.extend(set);
             }
         },
+        Access::MutKey => {
+            let slot = pop_one(stack)?;
+            let slot: usize = slot.try_into()?;
+            let Some(keys) = &data.mut_keys.get(slot) else {
+                bail!("{:?} access out of bounds", access);
+            };
+            stack.extend(*keys);
+        }
+        Access::MutKeyLen => {
+            stack.push(data.mut_keys.len() as Word);
+        }
     }
     Ok(())
 }
