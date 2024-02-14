@@ -224,6 +224,21 @@ pub fn eval(stack: &mut Vec<Word>, data: &Data, op: Op) -> anyhow::Result<()> {
             stack.push(word);
             stack.push(word);
         }
+        Op::DupFrom => {
+            let index = pop_one(stack)?;
+            let index: usize = index.try_into()?;
+            let Some(index) = stack
+                .len()
+                .checked_sub(index)
+                .and_then(|i| i.checked_sub(1))
+            else {
+                bail!("Invalid index");
+            };
+            let Some(word) = stack.get(index) else {
+                bail!("Index out of range");
+            };
+            stack.push(*word);
+        }
         Op::Swap => {
             let (word1, word2) = pop_two(stack)?;
             stack.push(word2);

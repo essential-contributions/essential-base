@@ -14,6 +14,9 @@ pub enum Op {
     Pop,
     /// Duplicate top word on stack.
     Dup,
+    /// Params -> index.
+    /// Duplicate word at index counting from the top of the stack and push it onto the stack.
+    DupFrom,
     /// Swap top two words on stack.
     Swap,
     /// Operations for computing predicates.
