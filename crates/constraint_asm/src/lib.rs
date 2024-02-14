@@ -69,6 +69,15 @@ pub enum Access {
     /// return -> words: list with len 4
     /// Returns the sender that permitted this intent.
     Sender,
+    /// Params -> slot,
+    /// Return -> key: list len 4
+    ///
+    /// Returns the key that is being proposed for mutation at this slot.
+    MutKey,
+    /// Return -> word
+    ///
+    /// Get the number of mutable keys being proposed for mutation.
+    MutKeyLen,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]

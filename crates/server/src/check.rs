@@ -16,7 +16,6 @@ use crate::data::Slots;
 use crate::db::add_to_key;
 use crate::db::Address;
 use crate::db::Db;
-use crate::db::KeyRange;
 use crate::db::KeyRangeIter;
 use crate::intent::Intent;
 use crate::intent::ToIntentAddress;
@@ -56,17 +55,31 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<Word> {
     let mut state = vec![None; len];
     let mut state_delta = vec![None; len];
 
+    let mut_keys = intent
+        .state_mutations
+        .iter()
+        .filter(|m| m.address == *intent.source_address.set_address())
+        .flat_map(|m| {
+            m.mutations.iter().flat_map(|m| match m {
+                Mutation::Key(KeyMutation { key, .. }) => vec![*key],
+                Mutation::Range(RangeMutation { key_range, .. }) => {
+                    KeyRangeIter::new(key_range.clone()).collect()
+                }
+            })
+        })
+        .collect();
     let mut data = Data {
         source_address: intent.source_address,
         decision_variables: intent.solution.decision_variables.clone(),
         state: state.clone(),
         state_delta: state_delta.clone(),
         sender: intent.solution.sender.clone(),
+        mut_keys,
     };
 
     db.rollback();
 
-    let keys = read_state(
+    read_state(
         &intent.intent.state_read,
         db.clone(),
         intent.intent.slots.state.as_slice(),
@@ -79,26 +92,9 @@ pub fn check(db: &mut Db, intent: SolvedIntent) -> anyhow::Result<Word> {
         for mutation in mutations {
             match mutation {
                 Mutation::Key(KeyMutation { key, value }) => {
-                    if address == *data.source_address.set_address() {
-                        ensure!(
-                            keys.iter().any(|k| k.contains(&key)),
-                            "Key {:?} must be included in state reads",
-                            key
-                        );
-                    }
-
                     db.stage(address.clone().into(), key, value);
                 }
                 Mutation::Range(RangeMutation { key_range, values }) => {
-                    if address == *data.source_address.set_address() {
-                        ensure!(
-                            keys.iter()
-                                .any(|k| KeyRangeIter::new(key_range.clone())
-                                    .all(|k2| k.contains(&k2))),
-                            "Key {:?} must be included in state reads",
-                            key_range
-                        );
-                    }
                     let len = KeyRangeIter::new(key_range.clone()).count();
                     ensure!(
                         len == values.len(),
@@ -139,8 +135,7 @@ fn read_state(
     data: &mut Data,
     state: &mut [Option<Word>],
     delta: bool,
-) -> anyhow::Result<Vec<KeyRange>> {
-    let mut all_keys = Vec::new();
+) -> anyhow::Result<()> {
     if !read.is_empty() {
         let programs: Vec<Vec<StateReadOp>> = read
             .iter()
@@ -150,8 +145,7 @@ fn read_state(
             let Some(program) = programs.get(slot.program_index as usize) else {
                 bail!("State read program out of bounds");
             };
-            let ReadOutput { keys, memory } = vm::read(&db, data, program.clone())?;
-            all_keys.extend(keys);
+            let ReadOutput { memory } = vm::read(&db, data, program.clone())?;
             if memory.len() != slot.amount as usize {
                 bail!(
                     "State read failed, read {} words, expected {}",
@@ -169,7 +163,7 @@ fn read_state(
             }
         }
     }
-    Ok(all_keys)
+    Ok(())
 }
 
 fn check_slots(slots: &Slots, solution: &SolutionData, permits_used: usize) -> anyhow::Result<()> {
@@ -432,6 +426,17 @@ fn check_access(data: &Data, stack: &mut Vec<Word>, access: Access) -> anyhow::R
                 stack.extend(set);
             }
         },
+        Access::MutKey => {
+            let slot = pop_one(stack)?;
+            let slot: usize = slot.try_into()?;
+            let Some(keys) = &data.mut_keys.get(slot) else {
+                bail!("{:?} access out of bounds", access);
+            };
+            stack.extend(*keys);
+        }
+        Access::MutKeyLen => {
+            stack.push(data.mut_keys.len() as Word);
+        }
     }
     Ok(())
 }
