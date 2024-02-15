@@ -248,22 +248,41 @@ pub fn eval(stack: &mut Vec<Word>, data: &Data, op: Op) -> anyhow::Result<()> {
 }
 
 fn check_predicate(stack: &mut Vec<Word>, pred: Pred) -> anyhow::Result<()> {
-    let word1 = pop_one(stack)?;
-    let result = match pred {
-        Pred::Eq => pop_one(stack)? == word1,
-        Pred::Gt => pop_one(stack)? > word1,
-        Pred::Lt => pop_one(stack)? < word1,
-        Pred::Gte => pop_one(stack)? >= word1,
-        Pred::Lte => pop_one(stack)? <= word1,
-        Pred::And => {
-            let word2 = pop_one(stack)?;
-            word1 != 0 && word2 != 0
+    let result = if let Pred::Eq4 = pred {
+        let Some(pos) = stack.len().checked_sub(4) else {
+            bail!("stack underflow");
+        };
+        let mut rhs = [0; 4];
+        for (i, o) in stack.drain(pos..).zip(rhs.iter_mut()) {
+            *o = i;
         }
-        Pred::Or => {
-            let word2 = pop_one(stack)?;
-            word1 != 0 || word2 != 0
+        let Some(pos) = stack.len().checked_sub(4) else {
+            bail!("stack underflow");
+        };
+        let mut lhs = [0; 4];
+        for (i, o) in stack.drain(pos..).zip(lhs.iter_mut()) {
+            *o = i;
         }
-        Pred::Not => word1 == 0,
+        lhs == rhs
+    } else {
+        let word1 = pop_one(stack)?;
+        match pred {
+            Pred::Eq => pop_one(stack)? == word1,
+            Pred::Gt => pop_one(stack)? > word1,
+            Pred::Lt => pop_one(stack)? < word1,
+            Pred::Gte => pop_one(stack)? >= word1,
+            Pred::Lte => pop_one(stack)? <= word1,
+            Pred::And => {
+                let word2 = pop_one(stack)?;
+                word1 != 0 && word2 != 0
+            }
+            Pred::Or => {
+                let word2 = pop_one(stack)?;
+                word1 != 0 || word2 != 0
+            }
+            Pred::Not => word1 == 0,
+            Pred::Eq4 => unreachable!(),
+        }
     };
     stack.push(result as Word);
     Ok(())

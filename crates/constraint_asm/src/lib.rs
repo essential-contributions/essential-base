@@ -86,6 +86,9 @@ pub enum Pred {
     /// params -> {lhs, rhs}
     /// return -> bool
     Eq,
+    /// params -> {lhs: list len 4, rhs: list len 4}
+    /// return -> bool
+    Eq4,
     /// params -> {lhs, rhs}
     /// return -> bool
     Gt,
