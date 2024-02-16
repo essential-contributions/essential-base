@@ -7,7 +7,7 @@ use essential_types::{
     solution::{KeyMutation, Mutation, Sender, Solution, SolutionData, StateMutation},
     IntentAddress, SourceAddress,
 };
-use intent_server::{db::Address, intent::ToIntentAddress, Server};
+use intent_server::{db::Address, hash, intent::ToIntentAddress, Server};
 use tempfile::NamedTempFile;
 
 #[test]
@@ -188,6 +188,82 @@ solve satisfy;
     let address: Address = deployed_address;
     server.db().stage(address, [0, 0, 0, 0], Some(100));
     server.db().commit();
+
+    server.submit_intent(intent).unwrap();
+    let utility = server.submit_solution(solution).unwrap();
+    assert_eq!(utility, 2);
+}
+
+#[test]
+fn test_name_service() {
+    let name = hash("alice.com".as_bytes());
+    // name service
+    let code = r#"
+state owner: int = storage::get(context::mut_keys(0));
+
+constraint context::mut_keys_len() == 1;
+constraint (owner == 0 && owner' == context::sender()) 
+    || (owner == context::sender() && owner' != owner);
+
+solve satisfy;
+"#;
+
+    let deployed_intent = compile_yurt(code);
+
+    let mut server = Server::new();
+
+    let deployed_address = server
+        .deploy_intent_set(vec![deployed_intent.clone()])
+        .unwrap();
+
+    let code = r#"
+let name: b256 = ${name};
+state owner: int = storage::get_extern(${deployed_address}, name);
+
+constraint owner' == context::sender();
+
+solve satisfy;
+"#;
+    let code = code
+        .replace(
+            "${deployed_address}",
+            &format!("0x{}", hex::encode(IntentAddress::from(deployed_address).0)),
+        )
+        .replace(
+            "${name}",
+            &format!("0x{}", hex::encode(IntentAddress::from(name).0)),
+        );
+
+    let mut intent = compile_yurt(&code);
+    intent.slots.permits = 1;
+    let transient_address = intent.intent_address();
+
+    let transitions = [
+        SolutionData {
+            intent_to_solve: SourceAddress::transient(transient_address.clone()),
+            decision_variables: vec![name[0], name[1], name[2], name[3]],
+            sender: Sender::Eoa([0, 0, 0, 1]),
+        },
+        SolutionData {
+            intent_to_solve: SourceAddress::persistent(
+                deployed_address.into(),
+                deployed_intent.intent_address(),
+            ),
+            decision_variables: vec![],
+            sender: Sender::transient([0, 0, 0, 1], transient_address),
+        },
+    ];
+
+    let solution = Solution {
+        data: transitions.into_iter().collect(),
+        state_mutations: vec![StateMutation {
+            address: deployed_address.into(),
+            mutations: vec![Mutation::Key(KeyMutation {
+                key: [name[0], name[1], name[2], name[3]],
+                value: Some(1),
+            })],
+        }],
+    };
 
     server.submit_intent(intent).unwrap();
     let utility = server.submit_solution(solution).unwrap();
