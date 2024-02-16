@@ -114,15 +114,11 @@ solve satisfy;
 fn test_erc20() {
     // Transfer
     let code = r#"
-let sender: int[4];
-let to: int[4];
-let amount: int;
-state bal: int = storage::get_arr(sender[0], sender[1], sender[2], sender[3]);
-state to_bal: int = storage::get_arr(to[0], to[1], to[2], to[3]);
+let to: b256;
+state bal: int = storage::get(context::sender());
+state to_bal: int = storage::get(to);
 
-constraint bal >= amount;
-constraint bal - bal' == amount;
-constraint to_bal' - to_bal == amount;
+constraint to_bal' - to_bal == bal - bal';
 
 solve satisfy;
 "#;
@@ -136,9 +132,9 @@ solve satisfy;
         .unwrap();
 
     let code = r#"
-let eoa: int[4] = [0, 0, 0, 0];
-let to: int = 0x0000000000000000000000000000000000000000000000000000000000000001;
-state bal: int = storage::get_extern_int_arr(${deployed_address}, eoa[0], eoa[1], eoa[2], eoa[3]);
+let to: b256 = 0x0000000000000000000000000000000000000000000000000000000000000001;
+let amount: int = 10;
+state bal: int = storage::get_extern(${deployed_address}, context::sender());
 state to_bal: int = storage::get_extern(${deployed_address}, to);
 
 constraint bal - bal' == amount;
@@ -158,7 +154,7 @@ solve satisfy;
     let transitions = [
         SolutionData {
             intent_to_solve: SourceAddress::transient(transient_address.clone()),
-            decision_variables: vec![],
+            decision_variables: vec![0, 0, 0, 1, 10],
             sender: Sender::Eoa([0; 4]),
         },
         SolutionData {
@@ -166,7 +162,7 @@ solve satisfy;
                 deployed_address.into(),
                 deployed_intent.intent_address(),
             ),
-            decision_variables: vec![0, 0, 0, 0, 0, 0, 0, 1, 10],
+            decision_variables: vec![0, 0, 0, 1],
             sender: Sender::transient([0; 4], transient_address),
         },
     ];
