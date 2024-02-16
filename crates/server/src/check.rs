@@ -445,7 +445,7 @@ fn check_access(data: &Data, stack: &mut Vec<Word>, access: Access) -> anyhow::R
                 stack.extend(set);
             }
         },
-        Access::MutKey => {
+        Access::MutKeys => {
             let slot = pop_one(stack)?;
             let slot: usize = slot.try_into()?;
             let Some(keys) = &data.mut_keys.get(slot) else {
@@ -453,15 +453,15 @@ fn check_access(data: &Data, stack: &mut Vec<Word>, access: Access) -> anyhow::R
             };
             stack.extend(*keys);
         }
-        Access::MutKeyLen => {
+        Access::MutKeysLen => {
             stack.push(data.mut_keys.len() as Word);
         }
         Access::ThisAddress => {
-            let address: Address = data.source_address.intent_address().into();
+            let address: Address = data.source_address.intent_address().clone().into();
             stack.extend(address);
         }
         Access::ThisSetAddress => {
-            let address: Address = data.source_address.set_address().into();
+            let address: Address = data.source_address.set_address().clone().into();
             stack.extend(address);
         }
     }
