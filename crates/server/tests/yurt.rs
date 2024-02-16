@@ -114,10 +114,11 @@ solve satisfy;
 fn test_erc20() {
     // Transfer
     let code = r#"
-let to: b256;
-state bal: int = storage::get(context::sender());
-state to_bal: int = storage::get(to);
+state bal: int = storage::get(context::mut_keys(0));
+state to_bal: int = storage::get(context::mut_keys(1));
 
+constraint context::mut_keys_len() == 2;
+constraint context::mut_keys(0) == context::sender();
 constraint to_bal' - to_bal == bal - bal';
 
 solve satisfy;

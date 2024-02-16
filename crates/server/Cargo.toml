@@ -18,7 +18,7 @@ essential_types = { path = "../types" }
 serde = { version = "1.0.195", features = ["derive"] }
 serde_json = "1.0.111"
 
-yurtc = { git = "ssh://git@github.com/essential-contributions/yurt.git", default-features = false, optional = true, branch = "mohammadfawaz/msg_sender" }
+yurtc = { git = "ssh://git@github.com/essential-contributions/yurt.git", default-features = false, optional = true, branch = "freesig/msg_sender" }
 tempfile = { version = "3.9.0", optional = true }
 hex = { version = "0.4.3", optional = true }
 

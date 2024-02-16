@@ -4229,7 +4229,7 @@ checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
 [[package]]
 name = "yurtc"
 version = "0.1.0"
-source = "git+ssh://git@github.com/essential-contributions/yurt.git?branch=mohammadfawaz/msg_sender#a6c9b7a565e9c1ae60242b543f510b1ecf45243b"
+source = "git+ssh://git@github.com/essential-contributions/yurt.git?branch=freesig/msg_sender#b84c9a0b4ea8aebd87b9c66a069b98c39687972b"
 dependencies = [
  "anyhow",
  "ariadne",

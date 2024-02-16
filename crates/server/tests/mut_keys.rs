@@ -16,11 +16,11 @@ fn test_mut_keys() {
     let constraint = vec![
         // let keys: int[2] = context::mut_keys();
         Op::Push(2),
-        Op::Access(Access::MutKeyLen),
+        Op::Access(Access::MutKeysLen),
         Op::Pred(Pred::Eq),
         // constraint keys[0] == [0, 0, 0, 1];
         Op::Push(0),
-        Op::Access(Access::MutKey), // [1, 0, 0, 0, 1]
+        Op::Access(Access::MutKeys), // [1, 0, 0, 0, 1]
         Op::Push(1),                // [1, 0, 0, 0, 1, 1]
         Op::Pred(Pred::Eq),         // [1, 0, 0, 0, 1]
         Op::Swap,                   // [1, 0, 0, 1, 0]
@@ -38,7 +38,7 @@ fn test_mut_keys() {
         Op::Pred(Pred::And),
         // constraint keys[1] == [0, 0, 0, 2];
         Op::Push(1),
-        Op::Access(Access::MutKey),
+        Op::Access(Access::MutKeys),
         Op::Push(2),
         Op::Pred(Pred::Eq),
         Op::Swap,

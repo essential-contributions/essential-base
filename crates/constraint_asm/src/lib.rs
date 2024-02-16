@@ -73,11 +73,11 @@ pub enum Access {
     /// Return -> key: list len 4
     ///
     /// Returns the key that is being proposed for mutation at this slot.
-    MutKey,
+    MutKeys,
     /// Return -> word
     ///
     /// Get the number of mutable keys being proposed for mutation.
-    MutKeyLen,
+    MutKeysLen,
     /// Return -> key: list len 4
     ///
     /// Get the content hash of this intent.
