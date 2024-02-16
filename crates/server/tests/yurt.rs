@@ -163,7 +163,7 @@ solve satisfy;
                 deployed_address.into(),
                 deployed_intent.intent_address(),
             ),
-            decision_variables: vec![0, 0, 0, 1],
+            decision_variables: vec![],
             sender: Sender::transient([0; 4], transient_address),
         },
     ];

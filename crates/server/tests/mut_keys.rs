@@ -21,12 +21,12 @@ fn test_mut_keys() {
         // constraint keys[0] == [0, 0, 0, 1];
         Op::Push(0),
         Op::Access(Access::MutKeys), // [1, 0, 0, 0, 1]
-        Op::Push(1),                // [1, 0, 0, 0, 1, 1]
-        Op::Pred(Pred::Eq),         // [1, 0, 0, 0, 1]
-        Op::Swap,                   // [1, 0, 0, 1, 0]
-        Op::Push(0),                // [1, 0, 0, 1, 0, 0]
-        Op::Pred(Pred::Eq),         // [1, 0, 0, 1, 1]
-        Op::Pred(Pred::And),        // [1, 0, 0, 1]
+        Op::Push(1),                 // [1, 0, 0, 0, 1, 1]
+        Op::Pred(Pred::Eq),          // [1, 0, 0, 0, 1]
+        Op::Swap,                    // [1, 0, 0, 1, 0]
+        Op::Push(0),                 // [1, 0, 0, 1, 0, 0]
+        Op::Pred(Pred::Eq),          // [1, 0, 0, 1, 1]
+        Op::Pred(Pred::And),         // [1, 0, 0, 1]
         Op::Swap,
         Op::Push(0),
         Op::Pred(Pred::Eq),
