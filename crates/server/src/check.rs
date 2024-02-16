@@ -456,6 +456,14 @@ fn check_access(data: &Data, stack: &mut Vec<Word>, access: Access) -> anyhow::R
         Access::MutKeyLen => {
             stack.push(data.mut_keys.len() as Word);
         }
+        Access::ThisAddress => {
+            let address: Address = data.source_address.intent_address().into();
+            stack.extend(address);
+        }
+        Access::ThisSetAddress => {
+            let address: Address = data.source_address.set_address().into();
+            stack.extend(address);
+        }
     }
     Ok(())
 }

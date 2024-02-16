@@ -78,6 +78,14 @@ pub enum Access {
     ///
     /// Get the number of mutable keys being proposed for mutation.
     MutKeyLen,
+    /// Return -> key: list len 4
+    ///
+    /// Get the content hash of this intent.
+    ThisAddress,
+    /// Return -> key: list len 4
+    ///
+    /// Get the content hash of the set of intents that this intent belongs to.
+    ThisSetAddress,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
