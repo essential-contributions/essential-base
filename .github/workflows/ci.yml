@@ -7,6 +7,8 @@ jobs:
   build_and_test:
     name: Rust project
     runs-on: ubuntu-latest
+    env:
+        CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
     steps:
       - name: Provide Access to Private Repos
         uses: webfactory/ssh-agent@v0.9.0
