@@ -1,17 +1,15 @@
 [package]
-edition = "2021"
+edition.workspace = true
 name = "ui"
 version = "0.1.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 eframe = "0.26"
 egui = "0.26.0"
-hex = "0.4.3"
-intent-server = { path = "../server" }
-essential_types ={ path = "../types" }
-serde = { version = "1.0.195", features = ["derive"] }
-serde_json = "1.0.111"
-tempfile = "3.9.0"
-yurtc = { git = "ssh://git@github.com/essential-contributions/yurt.git", default-features = false, branch = "freesig/msg_sender" }
+hex.workspace = true
+intent-server.workspace = true
+essential_types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+yurtc.workspace = true

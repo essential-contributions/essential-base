@@ -1,11 +1,8 @@
 [package]
-edition = "2021"
+edition.workspace = true
 name = "constraint_asm"
 version = "0.1.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-# TODO: Choose or build a better bytecode encoding
-serde = { version = "1.0.195", features = ["derive"] }
-serde_json = "1.0.111"
+serde.workspace = true
+serde_json.workspace = true

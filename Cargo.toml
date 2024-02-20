@@ -1,3 +1,18 @@
 [workspace]
-members = ["crates/constraint_asm", "crates/server", "crates/state_asm", "crates/types", "crates/ui"]
+members = ["crates/*"]
 resolver = "2"
+
+[workspace.package]
+edition = "2021"
+
+[workspace.dependencies]
+constraint_asm = { path = "crates/constraint_asm" }
+essential_types = { path = "crates/types" }
+hex = "0.4.3"
+intent-server = { path = "crates/server" }
+# TODO: essential-contributions/specs#50 - replace serialization.
+serde = { version = "1.0.195", features = ["derive"] }
+serde_json = "1.0.111"
+state_asm = { path = "crates/state_asm" }
+tempfile = "3.9.0"
+yurtc = { git = "ssh://git@github.com/essential-contributions/yurt.git", default-features = false, branch = "freesig/msg_sender" }
