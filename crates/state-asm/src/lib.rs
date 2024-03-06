@@ -2,8 +2,7 @@
 #![warn(missing_docs)]
 //! # Assembly for state read operations.
 
-pub use constraint_asm;
-pub use constraint_asm::Op;
+pub use essential_constraint_asm::{self as constraint_asm, Op};
 use serde::Deserialize;
 use serde::Serialize;
 

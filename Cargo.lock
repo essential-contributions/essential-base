@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "constraint_asm"
+name = "essential-constraint-asm"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -11,7 +11,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "essential_types"
+name = "essential-state-asm"
+version = "0.1.0"
+dependencies = [
+ "essential-constraint-asm",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "essential-types"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -77,15 +86,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "state_asm"
-version = "0.1.0"
-dependencies = [
- "constraint_asm",
- "serde",
- "serde_json",
 ]
 
 [[package]]

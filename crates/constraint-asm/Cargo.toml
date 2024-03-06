@@ -1,9 +1,8 @@
 [package]
 edition.workspace = true
-name = "state_asm"
+name = "essential-constraint-asm"
 version = "0.1.0"
 
 [dependencies]
-constraint_asm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
