@@ -1,19 +1,45 @@
 name: ci
-run-name: CI
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build_and_test:
-    name: Rust project
+  cargo:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - command: check --locked --all
+          - command: clippy --locked --all -- -D warnings
+          - command: fmt --all -- --check
+          - command: test --locked --all
+          - command: test --no-default-features --locked --all
+          - command: test --all-features --locked --all
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo ${{ matrix.command }}
+
+  # TODO: Update/fork this tool to provide a simpler, cargo-plugin-style CLI
+  # so that it can be merged in the command table above
+  cargo-toml-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
-      - run: cargo fmt --check
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo install --version "0.1.1" cargo-toml-lint
+    - run: git ls-files | grep Cargo.toml$ | xargs --verbose -n 1 cargo-toml-lint
