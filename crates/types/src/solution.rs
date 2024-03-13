@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Eoa, IntentAddress, Key, KeyRange, PersistentAddress, SourceAddress, Word};
+use crate::{Eoa, IntentAddress, Key, KeyRange, Word};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A solution to intents.
@@ -18,7 +18,7 @@ pub struct Solution {
 /// The data the solver is required to provide to solve an intent.
 pub struct SolutionData {
     /// Which intent this input data is for.
-    pub intent_to_solve: SourceAddress,
+    pub intent_to_solve: IntentAddress,
     /// The decision variables for the intent.
     pub decision_variables: Vec<Word>,
     /// The EOA or intent that is permitting this intent to be solved.
@@ -30,27 +30,18 @@ pub struct SolutionData {
 pub enum Sender {
     /// This intent is being solved on behalf of an EOA.
     Eoa(Eoa),
-    /// This intent is being solved on behalf of a transient intent.
-    Transient(TransientSender),
-    /// This intent is being solved on behalf of a persistent intent.
-    Persistent(PersistentSender),
+    /// This intent is being solved on behalf of another intent.
+    Intent(IntentAddress),
+    /// This intent is being solved on behalf of an EOA forwarded via an intent.
+    ForwardedEoa(ForwardedEoaSender),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-/// The data from a transient sender.
-pub struct TransientSender {
-    /// The EOA that submitted the transient intent.
-    pub eoa: [Word; 4],
-    /// The content address of the transient intent.
-    pub intent: IntentAddress,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-/// The data from a persistent sender.
-pub struct PersistentSender {
-    /// The content address of the set of intents that this intent is deployed with.
-    pub set: IntentAddress,
-    /// The content address of the intent.
+/// The sender is an EOA being forwarded via an intent.
+pub struct ForwardedEoaSender {
+    /// The EOA being forwarded.
+    pub eoa: Eoa,
+    /// The intent from which the EOA was forwarded.
     pub intent: IntentAddress,
 }
 
@@ -96,29 +87,16 @@ pub struct StateMutation {
 
 impl Sender {
     /// Construct a sender for an EOA.
-    pub fn eao(eoa: Eoa) -> Self {
+    pub fn eoa(eoa: Eoa) -> Self {
         Sender::Eoa(eoa)
     }
 
-    /// Construct a sender for a transient intent.
-    pub fn transient(eoa: Eoa, intent: IntentAddress) -> Self {
-        Sender::Transient(TransientSender { eoa, intent })
-    }
-
-    /// Construct a sender for a persistent intent.
-    pub fn persistent(set: IntentAddress, intent: IntentAddress) -> Self {
-        Sender::Persistent(PersistentSender { set, intent })
-    }
-
     /// Get the source intent of the sender if it is not from an EOA.
-    pub fn source_intent(&self) -> Option<SourceAddress> {
+    pub fn source_intent(&self) -> Option<&IntentAddress> {
         match self {
             Sender::Eoa(_) => None,
-            Sender::Transient(sender) => Some(SourceAddress::Transient(sender.intent.clone())),
-            Sender::Persistent(sender) => Some(SourceAddress::Persistent(PersistentAddress {
-                set: sender.set.clone(),
-                intent: sender.intent.clone(),
-            })),
+            Sender::Intent(intent) => Some(intent),
+            Sender::ForwardedEoa(forwarded) => Some(&forwarded.intent),
         }
     }
 }
