@@ -2,6 +2,7 @@
 #![warn(missing_docs)]
 //! # Assembly for checking constraints.
 
+use essential_types::Word;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -9,7 +10,7 @@ use serde::Serialize;
 /// Set of operations that can be performed to check constraints.
 pub enum Op {
     /// Push word onto stack.
-    Push(i64),
+    Push(Word),
     /// Pop word from stack.
     Pop,
     /// Duplicate top word on stack.

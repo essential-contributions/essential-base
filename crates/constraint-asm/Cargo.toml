@@ -4,5 +4,6 @@ name = "essential-constraint-asm"
 version = "0.1.0"
 
 [dependencies]
+essential-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
