@@ -12,30 +12,6 @@ pub fn word_from_bytes(bytes: [u8; 8]) -> Word {
     Word::from_be_bytes(bytes)
 }
 
-/// Given an iterator yielding words, produces an iterator yielding bytes.
-pub fn bytes_from_words(words: impl IntoIterator<Item = Word>) -> impl Iterator<Item = u8> {
-    words.into_iter().flat_map(bytes_from_word)
-}
-
-/// Given an iterator yielding bytes, produces an iterator yielding words.
-///
-/// Note that if the given number of `bytes` is not a multiple of the `Word`
-/// size, the trailing `bytes` are ignored.
-pub fn words_from_bytes(bytes: impl IntoIterator<Item = u8>) -> impl Iterator<Item = Word> {
-    let mut bs = bytes.into_iter();
-    std::iter::from_fn(move || {
-        let b0 = bs.next()?;
-        let b1 = bs.next()?;
-        let b2 = bs.next()?;
-        let b3 = bs.next()?;
-        let b4 = bs.next()?;
-        let b5 = bs.next()?;
-        let b6 = bs.next()?;
-        let b7 = bs.next()?;
-        Some(word_from_bytes([b0, b1, b2, b3, b4, b5, b6, b7]))
-    })
-}
-
 /// A common conversion for 32-byte hashes and other addresses.
 #[rustfmt::skip]
 pub fn word_4_from_u8_32(bytes: [u8; 32]) -> [Word; 4] {
@@ -112,22 +88,6 @@ mod tests {
     #[test]
     fn test_word_from_bytes() {
         assert_eq!(word_from_bytes(BYTES_SAMPLE), WORD_SAMPLE);
-    }
-
-    #[test]
-    fn test_bytes_from_words() {
-        let words = vec![WORD_SAMPLE, WORD_SAMPLE];
-        let expected_bytes = [BYTES_SAMPLE, BYTES_SAMPLE].concat();
-        let bytes: Vec<u8> = bytes_from_words(words).collect();
-        assert_eq!(bytes, expected_bytes);
-    }
-
-    #[test]
-    fn test_words_from_bytes() {
-        let bytes = [BYTES_SAMPLE, BYTES_SAMPLE].concat();
-        let expected_words = vec![WORD_SAMPLE, WORD_SAMPLE];
-        let words: Vec<Word> = words_from_bytes(bytes).collect();
-        assert_eq!(words, expected_words);
     }
 
     #[test]
