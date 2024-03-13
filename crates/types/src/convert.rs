@@ -90,3 +90,65 @@ impl From<IntentAddress> for [u8; 32] {
         address.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Sample data for tests
+    const WORD_SAMPLE: Word = 0x123456789ABCDEF0;
+    const BYTES_SAMPLE: [u8; 8] = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0];
+    const U8_32_SAMPLE: [u8; 32] = [
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+        0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D,
+        0x1E, 0x1F,
+    ];
+
+    #[test]
+    fn test_bytes_from_word() {
+        assert_eq!(bytes_from_word(WORD_SAMPLE), BYTES_SAMPLE);
+    }
+
+    #[test]
+    fn test_word_from_bytes() {
+        assert_eq!(word_from_bytes(BYTES_SAMPLE), WORD_SAMPLE);
+    }
+
+    #[test]
+    fn test_bytes_from_words() {
+        let words = vec![WORD_SAMPLE, WORD_SAMPLE];
+        let expected_bytes = [BYTES_SAMPLE, BYTES_SAMPLE].concat();
+        let bytes: Vec<u8> = bytes_from_words(words).collect();
+        assert_eq!(bytes, expected_bytes);
+    }
+
+    #[test]
+    fn test_words_from_bytes() {
+        let bytes = [BYTES_SAMPLE, BYTES_SAMPLE].concat();
+        let expected_words = vec![WORD_SAMPLE, WORD_SAMPLE];
+        let words: Vec<Word> = words_from_bytes(bytes).collect();
+        assert_eq!(words, expected_words);
+    }
+
+    #[test]
+    fn test_word_4_from_u8_32() {
+        let expected_words = [
+            Word::from_be_bytes([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]),
+            Word::from_be_bytes([0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F]),
+            Word::from_be_bytes([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]),
+            Word::from_be_bytes([0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F]),
+        ];
+        assert_eq!(word_4_from_u8_32(U8_32_SAMPLE), expected_words);
+    }
+
+    #[test]
+    fn test_u8_32_from_word_4() {
+        let words = [
+            Word::from_be_bytes([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]),
+            Word::from_be_bytes([0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F]),
+            Word::from_be_bytes([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]),
+            Word::from_be_bytes([0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F]),
+        ];
+        assert_eq!(u8_32_from_word_4(words), U8_32_SAMPLE);
+    }
+}
