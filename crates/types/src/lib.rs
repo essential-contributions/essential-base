@@ -6,7 +6,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
-pub mod conversions;
+pub mod convert;
 pub mod intent;
 pub mod slots;
 pub mod solution;
