@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Eoa, IntentAddress, Key, KeyRange, Word};
+use crate::{IntentAddress, Key, KeyRange, PublicKey, Word};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// A solution to intents.
@@ -22,25 +22,27 @@ pub struct SolutionData {
     /// The decision variables for the intent.
     pub decision_variables: Vec<Word>,
     /// The EOA or intent that is permitting this intent to be solved.
-    pub sender: Sender,
+    ///
+    /// Not required in the case that an intent has no constraints over `context::owner()`.
+    pub owner: Option<Owner>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-/// The sender of permission to solve an intent.
-pub enum Sender {
+/// The owner of permission to solve an intent.
+pub enum Owner {
     /// This intent is being solved on behalf of an EOA.
-    Eoa(Eoa),
+    Eoa(PublicKey),
+    /// This intent is being solved on behalf of an EOA forwarded via an intent.
+    ForwardedEoa(ForwardedEoa),
     /// This intent is being solved on behalf of another intent.
     Intent(IntentAddress),
-    /// This intent is being solved on behalf of an EOA forwarded via an intent.
-    ForwardedEoa(ForwardedEoaSender),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-/// The sender is an EOA being forwarded via an intent.
-pub struct ForwardedEoaSender {
+/// The owner is an EOA being forwarded via an intent.
+pub struct ForwardedEoa {
     /// The EOA being forwarded.
-    pub eoa: Eoa,
+    pub public_key: PublicKey,
     /// The intent from which the EOA was forwarded.
     pub intent: IntentAddress,
 }
@@ -85,18 +87,13 @@ pub struct StateMutation {
     pub mutations: Vec<Mutation>,
 }
 
-impl Sender {
-    /// Construct a sender for an EOA.
-    pub fn eoa(eoa: Eoa) -> Self {
-        Sender::Eoa(eoa)
-    }
-
-    /// Get the source intent of the sender if it is not from an EOA.
+impl Owner {
+    /// Get the source intent of the owner if it is not from an EOA.
     pub fn source_intent(&self) -> Option<&IntentAddress> {
         match self {
-            Sender::Eoa(_) => None,
-            Sender::Intent(intent) => Some(intent),
-            Sender::ForwardedEoa(forwarded) => Some(&forwarded.intent),
+            Self::Eoa(_) => None,
+            Self::ForwardedEoa(forwarded) => Some(&forwarded.intent),
+            Self::Intent(intent) => Some(intent),
         }
     }
 }
