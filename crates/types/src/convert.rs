@@ -1,6 +1,6 @@
 //! Helper functions for converting between byte and word representations.
 
-use crate::{IntentAddress, Word};
+use crate::{ContentAddress, Word};
 
 /// Convert a `Word` to its bytes.
 pub fn bytes_from_word(w: Word) -> [u8; 8] {
@@ -49,20 +49,20 @@ pub fn u8_32_from_word_4(words: [Word; 4]) -> [u8; 32] {
     ]
 }
 
-impl From<IntentAddress> for [Word; 4] {
-    fn from(address: IntentAddress) -> Self {
+impl From<ContentAddress> for [Word; 4] {
+    fn from(address: ContentAddress) -> Self {
         word_4_from_u8_32(address.0)
     }
 }
 
-impl From<[Word; 4]> for IntentAddress {
+impl From<[Word; 4]> for ContentAddress {
     fn from(address: [Word; 4]) -> Self {
         Self(u8_32_from_word_4(address))
     }
 }
 
-impl From<IntentAddress> for [u8; 32] {
-    fn from(address: IntentAddress) -> Self {
+impl From<ContentAddress> for [u8; 32] {
+    fn from(address: ContentAddress) -> Self {
         address.0
     }
 }
