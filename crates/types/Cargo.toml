@@ -4,7 +4,7 @@ name = "essential-types"
 version = "0.1.0"
 
 [dependencies]
+postcard.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-postcard.workspace = true
 sha2.workspace = true
