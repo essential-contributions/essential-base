@@ -249,7 +249,6 @@ Op:
 
             ThisAddress:
               opcode: 0x39
-              shorthand: THISADDR
               description: |
                 Get the content hash of this intent.
 
@@ -258,7 +257,6 @@ Op:
 
             ThisSetAddress:
               opcode: 0x3A
-              shorthand: THISSETADDR
               description: |
                 Get the content hash of the set of intents that this intent belongs to.
 
@@ -287,19 +285,16 @@ Op:
       group:
         Alloc:
           opcode: 0x50
-          shorthand: MALLOC
           description: Allocate new memory to the end of the memory.
           stack_in: [size]
 
         Free:
           opcode: 0x51
-          shorthand: MFREE
           description: Free the given size of memory from the end of the memory.
           stack_in: [size]
 
         Truncate:
           opcode: 0x52
-          shorthand: MTRUNCATE
           description: |
             Truncate the memory to the given size.
 
@@ -308,7 +303,6 @@ Op:
 
         Load:
           opcode: 0x53
-          shorthand: MLOAD
           description: |
             Load the index of memory onto the stack.
 
@@ -320,7 +314,6 @@ Op:
 
         Store:
           opcode: 0x54
-          shorthand: MSTORE
           description: Store the value at the index of memory.
           panics:
             - Index is out of bounds.
@@ -328,7 +321,6 @@ Op:
 
         Push:
           opcode: 0x55
-          shorthand: MPUSH
           description: Push the value onto the end of the memory.
           panics:
             - Not enough memory allocated.
@@ -336,14 +328,12 @@ Op:
 
         PushNone:
           opcode: 0x56
-          shorthand: MPUSHNONE
           description: Push a None value onto the end of the memory.
           panics:
             - Not enough memory allocated.
 
         Clear:
           opcode: 0x57
-          shorthand: MCLEAR
           description: Set the value at the index of memory to None.
           panics:
             - Index is out of bounds.
@@ -351,7 +341,6 @@ Op:
 
         ClearRange:
           opcode: 0x58
-          shorthand: MCLEARRANGE
           description: Set a range of memory to None.
           panics:
             - The range is out of bounds.
@@ -359,7 +348,6 @@ Op:
 
         IsSome:
           opcode: 0x59
-          shorthand: MISSOME
           description: Check if the value at the index of memory is Some.
           panics:
             - Index out of bounds.
@@ -368,13 +356,11 @@ Op:
 
         Capacity:
           opcode: 0x5A
-          shorthand: MCAPACITY
           description: Get the current capacity of the memory.
           stack_out: [capacity]
 
         Length:
           opcode: 0x5B
-          shorthand: MLENGTH
           description: Get the current length of the memory.
           stack_out: [length]
 
@@ -383,7 +369,6 @@ Op:
       group:
         WordRange:
           opcode: 0x60
-          shorthand: SRWORDRANGE
           description: |
             Read a range of words from state starting at the key.
 
@@ -397,7 +382,6 @@ Op:
 
         WordRangeExtern:
           opcode: 0x61
-          shorthand: SRWORDRANGEEXT
           description: |
             Read a range of words from external state starting at the key.
 

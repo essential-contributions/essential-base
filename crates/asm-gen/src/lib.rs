@@ -33,8 +33,6 @@ struct Op {
     opcode: u8,
     description: String,
     #[serde(default)]
-    shorthand: Option<String>,
-    #[serde(default)]
     panics: Vec<String>,
     #[serde(default)]
     arg_bytes: u8,
@@ -220,22 +218,16 @@ fn enum_decls_from_op_tree(op_tree: &Tree) -> Vec<syn::Item> {
 
 /// Produce the crate-root documentation.
 fn asm_table_docs_from_op_tree(op_tree: &Tree) -> syn::LitStr {
-    let mut docs =
-        "\n\n| Opcode | Op | Shorthand | Short Description |\n| --- | --- | --- | --- |\n"
-            .to_string();
+    let mut docs = "\n\n| Opcode | Op | Short Description |\n| --- | --- | --- |\n".to_string();
     visit_ops(op_tree, &mut |names, op| {
         let enum_ix = names.len() - 2;
         let enum_variant = &names[enum_ix..];
         let enum_name = enum_variant.first().unwrap();
         let variant_name = enum_variant.last().unwrap();
         let link = format!("./enum.{enum_name}.html#variant.{variant_name}");
-        let shorthand = op
-            .shorthand
-            .clone()
-            .unwrap_or_else(|| variant_name.to_uppercase());
         let short_desc = op.description.lines().next().unwrap();
         let line = format!(
-            "| `0x{:02X}` | [{}]({link}) | `{shorthand}` | {short_desc} |\n",
+            "| `0x{:02X}` | [{}]({link}) | {short_desc} |\n",
             op.opcode,
             enum_variant.join(" ")
         );
