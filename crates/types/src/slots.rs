@@ -47,7 +47,7 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn test_state_slot_postcard() {
+    pub fn test_state_slot_serialization() {
         let slot = StateSlot {
             index: 1,
             amount: 17,
@@ -60,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_slots_postcard() {
+    pub fn test_slots_serialization() {
         let slots = Slots {
             decision_variables: 1,
             state: vec![
