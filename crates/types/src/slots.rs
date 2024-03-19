@@ -42,42 +42,47 @@ pub fn state_len(state: &[StateSlot]) -> Option<u32> {
     })
 }
 
-#[test]
-pub fn test_state_slot_postcard() {
-    let slot = StateSlot {
-        index: 1,
-        amount: 17,
-        program_index: 255,
-    };
-    let output: Vec<u8> = postcard::to_allocvec(&slot).unwrap();
-    assert_eq!(&[0x01, 0x11, 0xff, 0x01], output.deref());
-    let out: StateSlot = postcard::from_bytes(output.deref()).unwrap();
-    assert_eq!(out, slot);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-pub fn test_slots_postcard() {
-    let slots = Slots {
-        decision_variables: 1,
-        state: vec![
-            StateSlot {
-                index: 1,
-                amount: 2,
-                program_index: 3,
-            },
-            StateSlot {
-                index: 16,
-                amount: 17,
-                program_index: 18,
-            },
-        ],
-        permits: 255,
-    };
-    let output: Vec<u8> = postcard::to_allocvec(&slots).unwrap();
-    assert_eq!(
-        &[0x01, 0x02, 0x01, 0x02, 0x03, 0x10, 0x11, 0x12, 0xff, 0x01],
-        output.deref()
-    );
-    let out: Slots = postcard::from_bytes(output.deref()).unwrap();
-    assert_eq!(out, slots);
+    #[test]
+    pub fn test_state_slot_postcard() {
+        let slot = StateSlot {
+            index: 1,
+            amount: 17,
+            program_index: 255,
+        };
+        let output: Vec<u8> = postcard::to_allocvec(&slot).unwrap();
+        assert_eq!(&[0x01, 0x11, 0xff, 0x01], output.deref());
+        let out: StateSlot = postcard::from_bytes(output.deref()).unwrap();
+        assert_eq!(out, slot);
+    }
+
+    #[test]
+    pub fn test_slots_postcard() {
+        let slots = Slots {
+            decision_variables: 1,
+            state: vec![
+                StateSlot {
+                    index: 1,
+                    amount: 2,
+                    program_index: 3,
+                },
+                StateSlot {
+                    index: 16,
+                    amount: 17,
+                    program_index: 18,
+                },
+            ],
+            permits: 255,
+        };
+        let output: Vec<u8> = postcard::to_allocvec(&slots).unwrap();
+        assert_eq!(
+            &[0x01, 0x02, 0x01, 0x02, 0x03, 0x10, 0x11, 0x12, 0xff, 0x01],
+            output.deref()
+        );
+        let out: Slots = postcard::from_bytes(output.deref()).unwrap();
+        assert_eq!(out, slots);
+    }
 }
