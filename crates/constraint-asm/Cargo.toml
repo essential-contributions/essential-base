@@ -7,3 +7,5 @@ version = "0.1.0"
 essential-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+postcard.workspace = true
+sha2.workspace = true

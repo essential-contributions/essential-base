@@ -7,3 +7,5 @@ version = "0.1.0"
 essential-constraint-asm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+postcard.workspace = true
+sha2.workspace = true
