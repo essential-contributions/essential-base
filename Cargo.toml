@@ -11,6 +11,6 @@ essential-state-asm = { path = "crates/state-asm" }
 essential-types = { path = "crates/types" }
 hex = "0.4.3"
 # TODO: essential-contributions/specs#50 - replace serialization.
-serde = { version = "1.0.195", features = ["derive"] }
+serde = { version = "1.0.195", features = ["derive"], default-features = false }
 serde_json = "1.0.111"
 tempfile = "3.9.0"

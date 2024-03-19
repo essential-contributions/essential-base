@@ -4,5 +4,6 @@ name = "essential-types"
 version = "0.1.0"
 
 [dependencies]
+postcard = { version = "1.0.8", features = [ "alloc" ] }
 serde.workspace = true
 serde_json.workspace = true
