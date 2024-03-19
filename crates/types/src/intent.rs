@@ -44,7 +44,7 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn test_serialization() {
+    pub fn test_intent_serialization() {
         let intent = Intent {
             slots: Slots {
                 decision_variables: 1,
@@ -80,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_hashing() {
+    pub fn test_intent_hashing() {
         let intent = Intent {
             slots: Slots {
                 decision_variables: 1,
