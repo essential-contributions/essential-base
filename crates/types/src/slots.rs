@@ -1,6 +1,8 @@
 //! # Slots
 //! Data types that outline the inputs to an intent.
+
 use serde::{Deserialize, Serialize};
+#[allow(unused_imports)]
 use std::ops::Deref;
 extern crate alloc;
 use alloc::vec::Vec;
