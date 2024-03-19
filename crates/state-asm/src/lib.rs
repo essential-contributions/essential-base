@@ -1,6 +1,7 @@
+//! # Assembly for state read operations.
+
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-//! # Assembly for state read operations.
 
 pub use essential_constraint_asm::{self as constraint_asm, Op};
 use serde::Deserialize;

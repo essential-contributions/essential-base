@@ -1,0 +1,8 @@
+[package]
+name = "essential-asm"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+essential-asm-gen = { path = "../asm-gen" }
+essential-types.workspace = true

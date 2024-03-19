@@ -11,6 +11,8 @@ Each operation is identified by a unique name and contains the following fields:
 - `opcode`: A hexadecimal representation of the operation code, uniquely
   identifying the operation.
 - `description`: A brief explanation of what the operation does.
+- `shorthand`: A unique shorthand for the op. If unspecified, the shorthand is
+  assumed to be the uppercase form of the name.
 - `panics` (optional): A list of reasons why the operation might cause the
   virtual machine to panic.
 - `arg_bytes` (optional): Specifies the number of bytes expected as arguments
@@ -19,11 +21,11 @@ Each operation is identified by a unique name and contains the following fields:
   execution. This is a list of symbolic identifiers representing the expected
   values. If `stack_in` is omitted, an empty list is assumed.
 - `stack_out`: Describes the outputs pushed onto the stack after operation
-  execution. It can be marked as `!fixed` or `!dynamic` to indicate whether the
-  output size is constant or variable.
-  - `!fixed`: Used when the number of items pushed to the stack is constant.
-    Followed by a list of symbolic identifiers representing the output values.
-  - `!dynamic`: Used when the number of items pushed to the stack can vary.
+  execution. The stack output can either be "fixed" or "dynamic".
+  - *fixed*: Used when the number of items pushed to the stack is constant.
+    Represented as a list of strings representing the output values.
+  - *dynamic*: Used when the number of items pushed to the stack can vary.
+    Represented as a mapping with the following fields:
     - The `elem` field is a symbolic identifier representing the output values.
     - The `len` field specifies which `stack_in` word the length is derived from.
 
@@ -34,7 +36,7 @@ Push:
   opcode: 0x01
   description: Push one word onto the stack.
   arg_bytes: 8
-  stack_out: !fixed [word]
+  stack_out: [word]
 ```
 
 ```yaml
@@ -49,7 +51,7 @@ ReadWordRange:
   panics:
     - Not enough memory allocated to store the read state.
   stack_in: [key_w0, key_w1, key_w2, key_w3, n_words]
-  stack_out: !fixed [mem_addr]
+  stack_out: [mem_addr]
 ```
 
 ## Operation Group
