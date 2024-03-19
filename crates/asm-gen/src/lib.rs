@@ -2,6 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::ToTokens;
 use serde::Deserialize;
+use syn::{punctuated::Punctuated, token::Comma};
 
 mod de;
 
@@ -56,8 +57,6 @@ struct StackOutDynamic {
     len: String,
 }
 
-// ----------------------------------------------------------------------------
-
 impl Node {
     /// Get the opcode for the node.
     ///
@@ -82,8 +81,6 @@ impl std::ops::Deref for Tree {
         &self.0
     }
 }
-
-// ----------------------------------------------------------------------------
 
 /// Visit all group nodes within the op tree in depth-first visit order.
 fn visit_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
@@ -114,11 +111,78 @@ fn visit_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     visit_ops_inner(tree, &mut vec![], f)
 }
 
-/// A single enum declaration from an op group.
-fn enum_decl_from_group(name: &str, group: &Group) -> syn::ItemEnum {
-    use syn::{punctuated::Punctuated, token::Comma};
+/// Document the required bytecode arguments to the operation.
+fn bytecode_arg_docs(arg_bytes: u8) -> String {
+    if arg_bytes == 0 {
+        return String::new();
+    }
+    let word_size = std::mem::size_of::<essential_types::Word>();
+    assert_eq!(
+        arg_bytes as usize % word_size,
+        0,
+        "doc gen currently only supports arguments that are a multiple of the word size"
+    );
+    let arg_words = arg_bytes as usize / word_size;
+    format!(
+        "## Bytecode Argument\nThis operation expects a {arg_bytes}-byte \
+        ({arg_words}-word) argument following its opcode within bytecode."
+    )
+}
+
+/// Generate an Op's stack-in docstring.
+fn stack_in_docs(stack_in: &[String]) -> String {
+    if stack_in.is_empty() {
+        String::new()
+    } else {
+        format!("## Stack Input\n`[{}]`\n", stack_in.join(", "))
+    }
+}
+
+/// Generate an Op's stack-out docstring.
+fn stack_out_docs(stack_out: &StackOut) -> String {
+    match stack_out {
+        StackOut::Fixed(words) if words.is_empty() => String::new(),
+        StackOut::Fixed(words) => {
+            format!("## Stack Output\n`[{}]`\n", words.join(", "))
+        }
+        StackOut::Dynamic(out) => {
+            format!(
+                "## Stack Output\nThe stack output length depends on the \
+                value of the `{}` stack input word.\n",
+                out.len
+            )
+        }
+    }
+}
+
+/// Generate an Op's panic reason docstring.
+fn panic_docs(panic_reasons: &[String]) -> String {
+    if panic_reasons.is_empty() {
+        String::new()
+    } else {
+        let mut docs = "## Panics\n".to_string();
+        panic_reasons
+            .iter()
+            .for_each(|reason| docs.push_str(&format!("- {reason}\n")));
+        docs
+    }
+}
+
+/// Generate the docstring for an `Op` variant.
+fn op_docs(op: &Op) -> String {
+    let arg_docs = bytecode_arg_docs(op.arg_bytes);
+    let opcode_docs = format!("`0x{:02X}`\n\n", op.opcode);
+    let desc = &op.description;
+    let stack_in_docs = stack_in_docs(&op.stack_in);
+    let stack_out_docs = stack_out_docs(&op.stack_out);
+    let panic_docs = panic_docs(&op.panics);
+    format!("{opcode_docs}\n{desc}\n{arg_docs}\n{stack_in_docs}\n{stack_out_docs}\n{panic_docs}")
+}
+
+/// Generate the variants for an op group's enum decl.
+fn op_enum_decl_variants_from_group(group: &Group) -> Punctuated<syn::Variant, Comma> {
     // Collect variant AST nodes from the group's immediate children.
-    let variants: Punctuated<syn::Variant, Comma> = group
+    group
         .tree
         .iter()
         .map(|(name, node)| {
@@ -132,54 +196,14 @@ fn enum_decl_from_group(name: &str, group: &Group) -> syn::ItemEnum {
                     }
                 }
                 Node::Op(op) => {
-                    let opcode_docs = format!("`0x{:02X}`\n\n", op.opcode);
-                    let docs = &op.description;
-
-                    let stack_in_docs = if op.stack_in.is_empty() {
-                        String::new()
-                    } else {
-                        format!("## Stack Input\n`[{}]`\n", op.stack_in.join(", "))
-                    };
-
-                    let stack_out_docs = match &op.stack_out {
-                        StackOut::Fixed(words) if words.is_empty() => String::new(),
-                        StackOut::Fixed(words) => {
-                            format!("## Stack Output\n`[{}]`\n", words.join(", "))
-                        }
-                        StackOut::Dynamic(out) => {
-                            format!(
-                                "## Stack Output\nThe stack output length depends on the \
-                                value of the `{}` stack input word.\n",
-                                out.len
-                            )
-                        }
-                    };
-
-                    let panic_docs = if op.panics.is_empty() {
-                        String::new()
-                    } else {
-                        let mut docs = "## Panics\n".to_string();
-                        op.panics
-                            .iter()
-                            .for_each(|reason| docs.push_str(&format!("- {reason}\n")));
-                        docs
-                    };
-
+                    let docs = op_docs(&op);
                     match op.arg_bytes {
                         0 => syn::parse_quote! {
-                            #[doc = #opcode_docs]
                             #[doc = #docs]
-                            #[doc = #stack_in_docs]
-                            #[doc = #stack_out_docs]
-                            #[doc = #panic_docs]
                             #ident
                         },
                         8 => syn::parse_quote! {
-                            #[doc = #opcode_docs]
                             #[doc = #docs]
-                            #[doc = #stack_in_docs]
-                            #[doc = #stack_out_docs]
-                            #[doc = #panic_docs]
                             #ident(essential_types::Word)
                         },
                         _ => panic!(
@@ -191,15 +215,18 @@ fn enum_decl_from_group(name: &str, group: &Group) -> syn::ItemEnum {
             };
             variant
         })
-        .collect();
+        .collect()
+}
 
+/// Generate a single enum declaration from the given op group.
+fn op_enum_decl_from_group(name: &str, group: &Group) -> syn::ItemEnum {
+    let variants = op_enum_decl_variants_from_group(group);
     // Create the enum declaration for the group.
     let ident = syn::Ident::new(name, Span::call_site());
     let docs = &group.description;
     let item_enum = syn::parse_quote! {
         #[doc = #docs]
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-        // #[repr(u8)]
         pub enum #ident {
             #variants
         }
@@ -208,10 +235,10 @@ fn enum_decl_from_group(name: &str, group: &Group) -> syn::ItemEnum {
 }
 
 /// Generate all enum declarations from the top-level operation tree.
-fn enum_decls_from_op_tree(op_tree: &Tree) -> Vec<syn::Item> {
+fn op_enum_decls_from_op_tree(op_tree: &Tree) -> Vec<syn::Item> {
     let mut enums = vec![];
     visit_groups(op_tree, &mut |name, group| {
-        enums.push(enum_decl_from_group(name, group))
+        enums.push(op_enum_decl_from_group(name, group))
     });
     enums.into_iter().map(syn::Item::Enum).collect()
 }
@@ -239,7 +266,7 @@ fn asm_table_docs_from_op_tree(op_tree: &Tree) -> syn::LitStr {
 #[proc_macro]
 pub fn asm_gen(_input: TokenStream) -> TokenStream {
     let op_tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
-    let enum_decls = enum_decls_from_op_tree(&op_tree);
+    let enum_decls = op_enum_decls_from_op_tree(&op_tree);
     let mut stream = proc_macro2::TokenStream::default();
     for decl in enum_decls {
         stream.extend(decl.into_token_stream());
@@ -283,9 +310,9 @@ mod tests {
     }
 
     #[test]
-    fn test_enum_decls() {
+    fn test_op_enum_decls() {
         let op_tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
-        let enum_decls = super::enum_decls_from_op_tree(&op_tree);
+        let enum_decls = super::op_enum_decls_from_op_tree(&op_tree);
         for decl in enum_decls {
             println!("\n{}", decl.to_token_stream());
         }

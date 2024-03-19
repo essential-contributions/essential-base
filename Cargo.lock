@@ -20,6 +20,7 @@ dependencies = [
 name = "essential-asm-gen"
 version = "0.1.0"
 dependencies = [
+ "essential-types",
  "proc-macro2",
  "quote",
  "serde",
