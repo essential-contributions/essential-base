@@ -1,7 +1,7 @@
 //! # Slots
 //! Data types that outline the inputs to an intent.
-use std::ops::Deref;
 use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 extern crate alloc;
 use alloc::vec::Vec;
 
@@ -72,7 +72,10 @@ pub fn test_slots_postcard() {
         permits: 255,
     };
     let output: Vec<u8> = postcard::to_allocvec(&slots).unwrap();
-    assert_eq!(&[0x01, 0x02, 0x01, 0x02, 0x03, 0x10, 0x11, 0x12, 0xff, 0x01], output.deref());
+    assert_eq!(
+        &[0x01, 0x02, 0x01, 0x02, 0x03, 0x10, 0x11, 0x12, 0xff, 0x01],
+        output.deref()
+    );
     let out: Slots = postcard::from_bytes(output.deref()).unwrap();
     assert_eq!(out, slots);
 }
