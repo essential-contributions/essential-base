@@ -1,4 +1,4 @@
-Op:
+StateRead:
   description: All operations available to state-read execution.
   group:
     Constraint:
@@ -364,31 +364,28 @@ Op:
           description: Get the current length of the memory.
           stack_out: [length]
 
-    StateRead:
-      description: Operations for reading state.
-      group:
-        WordRange:
-          opcode: 0x60
-          description: |
-            Read a range of words from state starting at the key.
+    WordRange:
+      opcode: 0x60
+      description: |
+        Read a range of words from state starting at the key.
 
-            Reads the state key and the number of words from the stack input.
+        Reads the state key and the number of words from the stack input.
 
-            Returns the memory address at which the data was written via the stack output.
-          panics:
-            - Not enough memory allocated to store the read state.
-          stack_in: [key_w0, key_w1, key_w2, key_w3, n_words]
-          stack_out: [mem_addr]
+        Returns the memory address at which the data was written via the stack output.
+      panics:
+        - Not enough memory allocated to store the read state.
+      stack_in: [key_w0, key_w1, key_w2, key_w3, n_words]
+      stack_out: [mem_addr]
 
-        WordRangeExtern:
-          opcode: 0x61
-          description: |
-            Read a range of words from external state starting at the key.
+    WordRangeExtern:
+      opcode: 0x61
+      description: |
+        Read a range of words from external state starting at the key.
 
-            Reads the external address, state key and the number of words from the stack input.
+        Reads the external address, state key and the number of words from the stack input.
 
-            Returns the memory address at which the data was written via the stack output.
-          panics:
-            - Not enough memory allocated to store the read state.
-          stack_in: [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, key_w1, key_w2, key_w3, n_words]
-          stack_out: [mem_addr]
+        Returns the memory address at which the data was written via the stack output.
+      panics:
+        - Not enough memory allocated to store the read state.
+      stack_in: [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, key_w1, key_w2, key_w3, n_words]
+      stack_out: [mem_addr]

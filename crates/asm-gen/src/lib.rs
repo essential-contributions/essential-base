@@ -82,7 +82,7 @@ impl std::ops::Deref for Tree {
     }
 }
 
-/// Visit all group nodes within the op tree in depth-first visit order.
+/// Recursively visit all group nodes within the op tree in depth-first visit order.
 fn visit_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
     for (name, node) in tree.iter() {
         match node {
@@ -95,7 +95,7 @@ fn visit_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
     }
 }
 
-/// Visit all operations in order of their opcode, where the first argument to
+/// Recursively visit all operations in order of their opcode, where the first argument to
 /// the given function provides the fully nested name.
 fn visit_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     fn visit_ops_inner(tree: &Tree, names: &mut Vec<String>, f: &mut impl FnMut(&[String], &Op)) {
@@ -179,48 +179,80 @@ fn op_docs(op: &Op) -> String {
     format!("{opcode_docs}\n{desc}\n{arg_docs}\n{stack_in_docs}\n{stack_out_docs}\n{panic_docs}")
 }
 
+/// Generate a single variant for an op group's enum decl.
+fn op_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
+    let ident = syn::Ident::new(name, Span::call_site());
+    match node {
+        Node::Group(group) => {
+            let docs = &group.description;
+            syn::parse_quote! {
+                #[doc = #docs]
+                #ident(#ident)
+            }
+        }
+        Node::Op(op) => {
+            let docs = op_docs(&op);
+            match op.arg_bytes {
+                0 => syn::parse_quote! {
+                    #[doc = #docs]
+                    #ident
+                },
+                8 => syn::parse_quote! {
+                    #[doc = #docs]
+                    #ident(essential_types::Word)
+                },
+                _ => panic!(
+                    "Unexpected arg_bytes {}: requires more thoughtful asm-gen",
+                    op.arg_bytes
+                ),
+            }
+        }
+    }
+}
+
+/// Generate a single variant for an op group's opcode enum decl
+fn opcode_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
+    let ident = syn::Ident::new(name, Span::call_site());
+    match node {
+        Node::Group(group) => {
+            let docs = &group.description;
+            syn::parse_quote! {
+                #[doc = #docs]
+                #ident(#ident)
+            }
+        }
+        Node::Op(op) => {
+            let docs = op_docs(&op);
+            let opcode = op.opcode;
+            syn::parse_quote! {
+                #[doc = #docs]
+                #ident = #opcode
+            }
+        }
+    }
+}
+
 /// Generate the variants for an op group's enum decl.
-fn op_enum_decl_variants_from_group(group: &Group) -> Punctuated<syn::Variant, Comma> {
-    // Collect variant AST nodes from the group's immediate children.
+fn op_enum_decl_variants(group: &Group) -> Punctuated<syn::Variant, Comma> {
     group
         .tree
         .iter()
-        .map(|(name, node)| {
-            let ident = syn::Ident::new(name, Span::call_site());
-            let variant: syn::Variant = match node {
-                Node::Group(group) => {
-                    let docs = &group.description;
-                    syn::parse_quote! {
-                        #[doc = #docs]
-                        #ident(#ident)
-                    }
-                }
-                Node::Op(op) => {
-                    let docs = op_docs(&op);
-                    match op.arg_bytes {
-                        0 => syn::parse_quote! {
-                            #[doc = #docs]
-                            #ident
-                        },
-                        8 => syn::parse_quote! {
-                            #[doc = #docs]
-                            #ident(essential_types::Word)
-                        },
-                        _ => panic!(
-                            "Unexpected arg_bytes {}: requires more thoughtful asm-gen",
-                            op.arg_bytes
-                        ),
-                    }
-                }
-            };
-            variant
-        })
+        .map(|(name, node)| op_enum_decl_variant(name, node))
+        .collect()
+}
+
+/// Generate the variants for an op group's opcode enum decl.
+fn opcode_enum_decl_variants(group: &Group) -> Punctuated<syn::Variant, Comma> {
+    group
+        .tree
+        .iter()
+        .map(|(name, node)| opcode_enum_decl_variant(name, node))
         .collect()
 }
 
 /// Generate a single enum declaration from the given op group.
-fn op_enum_decl_from_group(name: &str, group: &Group) -> syn::ItemEnum {
-    let variants = op_enum_decl_variants_from_group(group);
+fn op_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
+    let variants = op_enum_decl_variants(group);
     // Create the enum declaration for the group.
     let ident = syn::Ident::new(name, Span::call_site());
     let docs = &group.description;
@@ -234,13 +266,64 @@ fn op_enum_decl_from_group(name: &str, group: &Group) -> syn::ItemEnum {
     item_enum
 }
 
-/// Generate all enum declarations from the top-level operation tree.
-fn op_enum_decls_from_op_tree(op_tree: &Tree) -> Vec<syn::Item> {
+/// Generate an opcode enum declaration for the given op group.
+fn opcode_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
+    let variants = opcode_enum_decl_variants(group);
+    // When generating the opcode enum, the top-level type should be called `Opcode`.
+    let name = if name == "Op" { "Opcode" } else { name };
+    let ident = syn::Ident::new(name, Span::call_site());
+    let docs = &group.description;
+    let item_enum = syn::parse_quote! {
+        #[doc = #docs]
+        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+        #[repr(u8)]
+        pub enum #ident {
+            #variants
+        }
+    };
+    item_enum
+}
+
+/// Generate all op enum declarations from the top-level operation tree.
+fn op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
     let mut enums = vec![];
-    visit_groups(op_tree, &mut |name, group| {
-        enums.push(op_enum_decl_from_group(name, group))
+    visit_groups(tree, &mut |name, group| {
+        enums.push(op_enum_decl(name, group))
     });
     enums.into_iter().map(syn::Item::Enum).collect()
+}
+
+/// Generate all opcode enum declarations from the top-level op tree.
+fn opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
+    let mut enums = vec![];
+    visit_groups(tree, &mut |name, group| {
+        enums.push(opcode_enum_decl(name, group))
+    });
+    enums.into_iter().map(syn::Item::Enum).collect()
+}
+
+/// Generate the `op` module, containing all operations.
+fn op_mod(tree: &Tree) -> syn::ItemMod {
+    let enum_decls = op_enum_decls(tree);
+    syn::parse_quote! {
+        pub mod op {
+            #(
+                #enum_decls
+            )*
+        }
+    }
+}
+
+/// Generate the `op` module, containing all operations.
+fn opcode_mod(tree: &Tree) -> syn::ItemMod {
+    let enum_decls = opcode_enum_decls(tree);
+    syn::parse_quote! {
+        pub mod opcode {
+            #(
+                #enum_decls
+            )*
+        }
+    }
 }
 
 /// Produce the crate-root documentation.
@@ -251,10 +334,12 @@ fn asm_table_docs_from_op_tree(op_tree: &Tree) -> syn::LitStr {
         let enum_variant = &names[enum_ix..];
         let enum_name = enum_variant.first().unwrap();
         let variant_name = enum_variant.last().unwrap();
-        let link = format!("./enum.{enum_name}.html#variant.{variant_name}");
+        let link = format!("enum.{enum_name}.html#variant.{variant_name}");
+        let opcode_link = format!("./opcode/{link}");
+        let op_link = format!("./op/{link}");
         let short_desc = op.description.lines().next().unwrap();
         let line = format!(
-            "| `0x{:02X}` | [{}]({link}) | {short_desc} |\n",
+            "| [`0x{:02X}`]({opcode_link}) | [{}]({op_link}) | {short_desc} |\n",
             op.opcode,
             enum_variant.join(" ")
         );
@@ -266,11 +351,11 @@ fn asm_table_docs_from_op_tree(op_tree: &Tree) -> syn::LitStr {
 #[proc_macro]
 pub fn asm_gen(_input: TokenStream) -> TokenStream {
     let op_tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
-    let enum_decls = op_enum_decls_from_op_tree(&op_tree);
+    let op_mod = op_mod(&op_tree);
+    let opcode_mod = opcode_mod(&op_tree);
     let mut stream = proc_macro2::TokenStream::default();
-    for decl in enum_decls {
-        stream.extend(decl.into_token_stream());
-    }
+    stream.extend(op_mod.into_token_stream());
+    stream.extend(opcode_mod.into_token_stream());
     stream.into()
 }
 
@@ -312,7 +397,7 @@ mod tests {
     #[test]
     fn test_op_enum_decls() {
         let op_tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
-        let enum_decls = super::op_enum_decls_from_op_tree(&op_tree);
+        let enum_decls = super::op_enum_decls(&op_tree);
         for decl in enum_decls {
             println!("\n{}", decl.to_token_stream());
         }
