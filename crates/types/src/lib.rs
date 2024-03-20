@@ -29,11 +29,6 @@ pub type KeyRange = Range<Key>;
 /// Hash encoded as a 32 byte array.
 pub type Hash = [u8; 32];
 
-/// Externally owned account.
-///
-/// Note this type will likely change in the future.
-pub type Eoa = [u8; 32];
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Content address of an intent or set of intents.
 pub struct ContentAddress(pub Hash);

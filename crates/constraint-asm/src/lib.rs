@@ -67,9 +67,6 @@ pub enum Access {
     ///
     /// Slot..(Slot + Range) must be in range or vm will panic.
     StateIsSomeRange,
-    /// return -> words: list with len 4
-    /// Returns the sender that permitted this intent.
-    Sender,
     /// Params -> slot,
     /// Return -> key: list len 4
     ///
