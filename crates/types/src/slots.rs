@@ -9,9 +9,6 @@ pub struct Slots {
     pub decision_variables: u32,
     /// The slots that state is read into.
     pub state: Vec<StateSlot>,
-    /// The amount of other persistent intents that are permitted to be solved
-    /// using this intent as the sender.
-    pub permits: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
