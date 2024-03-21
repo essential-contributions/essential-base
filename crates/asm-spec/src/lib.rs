@@ -11,7 +11,7 @@ pub const ASM_YAML: &str = include_str!("./../asm.yml");
 
 /// The special name of the op group that describes the subset of operations
 /// specific to constraint checker execution.
-pub const CONSTRAINT_OP_NAME: &str = "Constraint";
+pub const CONSTRAINT_GROUP_NAME: &str = "Constraint";
 
 /// Operations are laid out in a rose tree.
 /// Nodes are ordered by their opcode, ensured during deserialisation.
@@ -137,18 +137,18 @@ mod tests {
 
     #[test]
     fn test_constraint_op_exists() {
-        use super::CONSTRAINT_OP_NAME;
+        use super::CONSTRAINT_GROUP_NAME;
         let tree = tree();
         let mut exists = false;
         super::visit::groups(&tree, &mut |names, _| {
-            exists |= names.last().unwrap() == CONSTRAINT_OP_NAME
+            exists |= names.last().unwrap() == CONSTRAINT_GROUP_NAME
         });
         assert!(
             exists,
-            "The `Constraint` op is a special operation that is expected to exist and \
+            "The `Constraint` op group is a special group that is expected to exist and \
             is used to distinguish between constraint and state read ops. Hitting this \
             error implies the ASM yaml has been refactored or the Constraint name may \
-            have changed. If so, the `CONSTRAINT_OP_NAME` should be updated.",
+            have changed. If so, the `CONSTRAINT_GROUP_NAME` should be updated.",
         );
     }
 }
