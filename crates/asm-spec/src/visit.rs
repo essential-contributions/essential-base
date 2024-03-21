@@ -21,16 +21,13 @@ pub fn groups_filtered_recurse(
     f: &mut impl FnMut(&[String], &Group),
 ) {
     for (name, node) in tree.iter() {
-        match node {
-            Node::Group(g) => {
-                if pred(name) {
-                    names.push(name.to_string());
-                    f(names, g);
-                    groups_filtered_recurse(&g.tree, pred, names, f);
-                    names.pop();
-                }
+        if let Node::Group(g) = node {
+            if pred(name) {
+                names.push(name.to_string());
+                f(names, g);
+                groups_filtered_recurse(&g.tree, pred, names, f);
+                names.pop();
             }
-            _ => (),
         }
     }
 }
@@ -112,5 +109,5 @@ pub fn state_read_groups(tree: &Tree, f: &mut impl FnMut(&[String], &Group)) {
 /// those that also appear in constraint execution. This is useful for creating
 /// items specific to state read execution.
 pub fn state_read_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
-    ops_filtered(tree, &state_read_pred, f)
+    ops_filtered(tree, state_read_pred, f)
 }

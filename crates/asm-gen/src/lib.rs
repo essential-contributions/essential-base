@@ -98,7 +98,7 @@ fn op_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
             }
         }
         Node::Op(op) => {
-            let docs = op_docs(&op);
+            let docs = op_docs(op);
             match op.arg_bytes {
                 0 => syn::parse_quote! {
                     #[doc = #docs]
@@ -129,7 +129,7 @@ fn opcode_enum_decl_variant(parent_name: &str, name: &str, node: &Node) -> syn::
             }
         }
         Node::Op(op) => {
-            let docs = opcode_docs(parent_name, name, &op);
+            let docs = opcode_docs(parent_name, name, op);
             let opcode = op.opcode;
             syn::parse_quote! {
                 #[doc = #docs]
@@ -262,7 +262,7 @@ fn impl_from_subgroups(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
 /// E.g. the args [StateRead, Constraint, Stack]` and `my_expr` becomes
 /// `StateRead::Constraint(Constraint::Stack(my_expr))`.
 fn enum_variant_tuple1_expr(names: &[String], mut expr: syn::Expr) -> syn::Expr {
-    assert!(names.len() >= 1, "Expecting at least one variant name");
+    assert!(!names.is_empty(), "Expecting at least one variant name");
     let mut idents: Vec<_> = names
         .iter()
         .map(|n| syn::Ident::new(n, Span::call_site()))
