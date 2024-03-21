@@ -4,7 +4,7 @@ use crate::{Group, Node, Op, Tree};
 
 /// Recursively visit all group nodes within the op tree that pass the given
 /// predicate in depth-first visit order.
-pub(crate) fn groups_filtered(
+pub fn groups_filtered(
     tree: &Tree,
     pred: &impl Fn(&str) -> bool,
     f: &mut impl FnMut(&str, &Group),
@@ -23,17 +23,13 @@ pub(crate) fn groups_filtered(
 }
 
 /// Recursively visit all group nodes within the op tree in depth-first visit order.
-pub(crate) fn groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
+pub fn groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
     groups_filtered(tree, &|_| true, f)
 }
 
 /// Recursively visit all operations in order of their opcode, where the first argument to
 /// the given function provides the fully nested name.
-pub(crate) fn ops_filtered(
-    tree: &Tree,
-    pred: impl Fn(&str) -> bool,
-    f: &mut impl FnMut(&[String], &Op),
-) {
+pub fn ops_filtered(tree: &Tree, pred: impl Fn(&str) -> bool, f: &mut impl FnMut(&[String], &Op)) {
     ops_filtered_recurse(tree, &pred, &mut vec![], f)
 }
 
@@ -59,12 +55,12 @@ fn ops_filtered_recurse(
 
 /// Recursively visit all operations in order of their opcode, where the first argument to
 /// the given function provides the fully nested name.
-pub(crate) fn ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
+pub fn ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     ops_filtered(tree, |_| true, f)
 }
 
 /// Recursively visit only the subset of op groups related to constraint execution.
-pub(crate) fn constraint_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
+pub fn constraint_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
     // Find the constraint group and only apply `f` to it and its children.
     groups(tree, &mut |name, group| {
         if name == crate::CONSTRAINT_OP_NAME {
@@ -75,7 +71,7 @@ pub(crate) fn constraint_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
 }
 
 /// Recursively visit only the subset of operations related to constraint execution.
-pub(crate) fn constraint_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
+pub fn constraint_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     // Find the constraint group and only apply `f` to it and its children.
     groups(tree, &mut |name, group| {
         if name == crate::CONSTRAINT_OP_NAME {
@@ -94,13 +90,13 @@ fn state_read_pred(name: &str) -> bool {
 /// Recursively visit all op groups related solely to state read execution,
 /// ignoring those that also appear in constraint execution. This is useful for
 /// creating items specific to state read execution.
-pub(crate) fn state_read_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
+pub fn state_read_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
     groups_filtered(tree, &state_read_pred, f)
 }
 
 /// Recursively visit all ops related solely to state read execution, ignoring
 /// those that also appear in constraint execution. This is useful for creating
 /// items specific to state read execution.
-pub(crate) fn state_read_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
+pub fn state_read_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     ops_filtered(tree, &state_read_pred, f)
 }

@@ -20,12 +20,19 @@ dependencies = [
 name = "essential-asm-gen"
 version = "0.1.0"
 dependencies = [
+ "essential-asm-spec",
  "essential-types",
  "proc-macro2",
  "quote",
+ "syn",
+]
+
+[[package]]
+name = "essential-asm-spec"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_yaml",
- "syn",
 ]
 
 [[package]]

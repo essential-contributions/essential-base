@@ -1,0 +1,8 @@
+[package]
+name = "essential-asm-spec"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_yaml = "0.9"

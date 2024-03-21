@@ -1,8 +1,12 @@
 
-# Essential ASM declaration.
+# Essential ASM Specification.
 
-This crate parses the Essential ASM declaration from YAML and generates a Rust
-AST for use within the official Rust implementation.
+This crate parses the Essential ASM specification from YAML and provides a
+structured model for deserializing and traversing the tree of operations.
+
+The primary use is to assist in generating the official ASM declaration
+and implementations, though is likely useful for other tooling based on the
+essential ASM spec.
 
 ## Operation Declaration
 
@@ -11,8 +15,6 @@ Each operation is identified by a unique name and contains the following fields:
 - `opcode`: A hexadecimal representation of the operation code, uniquely
   identifying the operation.
 - `description`: A brief explanation of what the operation does.
-- `shorthand`: A unique shorthand for the op. If unspecified, the shorthand is
-  assumed to be the uppercase form of the name.
 - `panics` (optional): A list of reasons why the operation might cause the
   virtual machine to panic.
 - `arg_bytes` (optional): Specifies the number of bytes expected as arguments
