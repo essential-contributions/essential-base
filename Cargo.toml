@@ -11,5 +11,9 @@ essential-constraint-asm = { path = "crates/constraint-asm" }
 essential-state-asm = { path = "crates/state-asm" }
 essential-types = { path = "crates/types" }
 hex = "0.4.3"
+proc-macro2 = "1"
+quote = "1"
 serde = { version = "1.0.195", features = ["derive"] }
+serde_yaml = "0.9"
+syn = { version = "2", features = ["extra-traits", "full", "printing"] }
 tempfile = "3.9.0"
