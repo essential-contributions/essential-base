@@ -1,4 +1,4 @@
-//! Some fns to assist with traversing the node tree to visit groups and ops.
+//! Items to assist with node tree traversal and visiting groups/ops.
 
 use crate::{Group, Node, Op, Tree};
 
