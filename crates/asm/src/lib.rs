@@ -2,7 +2,7 @@
 //!
 //! The following is an overview of all operations. For more details about an
 //! individual operation, follow the link to the expanded docs.
-#![doc = essential_asm_gen::asm_table_docs!()]
+#![doc = essential_asm_gen::gen_constraint_ops_docs_table!()]
 
 //! # Constraint Execution
 //!
@@ -21,4 +21,26 @@
 //! operations.
 
 // Generate the ASM declarations and implementations from the ASM YAML spec.
-essential_asm_gen::asm_gen!();
+pub mod constraint {
+    pub mod op {
+        essential_asm_gen::gen_constraint_op_decls!();
+    }
+    pub mod opcode {
+        essential_asm_gen::gen_constraint_opcode_decls!();
+    }
+}
+
+pub mod state_read {
+    pub mod op {
+        #[doc(inline)]
+        pub use crate::constraint::op::*;
+        essential_asm_gen::gen_state_read_op_decls!();
+    }
+    pub mod opcode {
+        #[doc(inline)]
+        pub use crate::constraint::opcode::*;
+        essential_asm_gen::gen_state_read_opcode_decls!();
+    }
+}
+
+// essential_asm_gen::asm_gen!();

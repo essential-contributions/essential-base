@@ -5,8 +5,13 @@ use serde::Deserialize;
 use syn::{punctuated::Punctuated, token::Comma};
 
 mod de;
+mod visit;
 
 const ASM_YAML: &str = include_str!("./../asm.yml");
+
+/// The special name of the op group that describes the subset of operations
+/// specific to constraint checker execution.
+const CONSTRAINT_OP_NAME: &str = "Constraint";
 
 /// Operations are laid out in a rose tree.
 /// Nodes are ordered by their opcode, ensured during deserialisation.
@@ -82,35 +87,6 @@ impl std::ops::Deref for Tree {
     }
 }
 
-/// Recursively visit all group nodes within the op tree in depth-first visit order.
-fn visit_groups(tree: &Tree, f: &mut impl FnMut(&str, &Group)) {
-    for (name, node) in tree.iter() {
-        match node {
-            Node::Group(g) => {
-                f(name, g);
-                visit_groups(&g.tree, f);
-            }
-            _ => (),
-        }
-    }
-}
-
-/// Recursively visit all operations in order of their opcode, where the first argument to
-/// the given function provides the fully nested name.
-fn visit_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
-    fn visit_ops_inner(tree: &Tree, names: &mut Vec<String>, f: &mut impl FnMut(&[String], &Op)) {
-        for (name, node) in tree.iter() {
-            names.push(name.to_string());
-            match node {
-                Node::Group(g) => visit_ops_inner(&g.tree, names, f),
-                Node::Op(op) => f(names, op),
-            }
-            names.pop();
-        }
-    }
-    visit_ops_inner(tree, &mut vec![], f)
-}
-
 /// Document the required bytecode arguments to the operation.
 fn bytecode_arg_docs(arg_bytes: u8) -> String {
     if arg_bytes == 0 {
@@ -129,7 +105,7 @@ fn bytecode_arg_docs(arg_bytes: u8) -> String {
     )
 }
 
-/// Generate an Op's stack-in docstring.
+/// Generate an Op's stack-input docstring.
 fn stack_in_docs(stack_in: &[String]) -> String {
     if stack_in.is_empty() {
         String::new()
@@ -138,7 +114,7 @@ fn stack_in_docs(stack_in: &[String]) -> String {
     }
 }
 
-/// Generate an Op's stack-out docstring.
+/// Generate an Op's stack-output docstring.
 fn stack_out_docs(stack_out: &StackOut) -> String {
     match stack_out {
         StackOut::Fixed(words) if words.is_empty() => String::new(),
@@ -147,9 +123,9 @@ fn stack_out_docs(stack_out: &StackOut) -> String {
         }
         StackOut::Dynamic(out) => {
             format!(
-                "## Stack Output\nThe stack output length depends on the \
+                "## Stack Output\n`[{}, ...]`\nThe stack output length depends on the \
                 value of the `{}` stack input word.\n",
-                out.len
+                out.elem, out.len
             )
         }
     }
@@ -284,86 +260,144 @@ fn opcode_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
     item_enum
 }
 
-/// Generate all op enum declarations from the top-level operation tree.
-fn op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    let mut enums = vec![];
-    visit_groups(tree, &mut |name, group| {
-        enums.push(op_enum_decl(name, group))
-    });
-    enums.into_iter().map(syn::Item::Enum).collect()
+/// Generate items related only to constraint execution.
+fn constraint_items(tree: &Tree, new_item: impl Fn(&str, &Group) -> syn::Item) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::constraint_groups(tree, &mut |str, group| items.push(new_item(str, group)));
+    items
 }
 
-/// Generate all opcode enum declarations from the top-level op tree.
-fn opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    let mut enums = vec![];
-    visit_groups(tree, &mut |name, group| {
-        enums.push(opcode_enum_decl(name, group))
-    });
-    enums.into_iter().map(syn::Item::Enum).collect()
+/// Generate all op enum declarations for constraint execution.
+fn constraint_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
+    constraint_items(tree, |name, group| {
+        syn::Item::Enum(op_enum_decl(name, group))
+    })
 }
 
-/// Generate the `op` module, containing all operations.
-fn op_mod(tree: &Tree) -> syn::ItemMod {
-    let enum_decls = op_enum_decls(tree);
-    syn::parse_quote! {
-        pub mod op {
-            #(
-                #enum_decls
-            )*
-        }
-    }
+/// Generate all op enum declarations for constraint execution.
+fn constraint_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
+    constraint_items(tree, |name, group| {
+        syn::Item::Enum(opcode_enum_decl(name, group))
+    })
 }
 
-/// Generate the `op` module, containing all operations.
-fn opcode_mod(tree: &Tree) -> syn::ItemMod {
-    let enum_decls = opcode_enum_decls(tree);
-    syn::parse_quote! {
-        pub mod opcode {
-            #(
-                #enum_decls
-            )*
-        }
-    }
+/// Generate items related to state read execution, omitting those already
+/// generated for constraint execution.
+fn state_read_items(tree: &Tree, new_item: impl Fn(&str, &Group) -> syn::Item) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::state_read_groups(tree, &mut |str, group| items.push(new_item(str, group)));
+    items
 }
 
-/// Produce the crate-root documentation.
-fn asm_table_docs_from_op_tree(op_tree: &Tree) -> syn::LitStr {
-    let mut docs = "\n\n| Opcode | Op | Short Description |\n| --- | --- | --- |\n".to_string();
-    visit_ops(op_tree, &mut |names, op| {
-        let enum_ix = names.len() - 2;
-        let enum_variant = &names[enum_ix..];
-        let enum_name = enum_variant.first().unwrap();
-        let variant_name = enum_variant.last().unwrap();
-        let link = format!("enum.{enum_name}.html#variant.{variant_name}");
-        let opcode_link = format!("./opcode/{link}");
-        let op_link = format!("./op/{link}");
-        let short_desc = op.description.lines().next().unwrap();
-        let line = format!(
-            "| [`0x{:02X}`]({opcode_link}) | [{}]({op_link}) | {short_desc} |\n",
-            op.opcode,
-            enum_variant.join(" ")
-        );
-        docs.push_str(&line);
+/// Generate all op enum declarations for state read execution besides those
+/// already generated for constraint execution.
+fn state_read_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
+    state_read_items(tree, |name, group| {
+        syn::Item::Enum(op_enum_decl(name, group))
+    })
+}
+
+/// Generate all opcode enum declarations for state read execution, omitting
+/// those already generated for constraint execution.
+fn state_read_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
+    state_read_items(tree, |name, group| {
+        syn::Item::Enum(opcode_enum_decl(name, group))
+    })
+}
+
+const DOCS_TABLE_HEADER: &str = "\n\n\
+    | Opcode | Op | Short Description |\n\
+    | --- | --- | --- |\n";
+
+/// Generates a row for a single op within an ASM table docs.
+fn docs_table_row(names: &[String], op: &Op) -> String {
+    assert!(
+        names.len() >= 2,
+        "`names` should contain at least the group and op names"
+    );
+    let enum_ix = names.len() - 2;
+    let enum_variant = &names[enum_ix..];
+    let enum_name = enum_variant.first().unwrap();
+    let variant_name = enum_variant.last().unwrap();
+    let link = format!("enum.{enum_name}.html#variant.{variant_name}");
+    let opcode_link = format!("./opcode/{link}");
+    let op_link = format!("./op/{link}");
+    let short_desc = op.description.lines().next().unwrap();
+    format!(
+        "| [`0x{:02X}`]({opcode_link}) | [{}]({op_link}) | {short_desc} |\n",
+        op.opcode,
+        enum_variant.join(" ")
+    )
+}
+
+/// Generates a markdown table containing only the constraint operations.
+fn constraint_ops_docs_table(tree: &Tree) -> syn::LitStr {
+    let mut docs = DOCS_TABLE_HEADER.to_string();
+    visit::constraint_ops(tree, &mut |names, op| {
+        docs.push_str(&docs_table_row(names, op));
     });
     syn::parse_quote! { #docs }
 }
 
+/// Generates a markdown table containing all operations.
+fn ops_docs_table(tree: &Tree) -> syn::LitStr {
+    let mut docs = DOCS_TABLE_HEADER.to_string();
+    visit::ops(tree, &mut |names, op| {
+        docs.push_str(&docs_table_row(names, op));
+    });
+    syn::parse_quote! { #docs }
+}
+
+fn token_stream_from_items(items: impl IntoIterator<Item = syn::Item>) -> TokenStream {
+    items
+        .into_iter()
+        .flat_map(|item| item.into_token_stream())
+        .collect::<proc_macro2::TokenStream>()
+        .into()
+}
+
+// ----------------------------------------------------------------------------
+
 #[proc_macro]
-pub fn asm_gen(_input: TokenStream) -> TokenStream {
-    let op_tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
-    let op_mod = op_mod(&op_tree);
-    let opcode_mod = opcode_mod(&op_tree);
-    let mut stream = proc_macro2::TokenStream::default();
-    stream.extend(op_mod.into_token_stream());
-    stream.extend(opcode_mod.into_token_stream());
-    stream.into()
+pub fn gen_constraint_op_decls(_input: TokenStream) -> TokenStream {
+    let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+    let items = constraint_op_enum_decls(&tree);
+    token_stream_from_items(items)
 }
 
 #[proc_macro]
-pub fn asm_table_docs(_input: TokenStream) -> TokenStream {
-    let op_tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
-    let doc_attr = asm_table_docs_from_op_tree(&op_tree);
-    doc_attr.into_token_stream().into()
+pub fn gen_constraint_opcode_decls(_input: TokenStream) -> TokenStream {
+    let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+    let items = constraint_opcode_enum_decls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
+pub fn gen_state_read_op_decls(_input: TokenStream) -> TokenStream {
+    let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+    let items = state_read_op_enum_decls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
+pub fn gen_state_read_opcode_decls(_input: TokenStream) -> TokenStream {
+    let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+    let items = state_read_opcode_enum_decls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
+pub fn gen_constraint_ops_docs_table(_input: TokenStream) -> TokenStream {
+    let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+    let lit_str = constraint_ops_docs_table(&tree);
+    lit_str.into_token_stream().into()
+}
+
+#[proc_macro]
+pub fn gen_ops_docs_table(_input: TokenStream) -> TokenStream {
+    let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+    let lit_str = ops_docs_table(&tree);
+    lit_str.into_token_stream().into()
 }
 
 // ----------------------------------------------------------------------------
@@ -371,7 +405,6 @@ pub fn asm_table_docs(_input: TokenStream) -> TokenStream {
 #[cfg(test)]
 mod tests {
     use super::Tree;
-    use quote::ToTokens;
 
     #[test]
     fn test_op_tree() {
@@ -383,7 +416,7 @@ mod tests {
     fn test_no_duplicate_opcodes() {
         let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
         let mut opcodes = std::collections::BTreeSet::new();
-        super::visit_ops(&tree, &mut |name, op| {
+        super::visit::ops(&tree, &mut |name, op| {
             assert!(
                 opcodes.insert(op.opcode),
                 "ASM YAML must not contain duplicate opcodes. \
@@ -395,11 +428,33 @@ mod tests {
     }
 
     #[test]
-    fn test_op_enum_decls() {
-        let op_tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
-        let enum_decls = super::op_enum_decls(&op_tree);
-        for decl in enum_decls {
-            println!("\n{}", decl.to_token_stream());
-        }
+    fn test_visit_ordered_by_opcode() {
+        let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+        let mut last_opcode = 0;
+        super::visit::ops(&tree, &mut |_name, op| {
+            assert!(
+                last_opcode < op.opcode,
+                "Visit functions are expected to visit ops in opcode order.\n  \
+                last opcode: `0x{last_opcode:02X}`\n  \
+                this opcode: `0x{:02X}`",
+                op.opcode
+            );
+            last_opcode = op.opcode;
+        });
+    }
+
+    #[test]
+    fn test_constraint_op_exists() {
+        use super::CONSTRAINT_OP_NAME;
+        let tree = serde_yaml::from_str::<Tree>(crate::ASM_YAML).unwrap();
+        let mut exists = false;
+        super::visit::groups(&tree, &mut |name, _| exists |= name == CONSTRAINT_OP_NAME);
+        assert!(
+            exists,
+            "The `Constraint` op is a special operation that is expected to exist and \
+            is used to distinguish between constraint and state read ops. Hitting this \
+            error implies the ASM yaml has been refactored or the Constraint name may \
+            have changed. If so, the `CONSTRAINT_OP_NAME` should be updated.",
+        );
     }
 }
