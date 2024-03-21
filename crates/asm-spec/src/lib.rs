@@ -140,7 +140,9 @@ mod tests {
         use super::CONSTRAINT_OP_NAME;
         let tree = tree();
         let mut exists = false;
-        super::visit::groups(&tree, &mut |name, _| exists |= name == CONSTRAINT_OP_NAME);
+        super::visit::groups(&tree, &mut |names, _| {
+            exists |= names.last().unwrap() == CONSTRAINT_OP_NAME
+        });
         assert!(
             exists,
             "The `Constraint` op is a special operation that is expected to exist and \

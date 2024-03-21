@@ -1,7 +1,7 @@
 //! Generate essential ASM declarations from the official specification.
 //!
 //! Provides proc macros for generating declarations and implementations for
-//! both the `essentail_constraint_asm` and `essential_state_asm` crates.
+//! both the `essentail-constraint-asm` and `essential-state-asm` crates.
 
 use essential_asm_spec::{visit, Group, Node, Op, StackOut, Tree};
 use proc_macro::TokenStream;
@@ -231,6 +231,49 @@ fn op_enum_impl_opcode(name: &str, group: &Group) -> syn::ItemImpl {
     }
 }
 
+/// Generate a `From` implementation for converting the subgroup (last name) to
+/// the higher-level group (first name).
+fn impl_from_subgroup(names: &[String]) -> syn::ItemImpl {
+    let ident = syn::Ident::new(names.first().unwrap(), Span::call_site());
+    let subident = syn::Ident::new(names.last().unwrap(), Span::call_site());
+    let inner_expr: syn::Expr = syn::parse_quote!(subgroup);
+    let expr = enum_variant_tuple1_expr(names, inner_expr);
+    syn::parse_quote! {
+        impl From<#subident> for #ident {
+            fn from(subgroup: #subident) -> Self {
+                #expr
+            }
+        }
+    }
+}
+
+/// Generate the `From` implementations for converting subgroups to higher-level groups.
+fn impl_from_subgroups(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
+    let mut impls = vec![];
+    let mut names = vec![name.to_string()];
+    visit::groups_filtered_recurse(&group.tree, &|_| true, &mut names, &mut |names, _group| {
+        impls.push(impl_from_subgroup(names));
+    });
+    impls
+}
+
+/// Wrap an expression with the given nested op group naming.
+/// E.g. the args [StateRead, Constraint, Stack]` and `my_expr` becomes
+/// `StateRead::Constraint(Constraint::Stack(my_expr))`.
+fn enum_variant_tuple1_expr(names: &[String], mut expr: syn::Expr) -> syn::Expr {
+    assert!(names.len() >= 1, "Expecting at least one variant name");
+    let mut idents: Vec<_> = names
+        .iter()
+        .map(|n| syn::Ident::new(n, Span::call_site()))
+        .collect();
+    let mut variant_name = idents.pop().unwrap();
+    while let Some(enum_name) = idents.pop() {
+        expr = syn::parse_quote!(#enum_name::#variant_name(#expr));
+        variant_name = enum_name;
+    }
+    expr
+}
+
 /// Generate an opcode expression from the given nested op group naming.
 /// E.g. `[Constraint, Stack, Push]` becomes `Constraint::Stack(Stack::Push)`.
 fn opcode_expr_from_names(names: &[String]) -> syn::Expr {
@@ -238,24 +281,10 @@ fn opcode_expr_from_names(names: &[String]) -> syn::Expr {
         names.len() >= 2,
         "Expecting at least the enum and variant names"
     );
-    let idents: Vec<_> = names
-        .iter()
-        .map(|n| syn::Ident::new(n, Span::call_site()))
-        .collect();
-    let mut enum_ix = idents.len() - 2;
-    let enum_variant = &idents[enum_ix..];
-    let enum_name = &enum_variant[0];
-    let variant_name = &enum_variant[1];
-    let mut expr = syn::parse_quote!(#enum_name::#variant_name);
-    // Wrap the top-level expr
-    while enum_ix > 0 {
-        enum_ix -= 1;
-        let enum_variant = &idents[enum_ix..enum_ix + 2];
-        let enum_name = &enum_variant[0];
-        let variant_name = &enum_variant[1];
-        expr = syn::parse_quote!(#enum_name::#variant_name(#expr));
-    }
-    expr
+    let enum_name = syn::Ident::new(&names[names.len() - 2], Span::call_site());
+    let variant_name = syn::Ident::new(&names[names.len() - 1], Span::call_site());
+    let expr = syn::parse_quote!(#enum_name::#variant_name);
+    enum_variant_tuple1_expr(&names[..names.len() - 1], expr)
 }
 
 /// Generate the arms from the opcode's `TryFrom<u8>` conversion match expr.
@@ -336,25 +365,30 @@ fn opcode_enum_impl_tryfrom_u8(name: &str, group: &Group) -> syn::ItemImpl {
     }
 }
 
-// /// Generate a method that returns the number of bytes expected
-// fn opcode_enum_impl_arg_bytes(name: &str, group: &Group) -> syn::ItemImpl {
-// }
-
 /// Generate the implementations for the given op group enum.
-fn op_enum_impls(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
-    vec![op_enum_impl_opcode(name, group)]
+fn op_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
+    let name = names.last().unwrap();
+    let mut impls = vec![op_enum_impl_opcode(name, group)];
+    impls.extend(impl_from_subgroups(name, group));
+    impls
 }
 
 /// Generate the implementation for the opcode enum.
-fn opcode_enum_impls(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
-    vec![
+fn opcode_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
+    let name = names.last().unwrap();
+    let mut impls = vec![
         opcode_enum_impl_from_opcode_for_u8(name, group),
         opcode_enum_impl_tryfrom_u8(name, group),
-    ]
+    ];
+    impls.extend(impl_from_subgroups(name, group));
+    impls
 }
 
 /// Generate items related only to constraint execution.
-fn constraint_items(tree: &Tree, new_item: impl Fn(&str, &Group) -> syn::Item) -> Vec<syn::Item> {
+fn constraint_items(
+    tree: &Tree,
+    new_item: impl Fn(&[String], &Group) -> syn::Item,
+) -> Vec<syn::Item> {
     let mut items = vec![];
     visit::constraint_groups(tree, &mut |str, group| items.push(new_item(str, group)));
     items
@@ -362,14 +396,16 @@ fn constraint_items(tree: &Tree, new_item: impl Fn(&str, &Group) -> syn::Item) -
 
 /// Generate all op enum declarations for constraint execution.
 fn constraint_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    constraint_items(tree, |name, group| {
+    constraint_items(tree, |names, group| {
+        let name = names.last().unwrap();
         syn::Item::Enum(op_enum_decl(name, group))
     })
 }
 
 /// Generate all opcode enum declarations for constraint execution.
 fn constraint_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    constraint_items(tree, |name, group| {
+    constraint_items(tree, |names, group| {
+        let name = names.last().unwrap();
         syn::Item::Enum(opcode_enum_decl(name, group))
     })
 }
@@ -377,8 +413,8 @@ fn constraint_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
 /// Generate all op enum implementations for constraint execution.
 fn constraint_op_enum_impls(tree: &Tree) -> Vec<syn::Item> {
     let mut items = vec![];
-    visit::constraint_groups(tree, &mut |name, group| {
-        items.extend(op_enum_impls(name, group).into_iter().map(syn::Item::Impl));
+    visit::constraint_groups(tree, &mut |names, group| {
+        items.extend(op_enum_impls(names, group).into_iter().map(syn::Item::Impl));
     });
     items
 }
@@ -398,7 +434,10 @@ fn constraint_opcode_enum_impls(tree: &Tree) -> Vec<syn::Item> {
 
 /// Generate items related to state read execution, omitting those already
 /// generated for constraint execution.
-fn state_read_items(tree: &Tree, new_item: impl Fn(&str, &Group) -> syn::Item) -> Vec<syn::Item> {
+fn state_read_items(
+    tree: &Tree,
+    new_item: impl Fn(&[String], &Group) -> syn::Item,
+) -> Vec<syn::Item> {
     let mut items = vec![];
     visit::state_read_groups(tree, &mut |str, group| items.push(new_item(str, group)));
     items
@@ -407,7 +446,8 @@ fn state_read_items(tree: &Tree, new_item: impl Fn(&str, &Group) -> syn::Item) -
 /// Generate all op enum declarations for state read execution besides those
 /// already generated for constraint execution.
 fn state_read_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    state_read_items(tree, |name, group| {
+    state_read_items(tree, |names, group| {
+        let name = names.last().unwrap();
         syn::Item::Enum(op_enum_decl(name, group))
     })
 }
@@ -415,7 +455,8 @@ fn state_read_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
 /// Generate all opcode enum declarations for state read execution, omitting
 /// those already generated for constraint execution.
 fn state_read_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    state_read_items(tree, |name, group| {
+    state_read_items(tree, |names, group| {
+        let name = names.last().unwrap();
         syn::Item::Enum(opcode_enum_decl(name, group))
     })
 }
