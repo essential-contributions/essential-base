@@ -6,6 +6,8 @@
 #![warn(missing_docs)]
 
 #[doc(inline)]
+pub use essential_constraint_asm::{FromBytesError, Word};
+#[doc(inline)]
 pub use op::{StateRead as Op, *};
 #[doc(inline)]
 pub use opcode::StateRead as Opcode;
@@ -22,6 +24,28 @@ pub mod opcode {
     pub use essential_constraint_asm::opcode::*;
     essential_asm_gen::gen_state_read_opcode_decls!();
     essential_asm_gen::gen_state_read_opcode_impls!();
+}
+
+/// Parse operations from the given iterator yielding bytes.
+///
+/// Returns an iterator yielding `Op` results, erroring in the case that an
+/// invalid opcode is encountered or the iterator contains insufficient bytes
+/// for an operation.
+pub fn from_bytes(
+    bytes: impl IntoIterator<Item = u8>,
+) -> impl Iterator<Item = Result<Op, FromBytesError>> {
+    let mut iter = bytes.into_iter();
+    std::iter::from_fn(move || {
+        let opcode_byte = iter.next()?;
+        let op_res = Opcode::try_from(opcode_byte)
+            .map_err(|_| FromBytesError::InvalidOpcode(opcode_byte))
+            .and_then(|opcode| {
+                opcode
+                    .parse_op(&mut iter)
+                    .map_err(|_| FromBytesError::InsufficientArgBytes)
+            });
+        Some(op_res)
+    })
 }
 
 #[cfg(test)]
