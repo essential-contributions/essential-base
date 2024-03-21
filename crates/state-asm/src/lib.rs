@@ -12,7 +12,7 @@ pub use opcode::StateRead as Opcode;
 
 /// Typed representation of an operation its associated data.
 mod op {
-    pub use essential_constraint_asm::{Access, Alu, Constraint, Crypto, Pred};
+    pub use essential_constraint_asm::{Access, Alu, Constraint, Crypto, Pred, Stack};
     essential_asm_gen::gen_state_read_op_decls!();
 }
 

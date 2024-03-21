@@ -47,55 +47,55 @@ StateRead:
           group:
             Eq:
               opcode: 0x10
-              description: Check equality of two words
+              description: Check equality of two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs == rhs"]
 
             Eq4:
               opcode: 0x11
-              description: Check equality of two lists of four words
+              description: Check equality of two lists of four words.
               stack_in: [la, lb, lc, ld, ra, rb, rc, rd]
               stack_out: ["la == ra && lb == rb && lc == rc && ld == rd"]
 
             Gt:
               opcode: 0x12
-              description: Check if left-hand side is greater than right-hand side
+              description: Check if left-hand side is greater than right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs > rhs"]
 
             Lt:
               opcode: 0x13
-              description: Check if left-hand side is less than right-hand side
+              description: Check if left-hand side is less than right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs < rhs"]
 
             Gte:
               opcode: 0x14
-              description: Check if left-hand side is greater than or equal to right-hand side
+              description: Check if left-hand side is greater than or equal to right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs >= rhs"]
 
             Lte:
               opcode: 0x15
-              description: Check if left-hand side is less than or equal to right-hand side
+              description: Check if left-hand side is less than or equal to right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs <= rhs"]
 
             And:
               opcode: 0x16
-              description: Logical AND of two words
+              description: Logical AND of two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs && rhs"]
 
             Or:
               opcode: 0x17
-              description: Logical OR of two words
+              description: Logical OR of two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs || rhs"]
 
             Not:
               opcode: 0x18
-              description: Logical NOT of a word
+              description: Logical NOT of a word.
               stack_in: [a]
               stack_out: ["!a"]
 
@@ -104,37 +104,37 @@ StateRead:
           group:
             Add:
               opcode: 0x20
-              description: Add two words
+              description: Add two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs + rhs"]
 
             Sub:
               opcode: 0x21
-              description: Subtract two words
+              description: Subtract two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs - rhs"]
 
             Mul:
               opcode: 0x22
-              description: Multiply two words
+              description: Multiply two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs * rhs"]
 
             Div:
               opcode: 0x23
-              description: Integer division
+              description: Integer division.
               stack_in: [lhs, rhs]
               stack_out: ["lhs / rhs"]
 
             Mod:
               opcode: 0x24
-              description: Modulus of lhs by rhs
+              description: Modulus of lhs by rhs.
               stack_in: [lhs, rhs]
               stack_out: ["lhs % rhs"]
 
             HashOffset:
               opcode: 0x25
-              description: Adds the offset to the hash
+              description: Adds the offset to the hash.
               stack_in: [hash, offset]
               stack_out: [new_hash]
 

@@ -77,6 +77,16 @@ fn op_docs(op: &Op) -> String {
     format!("{opcode_docs}\n{desc}\n{arg_docs}\n{stack_in_docs}\n{stack_out_docs}\n{panic_docs}")
 }
 
+/// Generate the docstring for an `Opcode` variant.
+fn opcode_docs(enum_name: &str, name: &str, op: &Op) -> String {
+    let opcode_docs = format!("`0x{:02X}`\n\n", op.opcode);
+    let docs = format!(
+        "Opcode associated with the \
+        [{enum_name}::{name}][super::op::{enum_name}::{name}] operation."
+    );
+    format!("{opcode_docs}\n{docs}")
+}
+
 /// Generate a single variant for an op group's enum decl.
 fn op_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
     let ident = syn::Ident::new(name, Span::call_site());
@@ -109,7 +119,7 @@ fn op_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
 }
 
 /// Generate a single variant for an op group's opcode enum decl
-fn opcode_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
+fn opcode_enum_decl_variant(parent_name: &str, name: &str, node: &Node) -> syn::Variant {
     let ident = syn::Ident::new(name, Span::call_site());
     match node {
         Node::Group(group) => {
@@ -120,7 +130,7 @@ fn opcode_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
             }
         }
         Node::Op(op) => {
-            let docs = op_docs(&op);
+            let docs = opcode_docs(parent_name, name, &op);
             let opcode = op.opcode;
             syn::parse_quote! {
                 #[doc = #docs]
@@ -140,18 +150,17 @@ fn op_enum_decl_variants(group: &Group) -> Punctuated<syn::Variant, Comma> {
 }
 
 /// Generate the variants for an op group's opcode enum decl.
-fn opcode_enum_decl_variants(group: &Group) -> Punctuated<syn::Variant, Comma> {
+fn opcode_enum_decl_variants(enum_name: &str, group: &Group) -> Punctuated<syn::Variant, Comma> {
     group
         .tree
         .iter()
-        .map(|(name, node)| opcode_enum_decl_variant(name, node))
+        .map(|(name, node)| opcode_enum_decl_variant(enum_name, name, node))
         .collect()
 }
 
 /// Generate a single enum declaration from the given op group.
 fn op_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
     let variants = op_enum_decl_variants(group);
-    // Create the enum declaration for the group.
     let ident = syn::Ident::new(name, Span::call_site());
     let docs = &group.description;
     let item_enum = syn::parse_quote! {
@@ -166,9 +175,7 @@ fn op_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
 
 /// Generate an opcode enum declaration for the given op group.
 fn opcode_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
-    let variants = opcode_enum_decl_variants(group);
-    // When generating the opcode enum, the top-level type should be called `Opcode`.
-    let name = if name == "Op" { "Opcode" } else { name };
+    let variants = opcode_enum_decl_variants(name, group);
     let ident = syn::Ident::new(name, Span::call_site());
     let docs = &group.description;
     let item_enum = syn::parse_quote! {
@@ -241,12 +248,11 @@ fn docs_table_row(names: &[String], op: &Op) -> String {
     let enum_variant = &names[enum_ix..];
     let enum_name = enum_variant.first().unwrap();
     let variant_name = enum_variant.last().unwrap();
-    let link = format!("enum.{enum_name}.html#variant.{variant_name}");
-    let opcode_link = format!("./opcode/{link}");
-    let op_link = format!("./op/{link}");
+    let opcode_link = format!("opcode::{enum_name}::{variant_name}");
+    let op_link = format!("op::{enum_name}::{variant_name}");
     let short_desc = op.description.lines().next().unwrap();
     format!(
-        "| [`0x{:02X}`]({opcode_link}) | [{}]({op_link}) | {short_desc} |\n",
+        "| [`0x{:02X}`][{opcode_link}] | [{}][{op_link}] | {short_desc} |\n",
         op.opcode,
         enum_variant.join(" ")
     )

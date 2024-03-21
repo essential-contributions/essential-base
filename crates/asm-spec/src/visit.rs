@@ -1,4 +1,4 @@
-//! Items to assist with node tree traversal and visiting groups/ops.
+//! Items to assist with traversal of the operation tree and visiting groups/ops.
 
 use crate::{Group, Node, Op, Tree};
 
