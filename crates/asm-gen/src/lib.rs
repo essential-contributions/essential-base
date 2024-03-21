@@ -9,18 +9,19 @@ use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{punctuated::Punctuated, token::Comma};
 
+const WORD_SIZE: usize = std::mem::size_of::<essential_types::Word>();
+
 /// Document the required bytecode arguments to the operation.
 fn bytecode_arg_docs(arg_bytes: u8) -> String {
     if arg_bytes == 0 {
         return String::new();
     }
-    let word_size = std::mem::size_of::<essential_types::Word>();
     assert_eq!(
-        arg_bytes as usize % word_size,
+        arg_bytes as usize % WORD_SIZE,
         0,
         "doc gen currently only supports arguments that are a multiple of the word size"
     );
-    let arg_words = arg_bytes as usize / word_size;
+    let arg_words = arg_bytes as usize / WORD_SIZE;
     format!(
         "## Bytecode Argument\nThis operation expects a {arg_bytes}-byte \
         ({arg_words}-word) argument following its opcode within bytecode."
@@ -287,6 +288,95 @@ fn opcode_expr_from_names(names: &[String]) -> syn::Expr {
     enum_variant_tuple1_expr(&names[..names.len() - 1], expr)
 }
 
+/// Generates an arm of the match expr used within the opcode's `parse_op` implementation.
+fn opcode_enum_impl_parse_op_arm(
+    enum_name: &syn::Ident,
+    name: &syn::Ident,
+    node: &Node,
+) -> syn::Arm {
+    match node {
+        Node::Group(_group) => {
+            syn::parse_quote! {
+                Self::#name(group) => group.parse_op(bytes).map(Into::into),
+            }
+        }
+        Node::Op(op) if op.arg_bytes == 0 => {
+            syn::parse_quote! {
+                Self::#name => Ok(crate::op::#enum_name::#name),
+            }
+        }
+        // TODO: Update this to handle variable size arguments if we add more
+        // sophisticated options than `Push`.
+        Node::Op(op) => {
+            assert_eq!(
+                op.arg_bytes as usize % WORD_SIZE,
+                0,
+                "Currently only support operations with an `arg_bytes` that is \
+                a multiple of the word size",
+            );
+            let words = op.arg_bytes as usize / WORD_SIZE;
+            assert_eq!(
+                words, 1,
+                "Currently only support operations with a single word \
+                argument. This must be updated to properly support variable \
+                size arguments.",
+            );
+            syn::parse_quote! {
+                Self::#name => {
+                    use essential_types::convert::word_from_bytes;
+                    fn parse_word_bytes(bytes: &mut impl Iterator<Item = u8>) -> Option<[u8; 8]> {
+                        Some([
+                            bytes.next()?, bytes.next()?, bytes.next()?, bytes.next()?,
+                            bytes.next()?, bytes.next()?, bytes.next()?, bytes.next()?,
+                        ])
+                    }
+                    let word_bytes: [u8; 8] = parse_word_bytes(bytes).ok_or(())?;
+                    let word: essential_types::Word = word_from_bytes(word_bytes);
+                    Ok(crate::op::#enum_name::#name(word))
+                },
+            }
+        }
+    }
+}
+
+/// Generates the arms of the match expr used within the opcode's `parse_op` implementation.
+fn opcode_enum_impl_parse_op_arms(enum_name: &syn::Ident, group: &Group) -> Vec<syn::Arm> {
+    group
+        .tree
+        .iter()
+        .map(|(name, node)| {
+            let name = syn::Ident::new(name, Span::call_site());
+            opcode_enum_impl_parse_op_arm(enum_name, &name, node)
+        })
+        .collect()
+}
+
+/// Generate a method that parses the operation associated with the opcode.
+fn opcode_enum_impl_parse_op(name: &str, group: &Group) -> syn::ItemImpl {
+    let ident = syn::Ident::new(name, Span::call_site());
+    let arms = opcode_enum_impl_parse_op_arms(&ident, group);
+    syn::parse_quote! {
+        impl #ident {
+            /// Attempt to parse the operation associated with the opcode from the given bytes.
+            ///
+            /// Only consumes the bytes necessary to construct any associated data.
+            ///
+            /// Returns an `Err(())` in the case that the given `bytes` iterator
+            /// contains insufficient bytes to parse the op.
+            pub fn parse_op(
+                &self,
+                bytes: &mut impl Iterator<Item = u8>,
+            ) -> Result<crate::op::#ident, ()> {
+                match *self {
+                    #(
+                        #arms
+                    )*
+                }
+            }
+        }
+    }
+}
+
 /// Generate the arms from the opcode's `TryFrom<u8>` conversion match expr.
 fn opcode_enum_impl_tryfrom_u8_arms(group: &Group) -> Vec<syn::Arm> {
     let mut arms = vec![];
@@ -379,6 +469,7 @@ fn opcode_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
     let mut impls = vec![
         opcode_enum_impl_from_opcode_for_u8(name, group),
         opcode_enum_impl_tryfrom_u8(name, group),
+        opcode_enum_impl_parse_op(name, group),
     ];
     impls.extend(impl_from_subgroups(name, group));
     impls
