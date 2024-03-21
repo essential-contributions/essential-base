@@ -263,20 +263,35 @@ StateRead:
                 This operation returns a list of words with a length of 4, representing the set's hash.
               stack_out: [key]
 
+        Crypto:
+          description: Operations providing cryptographic functionality.
+          group:
+            Sha256:
+              opcode: 0x40
+              description: Produce a SHA 256 hash from the specified data.
+              stack_in: [data, data_len]
+              stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
+
+            VerifyEd25519:
+              opcode: 0x41
+              description: Validate an Ed25519 signature against a public key.
+              stack_in: [data, data_len, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, wig_w7, key_w0, key_w1, key_w2, key_w3]
+              stack_out: [bool]
+
     ControlFlow:
       description: Operations for controlling the flow of the program.
       group:
         Halt:
-          opcode: 0x40
+          opcode: 0x50
           description: End the execution of the program and return the keys and memory.
 
         Jump:
-          opcode: 0x41
+          opcode: 0x51
           description: Jump to the given address.
           stack_in: [address]
 
         JumpIf:
-          opcode: 0x42
+          opcode: 0x52
           description: Jump to the given address if the value is true.
           stack_in: [address, value]
 
@@ -284,17 +299,17 @@ StateRead:
       description: Operations for controlling memory.
       group:
         Alloc:
-          opcode: 0x50
+          opcode: 0x60
           description: Allocate new memory to the end of the memory.
           stack_in: [size]
 
         Free:
-          opcode: 0x51
+          opcode: 0x61
           description: Free the given size of memory from the end of the memory.
           stack_in: [size]
 
         Truncate:
-          opcode: 0x52
+          opcode: 0x62
           description: |
             Truncate the memory to the given size.
 
@@ -302,7 +317,7 @@ StateRead:
           stack_in: [size]
 
         Load:
-          opcode: 0x53
+          opcode: 0x63
           description: |
             Load the index of memory onto the stack.
 
@@ -313,41 +328,41 @@ StateRead:
           stack_out: [value]
 
         Store:
-          opcode: 0x54
+          opcode: 0x64
           description: Store the value at the index of memory.
           panics:
             - Index is out of bounds.
           stack_in: [index, value]
 
         Push:
-          opcode: 0x55
+          opcode: 0x65
           description: Push the value onto the end of the memory.
           panics:
             - Not enough memory allocated.
           stack_in: [value]
 
         PushNone:
-          opcode: 0x56
+          opcode: 0x66
           description: Push a None value onto the end of the memory.
           panics:
             - Not enough memory allocated.
 
         Clear:
-          opcode: 0x57
+          opcode: 0x67
           description: Set the value at the index of memory to None.
           panics:
             - Index is out of bounds.
           stack_in: [index]
 
         ClearRange:
-          opcode: 0x58
+          opcode: 0x68
           description: Set a range of memory to None.
           panics:
             - The range is out of bounds.
           stack_in: [index, amount]
 
         IsSome:
-          opcode: 0x59
+          opcode: 0x69
           description: Check if the value at the index of memory is Some.
           panics:
             - Index out of bounds.
@@ -355,17 +370,17 @@ StateRead:
           stack_out: [bool]
 
         Capacity:
-          opcode: 0x5A
+          opcode: 0x6A
           description: Get the current capacity of the memory.
           stack_out: [capacity]
 
         Length:
-          opcode: 0x5B
+          opcode: 0x6B
           description: Get the current length of the memory.
           stack_out: [length]
 
     WordRange:
-      opcode: 0x60
+      opcode: 0x70
       description: |
         Read a range of words from state starting at the key.
 
@@ -378,7 +393,7 @@ StateRead:
       stack_out: [mem_addr]
 
     WordRangeExtern:
-      opcode: 0x61
+      opcode: 0x71
       description: |
         Read a range of words from external state starting at the key.
 
