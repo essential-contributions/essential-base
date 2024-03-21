@@ -222,16 +222,8 @@ StateRead:
                 elem: is_some
                 len: range
 
-            Owner:
-              opcode: 0x36
-              description: |
-                Returns the owner that permitted this intent.
-
-                This operation returns a list of words with a length of 4, representing the owner.
-              stack_out: [owner_w0, owner_w1, owner_w2, owner_w3]
-
             MutKeys:
-              opcode: 0x37
+              opcode: 0x36
               description: |
                 Returns the key that is being proposed for mutation at the specified `slot`.
 
@@ -240,7 +232,7 @@ StateRead:
               stack_out: [key]
 
             MutKeysLen:
-              opcode: 0x38
+              opcode: 0x37
               description: |
                 Get the number of mutable keys being proposed for mutation.
 
@@ -248,7 +240,7 @@ StateRead:
               stack_out: [word]
 
             ThisAddress:
-              opcode: 0x39
+              opcode: 0x38
               description: |
                 Get the content hash of this intent.
 
@@ -256,7 +248,7 @@ StateRead:
               stack_out: [key]
 
             ThisSetAddress:
-              opcode: 0x3A
+              opcode: 0x39
               description: |
                 Get the content hash of the set of intents that this intent belongs to.
 
