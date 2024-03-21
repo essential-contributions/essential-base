@@ -31,6 +31,7 @@ dependencies = [
 name = "essential-constraint-asm"
 version = "0.1.0"
 dependencies = [
+ "essential-asm-gen",
  "essential-types",
  "serde",
 ]
@@ -39,6 +40,7 @@ dependencies = [
 name = "essential-state-asm"
 version = "0.1.0"
 dependencies = [
+ "essential-asm-gen",
  "essential-constraint-asm",
  "serde",
 ]
