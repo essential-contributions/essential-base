@@ -35,7 +35,7 @@ pub fn ops_filtered(tree: &Tree, pred: impl Fn(&str) -> bool, f: &mut impl FnMut
 
 /// The main implementation of `ops_filtered`, but with a `names` argument to
 /// enable recursion.
-fn ops_filtered_recurse(
+pub fn ops_filtered_recurse(
     tree: &Tree,
     pred: &impl Fn(&str) -> bool,
     names: &mut Vec<String>,

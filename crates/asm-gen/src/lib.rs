@@ -30,10 +30,9 @@ fn bytecode_arg_docs(arg_bytes: u8) -> String {
 /// Generate an Op's stack-input docstring.
 fn stack_in_docs(stack_in: &[String]) -> String {
     if stack_in.is_empty() {
-        String::new()
-    } else {
-        format!("## Stack Input\n`[{}]`\n", stack_in.join(", "))
+        return String::new();
     }
+    format!("## Stack Input\n`[{}]`\n", stack_in.join(", "))
 }
 
 /// Generate an Op's stack-output docstring.
@@ -56,14 +55,13 @@ fn stack_out_docs(stack_out: &StackOut) -> String {
 /// Generate an Op's panic reason docstring.
 fn panic_docs(panic_reasons: &[String]) -> String {
     if panic_reasons.is_empty() {
-        String::new()
-    } else {
-        let mut docs = "## Panics\n".to_string();
-        panic_reasons
-            .iter()
-            .for_each(|reason| docs.push_str(&format!("- {reason}\n")));
-        docs
+        return String::new();
     }
+    let mut docs = "## Panics\n".to_string();
+    panic_reasons
+        .iter()
+        .for_each(|reason| docs.push_str(&format!("- {reason}\n")));
+    docs
 }
 
 /// Generate the docstring for an `Op` variant.
@@ -189,6 +187,172 @@ fn opcode_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
     item_enum
 }
 
+/// Generate the arms of the `opcode` method's match expression.
+fn op_enum_impl_opcode_arms(enum_ident: &syn::Ident, group: &Group) -> Vec<syn::Arm> {
+    group
+        .tree
+        .iter()
+        .map(|(name, node)| {
+            let name = syn::Ident::new(name, Span::call_site());
+            match node {
+                Node::Group(_) => syn::parse_quote! {
+                    #enum_ident::#name(group) => crate::opcode::#enum_ident::#name(group.opcode()),
+                },
+                Node::Op(op) if op.arg_bytes > 0 => {
+                    syn::parse_quote! {
+                        #enum_ident::#name(_) => crate::opcode::#enum_ident::#name,
+                    }
+                }
+                Node::Op(_) => {
+                    syn::parse_quote! {
+                        #enum_ident::#name => crate::opcode::#enum_ident::#name,
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+/// Generate the `opcode` method implementation for an operation type.
+fn op_enum_impl_opcode(name: &str, group: &Group) -> syn::ItemImpl {
+    let name = syn::Ident::new(name, Span::call_site());
+    let arms = op_enum_impl_opcode_arms(&name, group);
+    syn::parse_quote! {
+        impl #name {
+            /// The opcode associated with the operation.
+            pub fn opcode(&self) -> crate::opcode::#name {
+                match *self {
+                    #(
+                        #arms
+                    )*
+                }
+            }
+        }
+    }
+}
+
+/// Generate an opcode expression from the given nested op group naming.
+/// E.g. `[Constraint, Stack, Push]` becomes `Constraint::Stack(Stack::Push)`.
+fn opcode_expr_from_names(names: &[String]) -> syn::Expr {
+    assert!(
+        names.len() >= 2,
+        "Expecting at least the enum and variant names"
+    );
+    let idents: Vec<_> = names
+        .iter()
+        .map(|n| syn::Ident::new(n, Span::call_site()))
+        .collect();
+    let mut enum_ix = idents.len() - 2;
+    let enum_variant = &idents[enum_ix..];
+    let enum_name = &enum_variant[0];
+    let variant_name = &enum_variant[1];
+    let mut expr = syn::parse_quote!(#enum_name::#variant_name);
+    // Wrap the top-level expr
+    while enum_ix > 0 {
+        enum_ix -= 1;
+        let enum_variant = &idents[enum_ix..enum_ix + 2];
+        let enum_name = &enum_variant[0];
+        let variant_name = &enum_variant[1];
+        expr = syn::parse_quote!(#enum_name::#variant_name(#expr));
+    }
+    expr
+}
+
+/// Generate the arms from the opcode's `TryFrom<u8>` conversion match expr.
+fn opcode_enum_impl_tryfrom_u8_arms(group: &Group) -> Vec<syn::Arm> {
+    let mut arms = vec![];
+    let mut names = vec!["Self".to_string()];
+    visit::ops_filtered_recurse(&group.tree, &|_| true, &mut names, &mut |names, op| {
+        let opcode = op.opcode;
+        let opcode_expr = opcode_expr_from_names(names);
+        let arm = syn::parse_quote! {
+            #opcode => #opcode_expr,
+        };
+        arms.push(arm);
+    });
+    arms
+}
+
+/// Generate the arms for the conversion from opcode to u8.
+fn opcode_enum_impl_from_opcode_for_u8_arms(
+    enum_ident: &syn::Ident,
+    group: &Group,
+) -> Vec<syn::Arm> {
+    group
+        .tree
+        .iter()
+        .map(|(name, node)| {
+            let name = syn::Ident::new(name, Span::call_site());
+            match node {
+                Node::Group(_) => syn::parse_quote! {
+                    #enum_ident::#name(group) => u8::from(group),
+                },
+                Node::Op(op) => {
+                    let opcode = op.opcode;
+                    syn::parse_quote! {
+                        #enum_ident::#name => #opcode,
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+/// Generate the conversion from the opcode type to `u8`.
+fn opcode_enum_impl_from_opcode_for_u8(name: &str, group: &Group) -> syn::ItemImpl {
+    let name = syn::Ident::new(name, Span::call_site());
+    let arms = opcode_enum_impl_from_opcode_for_u8_arms(&name, group);
+    syn::parse_quote! {
+        impl From<#name> for u8 {
+            fn from(opcode: #name) -> Self {
+                match opcode {
+                    #(
+                        #arms
+                    )*
+                }
+            }
+        }
+    }
+}
+
+/// Generate the fallible conversion from `u8` to the opcode.
+fn opcode_enum_impl_tryfrom_u8(name: &str, group: &Group) -> syn::ItemImpl {
+    let name = syn::Ident::new(name, Span::call_site());
+    let arms = opcode_enum_impl_tryfrom_u8_arms(group);
+    syn::parse_quote! {
+        impl TryFrom<u8> for #name {
+            type Error = ();
+            fn try_from(u: u8) -> Result<Self, Self::Error> {
+                let opcode = match u {
+                    // List of patterns generated from all child ops in the
+                    #(
+                        #arms
+                    )*
+                    _ => return Err(()),
+                };
+                Ok(opcode)
+            }
+        }
+    }
+}
+
+// /// Generate a method that returns the number of bytes expected
+// fn opcode_enum_impl_arg_bytes(name: &str, group: &Group) -> syn::ItemImpl {
+// }
+
+/// Generate the implementations for the given op group enum.
+fn op_enum_impls(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
+    vec![op_enum_impl_opcode(name, group)]
+}
+
+/// Generate the implementation for the opcode enum.
+fn opcode_enum_impls(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
+    vec![
+        opcode_enum_impl_from_opcode_for_u8(name, group),
+        opcode_enum_impl_tryfrom_u8(name, group),
+    ]
+}
+
 /// Generate items related only to constraint execution.
 fn constraint_items(tree: &Tree, new_item: impl Fn(&str, &Group) -> syn::Item) -> Vec<syn::Item> {
     let mut items = vec![];
@@ -203,11 +367,33 @@ fn constraint_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
     })
 }
 
-/// Generate all op enum declarations for constraint execution.
+/// Generate all opcode enum declarations for constraint execution.
 fn constraint_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
     constraint_items(tree, |name, group| {
         syn::Item::Enum(opcode_enum_decl(name, group))
     })
+}
+
+/// Generate all op enum implementations for constraint execution.
+fn constraint_op_enum_impls(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::constraint_groups(tree, &mut |name, group| {
+        items.extend(op_enum_impls(name, group).into_iter().map(syn::Item::Impl));
+    });
+    items
+}
+
+/// Generate all opcode enum implementations for constraint execution.
+fn constraint_opcode_enum_impls(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::constraint_groups(tree, &mut |name, group| {
+        items.extend(
+            opcode_enum_impls(name, group)
+                .into_iter()
+                .map(syn::Item::Impl),
+        );
+    });
+    items
 }
 
 /// Generate items related to state read execution, omitting those already
@@ -232,6 +418,28 @@ fn state_read_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
     state_read_items(tree, |name, group| {
         syn::Item::Enum(opcode_enum_decl(name, group))
     })
+}
+
+/// Generate all opcode enum implementations for constraint execution.
+fn state_read_op_enum_impls(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::state_read_groups(tree, &mut |name, group| {
+        items.extend(op_enum_impls(name, group).into_iter().map(syn::Item::Impl));
+    });
+    items
+}
+
+/// Generate all opcode enum implementations for constraint execution.
+fn state_read_opcode_enum_impls(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::state_read_groups(tree, &mut |name, group| {
+        items.extend(
+            opcode_enum_impls(name, group)
+                .into_iter()
+                .map(syn::Item::Impl),
+        );
+    });
+    items
 }
 
 const DOCS_TABLE_HEADER: &str = "\n\n\
@@ -299,6 +507,20 @@ pub fn gen_constraint_opcode_decls(_input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn gen_constraint_op_impls(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = constraint_op_enum_impls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
+pub fn gen_constraint_opcode_impls(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = constraint_opcode_enum_impls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
 pub fn gen_state_read_op_decls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
     let items = state_read_op_enum_decls(&tree);
@@ -309,6 +531,20 @@ pub fn gen_state_read_op_decls(_input: TokenStream) -> TokenStream {
 pub fn gen_state_read_opcode_decls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
     let items = state_read_opcode_enum_decls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
+pub fn gen_state_read_op_impls(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = state_read_op_enum_impls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
+pub fn gen_state_read_opcode_impls(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = state_read_opcode_enum_impls(&tree);
     token_stream_from_items(items)
 }
 

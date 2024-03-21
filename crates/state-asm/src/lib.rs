@@ -14,10 +14,27 @@ pub use opcode::StateRead as Opcode;
 mod op {
     pub use essential_constraint_asm::{Access, Alu, Constraint, Crypto, Pred, Stack};
     essential_asm_gen::gen_state_read_op_decls!();
+    essential_asm_gen::gen_state_read_op_impls!();
 }
 
 /// Typed representation of the opcode, without any associated data.
 pub mod opcode {
     pub use essential_constraint_asm::opcode::*;
     essential_asm_gen::gen_state_read_opcode_decls!();
+    essential_asm_gen::gen_state_read_opcode_impls!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_opcode_roundtrip_u8() {
+        for byte in 0..=std::u8::MAX {
+            if let Ok(opcode) = Opcode::try_from(byte) {
+                println!("{byte:02X}: {opcode:?}");
+                assert_eq!(u8::from(opcode), byte);
+            }
+        }
+    }
 }
