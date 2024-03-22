@@ -232,6 +232,173 @@ fn op_enum_impl_opcode(name: &str, group: &Group) -> syn::ItemImpl {
     }
 }
 
+/// Generate a single variant for an op enum's bytes iterator.
+fn op_enum_bytes_iter_decl_variant(name: &str, node: &Node) -> syn::Variant {
+    let ident = syn::Ident::new(name, Span::call_site());
+    match node {
+        Node::Group(_group) => {
+            syn::parse_quote! {
+                #ident(#ident)
+            }
+        }
+        Node::Op(op) => {
+            // The opcode + the number of bytes in the associated data.
+            let n_bytes: usize = 1 + op.arg_bytes as usize;
+            let n_bytes: syn::LitInt = syn::parse_quote!(#n_bytes);
+            syn::parse_quote! {
+                #ident {
+                    /// The current index within the bytes array.
+                    index: usize,
+                    /// The operation's associated data as an array of bytes.
+                    bytes: [u8; #n_bytes],
+                }
+            }
+        }
+    }
+}
+
+/// Generate an op enum's bytes iterator variants.
+fn op_enum_bytes_iter_decl_variants(group: &Group) -> Vec<syn::Variant> {
+    group
+        .tree
+        .iter()
+        .map(|(name, node)| op_enum_bytes_iter_decl_variant(name, node))
+        .collect()
+}
+
+/// Create the declaration for an Op enum's associated bytes iterator type.
+fn op_enum_bytes_iter_decl(name: &str, group: &Group) -> syn::ItemEnum {
+    let name = syn::Ident::new(name, Span::call_site());
+    let variants = op_enum_bytes_iter_decl_variants(group);
+    let docs = format!(
+        "The bytes iterator produced by the \
+        [{name}::to_bytes][super::{name}::to_bytes] method."
+    );
+    syn::parse_quote! {
+        #[doc = #docs]
+        #[derive(Clone, Debug)]
+        pub enum #name {
+            #(
+                /// Bytes iterator for the op variant.
+                #variants
+            ),*
+        }
+    }
+}
+
+/// An arm of the match expr within a bytes iterator implementation.
+fn op_enum_bytes_iter_impl_arm(name: &str, node: &Node) -> syn::Arm {
+    let name = syn::Ident::new(name, Span::call_site());
+    match node {
+        Node::Group(_group) => syn::parse_quote! {
+            Self::#name(ref mut iter) => iter.next(),
+        },
+        Node::Op(_op) => {
+            syn::parse_quote! {
+                Self::#name { ref mut index, ref bytes } => {
+                    let byte = *bytes.get(*index)?;
+                    *index += 1;
+                    Some(byte)
+                },
+            }
+        }
+    }
+}
+
+/// The arms of the match expr within a bytes iterator implementation.
+fn op_enum_bytes_iter_impl_arms(group: &Group) -> Vec<syn::Arm> {
+    group
+        .tree
+        .iter()
+        .map(|(name, node)| op_enum_bytes_iter_impl_arm(name, node))
+        .collect()
+}
+
+/// An implementation of Iterator for the op's associated bytes iterator type.
+fn op_enum_bytes_iter_impl(name: &str, group: &Group) -> syn::ItemImpl {
+    let bytes_iter = syn::Ident::new(name, Span::call_site());
+    let arms = op_enum_bytes_iter_impl_arms(group);
+    syn::parse_quote! {
+        impl Iterator for #bytes_iter {
+            type Item = u8;
+            fn next(&mut self) -> Option<Self::Item> {
+                match *self {
+                    #(
+                        #arms
+                    )*
+                }
+            }
+        }
+    }
+}
+
+/// Generate an arm of the match expr with an op type's `to_bytes` method.
+fn op_enum_impl_to_bytes_arm(enum_name: &syn::Ident, name: &str, node: &Node) -> syn::Arm {
+    let name = syn::Ident::new(name, Span::call_site());
+    match node {
+        Node::Group(_group) => {
+            syn::parse_quote! {
+                Self::#name(group) => bytes_iter::#enum_name::#name(group.to_bytes()),
+            }
+        }
+        Node::Op(op) => {
+            let opcode = op.opcode;
+            if op.arg_bytes == 0 {
+                syn::parse_quote! {
+                    Self::#name => bytes_iter::#enum_name::#name {
+                        index: 0usize,
+                        bytes: [#opcode],
+                    },
+                }
+            } else if op.arg_bytes == 8 {
+                syn::parse_quote! {
+                    Self::#name(data) => {
+                        use essential_types::convert::bytes_from_word;
+                        let [b0, b1, b2, b3, b4, b5, b6, b7] = bytes_from_word(data.clone());
+                        bytes_iter::#enum_name::#name {
+                            index: 0usize,
+                            bytes: [#opcode, b0, b1, b2, b3, b4, b5, b6, b7],
+                        }
+                    },
+                }
+            } else {
+                panic!(
+                    "Currently only support operations with a single word \
+                    argument. This must be updated to properly support variable \
+                    size arguments.",
+                )
+            }
+        }
+    }
+}
+
+/// Generate the arms of the match expr with an op type's `to_bytes` method.
+fn op_enum_impl_to_bytes_arms(enum_name: &syn::Ident, group: &Group) -> Vec<syn::Arm> {
+    group
+        .tree
+        .iter()
+        .map(|(name, node)| op_enum_impl_to_bytes_arm(enum_name, name, node))
+        .collect()
+}
+
+/// Generate the `to_bytes` method for an operation type.
+fn op_enum_impl_to_bytes(name: &str, group: &Group) -> syn::ItemImpl {
+    let name = syn::Ident::new(name, Span::call_site());
+    let arms = op_enum_impl_to_bytes_arms(&name, group);
+    syn::parse_quote! {
+        impl #name {
+            /// Convert the operation to its serialized form in bytes.
+            pub fn to_bytes(&self) -> bytes_iter::#name {
+                match self {
+                    #(
+                        #arms
+                    )*
+                }
+            }
+        }
+    }
+}
+
 /// Generate a `From` implementation for converting the subgroup (last name) to
 /// the higher-level group (first name).
 fn impl_from_subgroup(names: &[String]) -> syn::ItemImpl {
@@ -324,7 +491,7 @@ fn opcode_enum_impl_parse_op_arm(
             syn::parse_quote! {
                 Self::#name => {
                     use essential_types::convert::word_from_bytes;
-                    fn parse_word_bytes(bytes: &mut impl Iterator<Item = u8>) -> Option<[u8; 8]> {
+                    fn parse_word_bytes(bytes: &mut dyn Iterator<Item = u8>) -> Option<[u8; 8]> {
                         Some([
                             bytes.next()?, bytes.next()?, bytes.next()?, bytes.next()?,
                             bytes.next()?, bytes.next()?, bytes.next()?, bytes.next()?,
@@ -365,7 +532,7 @@ fn opcode_enum_impl_parse_op(name: &str, group: &Group) -> syn::ItemImpl {
             /// contains insufficient bytes to parse the op.
             pub fn parse_op(
                 &self,
-                bytes: &mut impl Iterator<Item = u8>,
+                bytes: &mut dyn Iterator<Item = u8>,
             ) -> Result<crate::op::#ident, ()> {
                 match *self {
                     #(
@@ -458,7 +625,10 @@ fn opcode_enum_impl_tryfrom_u8(name: &str, group: &Group) -> syn::ItemImpl {
 /// Generate the implementations for the given op group enum.
 fn op_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
     let name = names.last().unwrap();
-    let mut impls = vec![op_enum_impl_opcode(name, group)];
+    let mut impls = vec![
+        op_enum_impl_opcode(name, group),
+        op_enum_impl_to_bytes(name, group),
+    ];
     impls.extend(impl_from_subgroups(name, group));
     impls
 }
@@ -499,6 +669,17 @@ fn constraint_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
         let name = names.last().unwrap();
         syn::Item::Enum(opcode_enum_decl(name, group))
     })
+}
+
+/// Generate the bytes iterator declaration and implementation for all op groups.
+fn constraint_op_enum_bytes_iter(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::constraint_groups(tree, &mut |names, group| {
+        let name = names.last().unwrap();
+        items.push(syn::Item::Enum(op_enum_bytes_iter_decl(name, group)));
+        items.push(syn::Item::Impl(op_enum_bytes_iter_impl(name, group)));
+    });
+    items
 }
 
 /// Generate all op enum implementations for constraint execution.
@@ -550,6 +731,17 @@ fn state_read_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
         let name = names.last().unwrap();
         syn::Item::Enum(opcode_enum_decl(name, group))
     })
+}
+
+/// Generate the bytes iterator declaration and implementation for all op groups.
+fn state_read_op_enum_bytes_iter(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::state_read_groups(tree, &mut |names, group| {
+        let name = names.last().unwrap();
+        items.push(syn::Item::Enum(op_enum_bytes_iter_decl(name, group)));
+        items.push(syn::Item::Impl(op_enum_bytes_iter_impl(name, group)));
+    });
+    items
 }
 
 /// Generate all opcode enum implementations for constraint execution.
@@ -639,6 +831,13 @@ pub fn gen_constraint_opcode_decls(_input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn gen_constraint_op_bytes_iter(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = constraint_op_enum_bytes_iter(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
 pub fn gen_constraint_op_impls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
     let items = constraint_op_enum_impls(&tree);
@@ -663,6 +862,13 @@ pub fn gen_state_read_op_decls(_input: TokenStream) -> TokenStream {
 pub fn gen_state_read_opcode_decls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
     let items = state_read_opcode_enum_decls(&tree);
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
+pub fn gen_state_read_op_bytes_iter(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = state_read_op_enum_bytes_iter(&tree);
     token_stream_from_items(items)
 }
 

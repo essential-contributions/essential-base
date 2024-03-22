@@ -17,6 +17,11 @@ mod op {
     pub use essential_constraint_asm::{Access, Alu, Constraint, Crypto, Pred, Stack};
     essential_asm_gen::gen_state_read_op_decls!();
     essential_asm_gen::gen_state_read_op_impls!();
+    /// Provides the operation type bytes iterators.
+    pub mod bytes_iter {
+        pub use essential_constraint_asm::bytes_iter::*;
+        essential_asm_gen::gen_state_read_op_bytes_iter!();
+    }
 }
 
 /// Typed representation of the opcode, without any associated data.
@@ -46,6 +51,12 @@ pub fn from_bytes(
             });
         Some(op_res)
     })
+}
+
+/// Convert the given iterator yielding operations into and iterator yielding
+/// the serialized form in bytes.
+pub fn to_bytes(ops: impl IntoIterator<Item = Op>) -> impl Iterator<Item = u8> {
+    ops.into_iter().flat_map(|op| op.to_bytes())
 }
 
 #[cfg(test)]
