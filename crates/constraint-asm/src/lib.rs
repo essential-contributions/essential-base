@@ -10,7 +10,7 @@ pub use essential_types::Word;
 #[doc(inline)]
 pub use op::{Constraint as Op, *};
 #[doc(inline)]
-pub use opcode::{Constraint as Opcode, InvalidOpcodeError};
+pub use opcode::{Constraint as Opcode, InvalidOpcodeError, NotEnoughBytesError};
 
 /// Typed representation of an operation its associated data.
 mod op {
@@ -24,13 +24,27 @@ mod op {
 
 /// Typed representation of the opcode, without any associated data.
 pub mod opcode {
+    use core::fmt;
+
     /// An attempt to parse a byte as an opcode failed.
     #[derive(Debug)]
     pub struct InvalidOpcodeError(pub u8);
 
-    impl core::fmt::Display for InvalidOpcodeError {
-        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+    /// An error occurring within `Opcode::parse_op` in the case that the
+    /// provided bytes iterator contains insufficient bytes for the expected
+    /// associated operation data.
+    #[derive(Debug)]
+    pub struct NotEnoughBytesError;
+
+    impl fmt::Display for InvalidOpcodeError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, "Invalid Opcode 0x{:02X}", self.0)
+        }
+    }
+
+    impl fmt::Display for NotEnoughBytesError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Provided iterator did not yield enough bytes")
         }
     }
 
@@ -44,7 +58,7 @@ pub enum FromBytesError {
     /// An invalid opcode was encountered.
     InvalidOpcode(InvalidOpcodeError),
     /// The bytes iterator did not contain enough bytes for a particular operation.
-    InsufficientArgBytes,
+    NotEnoughBytes(NotEnoughBytesError),
 }
 
 /// Parse operations from the given iterator yielding bytes.
@@ -60,11 +74,7 @@ pub fn from_bytes(
         let opcode_byte = iter.next()?;
         let op_res = Opcode::try_from(opcode_byte)
             .map_err(From::from)
-            .and_then(|opcode| {
-                opcode
-                    .parse_op(&mut iter)
-                    .map_err(|_| FromBytesError::InsufficientArgBytes)
-            });
+            .and_then(|opcode| opcode.parse_op(&mut iter).map_err(From::from));
         Some(op_res)
     })
 }
@@ -78,6 +88,12 @@ pub fn to_bytes(ops: impl IntoIterator<Item = Op>) -> impl Iterator<Item = u8> {
 impl From<InvalidOpcodeError> for FromBytesError {
     fn from(err: InvalidOpcodeError) -> Self {
         Self::InvalidOpcode(err)
+    }
+}
+
+impl From<NotEnoughBytesError> for FromBytesError {
+    fn from(err: NotEnoughBytesError) -> Self {
+        Self::NotEnoughBytes(err)
     }
 }
 
@@ -175,14 +191,14 @@ mod tests {
     }
 
     #[test]
-    fn insufficient_arg_bytes() {
+    fn not_enough_bytes() {
         let opcode_byte = opcode::Stack::Push as u8;
         let bytes = vec![opcode_byte];
         let err = from_bytes(bytes)
             .collect::<Result<Vec<_>, _>>()
             .unwrap_err();
         match err {
-            FromBytesError::InsufficientArgBytes => (),
+            FromBytesError::NotEnoughBytes(_) => (),
             _ => panic!("unexpected error variant"),
         }
     }

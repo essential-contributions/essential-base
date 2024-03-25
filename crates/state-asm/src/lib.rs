@@ -10,7 +10,7 @@ pub use essential_constraint_asm::{FromBytesError, Word};
 #[doc(inline)]
 pub use op::{StateRead as Op, *};
 #[doc(inline)]
-pub use opcode::{InvalidOpcodeError, StateRead as Opcode};
+pub use opcode::{InvalidOpcodeError, NotEnoughBytesError, StateRead as Opcode};
 
 /// Typed representation of an operation its associated data.
 mod op {
@@ -44,11 +44,7 @@ pub fn from_bytes(
         let opcode_byte = iter.next()?;
         let op_res = Opcode::try_from(opcode_byte)
             .map_err(From::from)
-            .and_then(|opcode| {
-                opcode
-                    .parse_op(&mut iter)
-                    .map_err(|_| FromBytesError::InsufficientArgBytes)
-            });
+            .and_then(|opcode| opcode.parse_op(&mut iter).map_err(From::from));
         Some(op_res)
     })
 }

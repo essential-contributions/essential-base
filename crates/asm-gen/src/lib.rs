@@ -497,7 +497,7 @@ fn opcode_enum_impl_parse_op_arm(
                             bytes.next()?, bytes.next()?, bytes.next()?, bytes.next()?,
                         ])
                     }
-                    let word_bytes: [u8; 8] = parse_word_bytes(bytes).ok_or(())?;
+                    let word_bytes: [u8; 8] = parse_word_bytes(bytes).ok_or(NotEnoughBytesError)?;
                     let word: essential_types::Word = word_from_bytes(word_bytes);
                     Ok(crate::op::#enum_name::#name(word))
                 },
@@ -528,12 +528,12 @@ fn opcode_enum_impl_parse_op(name: &str, group: &Group) -> syn::ItemImpl {
             ///
             /// Only consumes the bytes necessary to construct any associated data.
             ///
-            /// Returns an `Err(())` in the case that the given `bytes` iterator
+            /// Returns an error in the case that the given `bytes` iterator
             /// contains insufficient bytes to parse the op.
             pub fn parse_op(
                 &self,
                 bytes: &mut impl Iterator<Item = u8>,
-            ) -> Result<crate::op::#ident, ()> {
+            ) -> Result<crate::op::#ident, NotEnoughBytesError> {
                 match *self {
                     #(
                         #arms
