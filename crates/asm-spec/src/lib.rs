@@ -16,7 +16,7 @@ pub const CONSTRAINT_GROUP_NAME: &str = "Constraint";
 /// Operations are laid out in a rose tree.
 /// Nodes are ordered by their opcode, ensured during deserialisation.
 #[derive(Debug)]
-pub struct Tree(pub Vec<(String, Node)>);
+pub struct Tree(Vec<(String, Node)>);
 
 /// Each node of the tree can be an operation, or another group.
 #[derive(Debug)]
