@@ -3,18 +3,23 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{IntentAddress, Key, KeyRange, Word};
+use crate::{ContentAddress, Eoa, IntentAddress, Key, Owner, Signed, Word};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Index into the solution data.
+pub type SolutionDataIndex = u16;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// A solution to intents.
 pub struct Solution {
     /// The input data for each intent.
     pub data: Vec<SolutionData>,
     /// The state mutations being proposed.
     pub state_mutations: Vec<StateMutation>,
+    /// Hashes of partial solutions that are required to be a subset of this solution.
+    pub partial_solutions: Vec<Signed<ContentAddress>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// The data the solver is required to provide to solve an intent.
 pub struct SolutionData {
     /// Which intent this input data is for.
@@ -23,9 +28,27 @@ pub struct SolutionData {
     pub decision_variables: Vec<Word>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// A decision variable for a solution.
+pub enum DecisionVariable {
+    /// An inline decision variable.
+    Inline(Word),
+    /// A decision variable from another intent in this solution.
+    Transient(DecisionVariableIndex),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Index into the decision variables of a solution data.
+pub struct DecisionVariableIndex {
+    /// The solution data that this decision variable is from.
+    pub solution_data_index: SolutionDataIndex,
+    /// The index into the decision variables of the solution data.
+    pub variable_index: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// A mutation to a single key in state.
-pub struct KeyMutation {
+pub struct Mutation {
     /// Key of state.
     pub key: Key,
     /// Value to set the key to.
@@ -33,32 +56,45 @@ pub struct KeyMutation {
     pub value: Option<Word>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-/// Mutations to a range of keys in state.
-/// This is more space efficient than a list of key mutations.
-pub struct RangeMutation {
-    /// The range of consecutive keys to mutate.
-    pub key_range: KeyRange,
-    /// The values to set the keys to.
-    /// Must be the same length as the range.
-    pub values: Vec<Option<Word>>,
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// The data that is being proposed to be mutated.
+pub enum Data {
+    /// A single value.
+    Value(Option<Word>),
+    /// Change the key's owner.
+    Owner(Owner),
+    /// Change the key's owner and value
+    OwnedValue(OwnedValue),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-/// The type of mutation to state.
-pub enum Mutation {
-    /// Mutation to a single key in state.
-    Key(KeyMutation),
-    /// Mutations to a range of keys in state.
-    Range(RangeMutation),
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Change the key's owner and value
+pub struct OwnedValue {
+    /// The key's new owner.
+    pub owner: Owner,
+    /// The key's new value.
+    pub value: Option<Word>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// The state that is being proposed to be mutated.
 /// This state is owned by the persistent intent.
 pub struct StateMutation {
-    /// The content address of the persistent intent.
-    pub address: IntentAddress,
+    /// The target of this mutation.
+    pub target: Target,
     /// The mutations to the state.
     pub mutations: Vec<Mutation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// The target of a mutation
+pub enum Target {
+    /// An externally owned account.
+    ///
+    /// The solution must be signed by this account.
+    Eoa(Eoa),
+    /// A pathway intent to allow a state mutation.
+    ///
+    /// The intent must be solved to allow the state mutation.
+    Pathway(SolutionDataIndex),
 }
