@@ -610,7 +610,6 @@ fn opcode_enum_impl_tryfrom_u8(name: &str, group: &Group) -> syn::ItemImpl {
             type Error = ();
             fn try_from(u: u8) -> Result<Self, Self::Error> {
                 let opcode = match u {
-                    // List of patterns generated from all child ops in the
                     #(
                         #arms
                     )*
