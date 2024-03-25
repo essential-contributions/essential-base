@@ -491,7 +491,7 @@ fn opcode_enum_impl_parse_op_arm(
             syn::parse_quote! {
                 Self::#name => {
                     use essential_types::convert::word_from_bytes;
-                    fn parse_word_bytes(bytes: &mut dyn Iterator<Item = u8>) -> Option<[u8; 8]> {
+                    fn parse_word_bytes(bytes: &mut impl Iterator<Item = u8>) -> Option<[u8; 8]> {
                         Some([
                             bytes.next()?, bytes.next()?, bytes.next()?, bytes.next()?,
                             bytes.next()?, bytes.next()?, bytes.next()?, bytes.next()?,
@@ -532,7 +532,7 @@ fn opcode_enum_impl_parse_op(name: &str, group: &Group) -> syn::ItemImpl {
             /// contains insufficient bytes to parse the op.
             pub fn parse_op(
                 &self,
-                bytes: &mut dyn Iterator<Item = u8>,
+                bytes: &mut impl Iterator<Item = u8>,
             ) -> Result<crate::op::#ident, ()> {
                 match *self {
                     #(
