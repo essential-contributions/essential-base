@@ -17,7 +17,7 @@ Each operation is identified by a unique name and contains the following fields:
 - `description`: A brief explanation of what the operation does.
 - `panics` (optional): A list of reasons why the operation might cause the
   virtual machine to panic.
-- `arg_bytes` (optional): Specifies the number of bytes expected as arguments
+- `num_arg_bytes` (optional): Specifies the number of bytes expected as arguments
   for the operation.
 - `stack_in`: Defines the inputs taken from the stack before operation
   execution. This is a list of symbolic identifiers representing the expected
@@ -37,7 +37,7 @@ Each operation is identified by a unique name and contains the following fields:
 Push:
   opcode: 0x01
   description: Push one word onto the stack.
-  arg_bytes: 8
+  num_arg_bytes: 8
   stack_out: [word]
 ```
 

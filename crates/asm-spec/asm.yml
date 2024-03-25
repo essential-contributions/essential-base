@@ -13,7 +13,7 @@ StateRead:
             Push:
               opcode: 0x01
               description: Push one word onto the stack.
-              arg_bytes: 8
+              num_arg_bytes: 8
               stack_out: [value]
 
             Pop:

@@ -34,6 +34,8 @@ pub struct Group {
 }
 
 /// A single operation.
+///
+/// For the meaning of each of these fields, refer to the `essential-asm-spec` crate README.
 #[derive(Debug, Deserialize)]
 pub struct Op {
     pub opcode: u8,
@@ -41,7 +43,7 @@ pub struct Op {
     #[serde(default)]
     pub panics: Vec<String>,
     #[serde(default)]
-    pub arg_bytes: u8,
+    pub num_arg_bytes: u8,
     #[serde(default)]
     pub stack_in: Vec<String>,
     #[serde(default)]

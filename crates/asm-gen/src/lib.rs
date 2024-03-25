@@ -12,18 +12,18 @@ use syn::{punctuated::Punctuated, token::Comma};
 const WORD_SIZE: usize = std::mem::size_of::<essential_types::Word>();
 
 /// Document the required bytecode arguments to the operation.
-fn bytecode_arg_docs(arg_bytes: u8) -> String {
-    if arg_bytes == 0 {
+fn bytecode_arg_docs(num_arg_bytes: u8) -> String {
+    if num_arg_bytes == 0 {
         return String::new();
     }
     assert_eq!(
-        arg_bytes as usize % WORD_SIZE,
+        num_arg_bytes as usize % WORD_SIZE,
         0,
         "doc gen currently only supports arguments that are a multiple of the word size"
     );
-    let arg_words = arg_bytes as usize / WORD_SIZE;
+    let arg_words = num_arg_bytes as usize / WORD_SIZE;
     format!(
-        "## Bytecode Argument\nThis operation expects a {arg_bytes}-byte \
+        "## Bytecode Argument\nThis operation expects a {num_arg_bytes}-byte \
         ({arg_words}-word) argument following its opcode within bytecode."
     )
 }
@@ -67,7 +67,7 @@ fn panic_docs(panic_reasons: &[String]) -> String {
 
 /// Generate the docstring for an `Op` variant.
 fn op_docs(op: &Op) -> String {
-    let arg_docs = bytecode_arg_docs(op.arg_bytes);
+    let arg_docs = bytecode_arg_docs(op.num_arg_bytes);
     let opcode_docs = format!("`0x{:02X}`\n\n", op.opcode);
     let desc = &op.description;
     let stack_in_docs = stack_in_docs(&op.stack_in);
@@ -99,7 +99,7 @@ fn op_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
         }
         Node::Op(op) => {
             let docs = op_docs(op);
-            match op.arg_bytes {
+            match op.num_arg_bytes {
                 0 => syn::parse_quote! {
                     #[doc = #docs]
                     #ident
@@ -109,8 +109,8 @@ fn op_enum_decl_variant(name: &str, node: &Node) -> syn::Variant {
                     #ident(essential_types::Word)
                 },
                 _ => panic!(
-                    "Unexpected arg_bytes {}: requires more thoughtful asm-gen",
-                    op.arg_bytes
+                    "Unexpected num_arg_bytes {}: requires more thoughtful asm-gen",
+                    op.num_arg_bytes
                 ),
             }
         }
@@ -199,7 +199,7 @@ fn op_enum_impl_opcode_arms(enum_ident: &syn::Ident, group: &Group) -> Vec<syn::
                 Node::Group(_) => syn::parse_quote! {
                     #enum_ident::#name(group) => crate::opcode::#enum_ident::#name(group.opcode()),
                 },
-                Node::Op(op) if op.arg_bytes > 0 => {
+                Node::Op(op) if op.num_arg_bytes > 0 => {
                     syn::parse_quote! {
                         #enum_ident::#name(_) => crate::opcode::#enum_ident::#name,
                     }
@@ -243,7 +243,7 @@ fn op_enum_bytes_iter_decl_variant(name: &str, node: &Node) -> syn::Variant {
         }
         Node::Op(op) => {
             // The opcode + the number of bytes in the associated data.
-            let n_bytes: usize = 1 + op.arg_bytes as usize;
+            let n_bytes: usize = 1 + op.num_arg_bytes as usize;
             let n_bytes: syn::LitInt = syn::parse_quote!(#n_bytes);
             syn::parse_quote! {
                 #ident {
@@ -343,14 +343,14 @@ fn op_enum_impl_to_bytes_arm(enum_name: &syn::Ident, name: &str, node: &Node) ->
         }
         Node::Op(op) => {
             let opcode = op.opcode;
-            if op.arg_bytes == 0 {
+            if op.num_arg_bytes == 0 {
                 syn::parse_quote! {
                     Self::#name => bytes_iter::#enum_name::#name {
                         index: 0usize,
                         bytes: [#opcode],
                     },
                 }
-            } else if op.arg_bytes == 8 {
+            } else if op.num_arg_bytes == 8 {
                 syn::parse_quote! {
                     Self::#name(data) => {
                         use essential_types::convert::bytes_from_word;
@@ -467,7 +467,7 @@ fn opcode_enum_impl_parse_op_arm(
                 Self::#name(group) => group.parse_op(bytes).map(Into::into),
             }
         }
-        Node::Op(op) if op.arg_bytes == 0 => {
+        Node::Op(op) if op.num_arg_bytes == 0 => {
             syn::parse_quote! {
                 Self::#name => Ok(crate::op::#enum_name::#name),
             }
@@ -476,12 +476,12 @@ fn opcode_enum_impl_parse_op_arm(
         // sophisticated options than `Push`.
         Node::Op(op) => {
             assert_eq!(
-                op.arg_bytes as usize % WORD_SIZE,
+                op.num_arg_bytes as usize % WORD_SIZE,
                 0,
-                "Currently only support operations with an `arg_bytes` that is \
+                "Currently only support operations with an `num_arg_bytes` that is \
                 a multiple of the word size",
             );
-            let words = op.arg_bytes as usize / WORD_SIZE;
+            let words = op.num_arg_bytes as usize / WORD_SIZE;
             assert_eq!(
                 words, 1,
                 "Currently only support operations with a single word \
