@@ -70,12 +70,102 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_opcode_roundtrip_u8() {
+    fn opcode_roundtrip_u8() {
         for byte in 0..=std::u8::MAX {
             if let Ok(opcode) = Opcode::try_from(byte) {
                 println!("{byte:02X}: {opcode:?}");
                 assert_eq!(u8::from(opcode), byte);
             }
+        }
+    }
+
+    fn roundtrip(ops: Vec<Op>) {
+        assert!(!ops.is_empty());
+        let bytes: Vec<_> = to_bytes(ops.iter().cloned()).collect();
+        assert_eq!(
+            ops,
+            from_bytes(bytes).collect::<Result<Vec<_>, _>>().unwrap()
+        );
+    }
+
+    #[test]
+    fn roundtrip_args_start() {
+        let ops: Vec<Op> = vec![
+            Stack::Push(0x1234567812345678).into(),
+            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+            Stack::Swap.into(),
+            Stack::Dup.into(),
+        ];
+        roundtrip(ops);
+    }
+
+    #[test]
+    fn roundtrip_args_end() {
+        let ops: Vec<Op> = vec![
+            Stack::Swap.into(),
+            Stack::Dup.into(),
+            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+        ];
+        roundtrip(ops);
+    }
+
+    #[test]
+    fn roundtrip_args_interspersed() {
+        let ops: Vec<Op> = vec![
+            Stack::Push(0x1234567812345678).into(),
+            Stack::Swap.into(),
+            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+            Stack::Dup.into(),
+            Stack::Push(0x1234567812345678).into(),
+        ];
+        roundtrip(ops);
+    }
+
+    #[test]
+    fn roundtrip_no_args() {
+        let ops: Vec<Op> = vec![
+            Access::ThisAddress.into(),
+            Access::ThisSetAddress.into(),
+            Stack::Swap.into(),
+            Stack::Dup.into(),
+            Crypto::Sha256.into(),
+        ];
+        roundtrip(ops);
+    }
+
+    fn expect_invalid_opcode(opcode_byte: u8) {
+        let bytes = vec![opcode_byte];
+        let err = from_bytes(bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap_err();
+        match err {
+            FromBytesError::InvalidOpcode(byte) => assert_eq!(byte, opcode_byte),
+            _ => panic!("unexpected error variant"),
+        }
+    }
+
+    #[test]
+    fn invalid_opcode_0x00() {
+        let opcode_byte = 0x00;
+        expect_invalid_opcode(opcode_byte);
+    }
+
+    #[test]
+    fn invalid_opcode_0xff() {
+        let opcode_byte = 0xFF;
+        expect_invalid_opcode(opcode_byte);
+    }
+
+    #[test]
+    fn insufficient_arg_bytes() {
+        let opcode_byte = opcode::Stack::Push as u8;
+        let bytes = vec![opcode_byte];
+        let err = from_bytes(bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap_err();
+        match err {
+            FromBytesError::InsufficientArgBytes => (),
+            _ => panic!("unexpected error variant"),
         }
     }
 }
