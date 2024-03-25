@@ -164,7 +164,7 @@ fn op_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
     let docs = &group.description;
     let item_enum = syn::parse_quote! {
         #[doc = #docs]
-        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         pub enum #ident {
             #variants
         }
@@ -179,7 +179,7 @@ fn opcode_enum_decl(name: &str, group: &Group) -> syn::ItemEnum {
     let docs = &group.description;
     let item_enum = syn::parse_quote! {
         #[doc = #docs]
-        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         #[repr(u8)]
         pub enum #ident {
             #variants
