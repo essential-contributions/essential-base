@@ -10,7 +10,7 @@ pub use essential_constraint_asm::{FromBytesError, Word};
 #[doc(inline)]
 pub use op::{StateRead as Op, *};
 #[doc(inline)]
-pub use opcode::StateRead as Opcode;
+pub use opcode::{InvalidOpcodeError, StateRead as Opcode};
 
 /// Typed representation of an operation its associated data.
 mod op {
@@ -43,7 +43,7 @@ pub fn from_bytes(
     std::iter::from_fn(move || {
         let opcode_byte = iter.next()?;
         let op_res = Opcode::try_from(opcode_byte)
-            .map_err(|_| FromBytesError::InvalidOpcode(opcode_byte))
+            .map_err(From::from)
             .and_then(|opcode| {
                 opcode
                     .parse_op(&mut iter)
@@ -133,7 +133,9 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap_err();
         match err {
-            FromBytesError::InvalidOpcode(byte) => assert_eq!(byte, opcode_byte),
+            FromBytesError::InvalidOpcode(InvalidOpcodeError(byte)) => {
+                assert_eq!(byte, opcode_byte)
+            }
             _ => panic!("unexpected error variant"),
         }
     }

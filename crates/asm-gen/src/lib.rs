@@ -607,13 +607,13 @@ fn opcode_enum_impl_tryfrom_u8(name: &str, group: &Group) -> syn::ItemImpl {
     let arms = opcode_enum_impl_tryfrom_u8_arms(group);
     syn::parse_quote! {
         impl TryFrom<u8> for #name {
-            type Error = ();
+            type Error = InvalidOpcodeError;
             fn try_from(u: u8) -> Result<Self, Self::Error> {
                 let opcode = match u {
                     #(
                         #arms
                     )*
-                    _ => return Err(()),
+                    _ => return Err(InvalidOpcodeError(u)),
                 };
                 Ok(opcode)
             }

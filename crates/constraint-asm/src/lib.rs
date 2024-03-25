@@ -10,7 +10,7 @@ pub use essential_types::Word;
 #[doc(inline)]
 pub use op::{Constraint as Op, *};
 #[doc(inline)]
-pub use opcode::Constraint as Opcode;
+pub use opcode::{Constraint as Opcode, InvalidOpcodeError};
 
 /// Typed representation of an operation its associated data.
 mod op {
@@ -24,6 +24,16 @@ mod op {
 
 /// Typed representation of the opcode, without any associated data.
 pub mod opcode {
+    /// An attempt to parse a byte as an opcode failed.
+    #[derive(Debug)]
+    pub struct InvalidOpcodeError(pub u8);
+
+    impl core::fmt::Display for InvalidOpcodeError {
+        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            write!(f, "Invalid Opcode 0x{:02X}", self.0)
+        }
+    }
+
     essential_asm_gen::gen_constraint_opcode_decls!();
     essential_asm_gen::gen_constraint_opcode_impls!();
 }
@@ -32,7 +42,7 @@ pub mod opcode {
 #[derive(Debug)]
 pub enum FromBytesError {
     /// An invalid opcode was encountered.
-    InvalidOpcode(u8),
+    InvalidOpcode(InvalidOpcodeError),
     /// The bytes iterator did not contain enough bytes for a particular operation.
     InsufficientArgBytes,
 }
@@ -46,10 +56,10 @@ pub fn from_bytes(
     bytes: impl IntoIterator<Item = u8>,
 ) -> impl Iterator<Item = Result<Op, FromBytesError>> {
     let mut iter = bytes.into_iter();
-    std::iter::from_fn(move || {
+    core::iter::from_fn(move || {
         let opcode_byte = iter.next()?;
         let op_res = Opcode::try_from(opcode_byte)
-            .map_err(|_| FromBytesError::InvalidOpcode(opcode_byte))
+            .map_err(From::from)
             .and_then(|opcode| {
                 opcode
                     .parse_op(&mut iter)
@@ -65,13 +75,19 @@ pub fn to_bytes(ops: impl IntoIterator<Item = Op>) -> impl Iterator<Item = u8> {
     ops.into_iter().flat_map(|op| op.to_bytes())
 }
 
+impl From<InvalidOpcodeError> for FromBytesError {
+    fn from(err: InvalidOpcodeError) -> Self {
+        Self::InvalidOpcode(err)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn opcode_roundtrip_u8() {
-        for byte in 0..=std::u8::MAX {
+        for byte in 0..=core::u8::MAX {
             if let Ok(opcode) = Opcode::try_from(byte) {
                 println!("{byte:02X}: {opcode:?}");
                 assert_eq!(u8::from(opcode), byte);
@@ -139,7 +155,9 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap_err();
         match err {
-            FromBytesError::InvalidOpcode(byte) => assert_eq!(byte, opcode_byte),
+            FromBytesError::InvalidOpcode(InvalidOpcodeError(byte)) => {
+                assert_eq!(byte, opcode_byte)
+            }
             _ => panic!("unexpected error variant"),
         }
     }
