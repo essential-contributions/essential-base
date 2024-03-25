@@ -132,12 +132,6 @@ StateRead:
               stack_in: [lhs, rhs]
               stack_out: ["lhs % rhs"]
 
-            HashOffset:
-              opcode: 0x25
-              description: Adds the offset to the hash.
-              stack_in: [hash, offset]
-              stack_out: [new_hash]
-
         Access:
           description: Operations for accessing input data.
           group:
@@ -221,15 +215,6 @@ StateRead:
               stack_out:
                 elem: is_some
                 len: range
-
-            MutKeys:
-              opcode: 0x36
-              description: |
-                Returns the key that is being proposed for mutation at the specified `slot`.
-
-                This operation returns a list of words with a length of 4, representing the key.
-              stack_in: [slot]
-              stack_out: [key]
 
             MutKeysLen:
               opcode: 0x37
