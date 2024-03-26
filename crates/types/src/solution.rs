@@ -20,12 +20,30 @@ pub struct Solution {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// A partial solution to intents.
+pub struct PartialSolution {
+    /// The partial input data for each intent.
+    pub data: Vec<PartialSolutionData>,
+    /// The state mutations being proposed.
+    pub state_mutations: Vec<StateMutation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// The data the solver is required to provide to solve an intent.
 pub struct SolutionData {
     /// Which intent this input data is for.
     pub intent_to_solve: IntentAddress,
     /// The decision variables for the intent.
     pub decision_variables: Vec<Word>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// The partial data the solver is required to provide to solve an intent.
+pub struct PartialSolutionData {
+    /// Which intent this input data is for.
+    pub intent_to_solve: IntentAddress,
+    /// The partial decision variables for the intent.
+    pub decision_variables: Vec<Option<Word>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
