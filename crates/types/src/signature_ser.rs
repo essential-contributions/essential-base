@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Deserializer, Serializer};
 
-/// Serialize a `Signature` as a byte array.
+/// Serialize a `Signature.data` as a byte array.
 pub fn serialize<S>(value: &[u8; 64], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -10,7 +10,7 @@ where
     serializer.serialize_bytes(&value[..])
 }
 
-/// Deserialize a `Signature` from a byte array.
+/// Deserialize a `Signature.data` from a byte array.
 pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 64], D::Error>
 where
     D: Deserializer<'de>,

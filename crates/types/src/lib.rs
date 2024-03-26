@@ -31,8 +31,15 @@ pub type Hash = [u8; 32];
 /// Externally owned account.
 pub type Eoa = [u8; 32];
 
-/// The signature over some data.
-pub type Signature = [u8; 64];
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Recoverable ECDSA signature over some data.
+pub struct Signature(
+    /// Compact signature
+    #[serde(with = "signature_ser")]
+    pub [u8; 64],
+    /// ID used for public key recovery
+    pub u8,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Content address of an intent or set of intents.
@@ -53,7 +60,6 @@ pub struct Signed<T> {
     /// The data that is signed.
     pub data: T,
     /// The signature over the data.
-    #[serde(with = "signature_ser")]
     pub signature: Signature,
 }
 
