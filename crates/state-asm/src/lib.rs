@@ -90,6 +90,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::useless_conversion)]
     fn roundtrip_args_end() {
         let ops: Vec<Op> = vec![
             StateRead::WordRange.into(),

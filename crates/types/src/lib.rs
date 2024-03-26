@@ -35,15 +35,6 @@ pub type Eoa = [u8; 32];
 pub type Signature = [u8; 64];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Owner of a state key.
-pub enum Owner {
-    /// An externally owned account.
-    Eoa(Eoa),
-    /// An intents account.
-    Intent(ContentAddress),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Content address of an intent or set of intents.
 pub struct ContentAddress(pub Hash);
 
