@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ContentAddress, Eoa, IntentAddress, Key, Signed, Word};
+use crate::{ContentAddress, IntentAddress, Key, Signed, Word};
 
 /// Index into the solution data.
 pub type SolutionDataIndex = u16;
@@ -60,21 +60,10 @@ pub struct Mutation {
 /// The state that is being proposed to be mutated.
 /// This state is owned by the persistent intent.
 pub struct StateMutation {
-    /// The target of this mutation.
-    pub target: Target,
-    /// The mutations to the state.
-    pub mutations: Vec<Mutation>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// The target of a mutation
-pub enum Target {
-    /// An externally owned account.
-    ///
-    /// The solution must be signed by this account.
-    Eoa(Eoa),
     /// A pathway intent to allow a state mutation.
     ///
     /// The intent must be solved to allow the state mutation.
-    Pathway(SolutionDataIndex),
+    pub pathway: SolutionDataIndex,
+    /// The mutations to the state.
+    pub mutations: Vec<Mutation>,
 }
