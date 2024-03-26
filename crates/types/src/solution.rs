@@ -34,7 +34,7 @@ pub struct SolutionData {
     /// Which intent this input data is for.
     pub intent_to_solve: IntentAddress,
     /// The decision variables for the intent.
-    pub decision_variables: Vec<Word>,
+    pub decision_variables: Vec<DecisionVariable>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -43,7 +43,7 @@ pub struct PartialSolutionData {
     /// Which intent this input data is for.
     pub intent_to_solve: IntentAddress,
     /// The partial decision variables for the intent.
-    pub decision_variables: Vec<Option<Word>>,
+    pub decision_variables: Vec<Option<DecisionVariable>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
