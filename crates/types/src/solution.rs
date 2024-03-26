@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ContentAddress, Eoa, IntentAddress, Key, Owner, Signed, Word};
+use crate::{ContentAddress, Eoa, IntentAddress, Key, Signed, Word};
 
 /// Index into the solution data.
 pub type SolutionDataIndex = u16;
@@ -53,26 +53,6 @@ pub struct Mutation {
     pub key: Key,
     /// Value to set the key to.
     /// None means the value is being deleted.
-    pub value: Option<Word>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// The data that is being proposed to be mutated.
-pub enum Data {
-    /// A single value.
-    Value(Option<Word>),
-    /// Change the key's owner.
-    Owner(Owner),
-    /// Change the key's owner and value
-    OwnedValue(OwnedValue),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// Change the key's owner and value
-pub struct OwnedValue {
-    /// The key's new owner.
-    pub owner: Owner,
-    /// The key's new value.
     pub value: Option<Word>,
 }
 
