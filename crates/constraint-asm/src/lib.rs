@@ -1,154 +1,205 @@
+//! Assembly for checking constraints.
+//!
+//! # Op Table
+#![doc = essential_asm_gen::gen_constraint_ops_docs_table!()]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-//! # Assembly for checking constraints.
 
-use essential_types::Word;
-use serde::Deserialize;
-use serde::Serialize;
+#[doc(inline)]
+pub use essential_types::Word;
+#[doc(inline)]
+pub use op::{Constraint as Op, *};
+#[doc(inline)]
+pub use opcode::{Constraint as Opcode, InvalidOpcodeError, NotEnoughBytesError};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-/// Set of operations that can be performed to check constraints.
-pub enum Op {
-    /// Push word onto stack.
-    Push(Word),
-    /// Pop word from stack.
-    Pop,
-    /// Duplicate top word on stack.
-    Dup,
-    /// Params -> index.
-    /// Duplicate word at index counting from the top of the stack and push it onto the stack.
-    DupFrom,
-    /// Swap top two words on stack.
-    Swap,
-    /// Operations for computing predicates.
-    Pred(Pred),
-    /// Operations for computing arithmetic and logic.
-    Alu(Alu),
-    /// Operations for accessing input data.
-    Access(Access),
-    /// Operations for performing cryptographic operations.
-    Crypto(Crypto),
+/// Typed representation of an operation its associated data.
+mod op {
+    essential_asm_gen::gen_constraint_op_decls!();
+    essential_asm_gen::gen_constraint_op_impls!();
+    /// Provides the operation type bytes iterators.
+    pub mod bytes_iter {
+        essential_asm_gen::gen_constraint_op_bytes_iter!();
+    }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-/// Operations for accessing input data.
-pub enum Access {
-    /// params -> slot
-    /// return -> decision_word
-    ///
-    /// Slot must be in range or vm will panic.
-    DecisionVar,
-    /// params -> {slot, range}
-    /// return -> decision_words: list len range
-    ///
-    /// Slot..(Slot + Range) must be in range or vm will panic.
-    DecisionVarRange,
-    /// params -> {slot, delta: bool}
-    /// return -> state_word
-    ///
-    /// Slot must be in range or vm will panic.
-    /// Empty slots will be returned as 0.
-    /// Use StateIsSome to check if a slot is empty.
-    State,
-    /// params -> {slot, range, delta: bool}
-    /// return -> state_words: list len range
-    ///
-    /// Slot..(Slot + Range) must be in range or vm will panic.
-    /// Empty slots will be returned as 0.
-    /// Use StateIsSome to check if a slot is empty.
-    StateRange,
-    /// params -> {slot, delta: bool}
-    /// return -> is_some: bool
-    ///
-    /// Slot must be in range or vm will panic.
-    StateIsSome,
-    /// params -> {slot, range, delta: bool}
-    /// return -> is_somes: list of bools with len range
-    ///
-    /// Slot..(Slot + Range) must be in range or vm will panic.
-    StateIsSomeRange,
-    /// Params -> slot,
-    /// Return -> key: list len 4
-    ///
-    /// Returns the key that is being proposed for mutation at this slot.
-    MutKeys,
-    /// Return -> word
-    ///
-    /// Get the number of mutable keys being proposed for mutation.
-    MutKeysLen,
-    /// Return -> key: list len 4
-    ///
-    /// Get the content hash of this intent.
-    ThisAddress,
-    /// Return -> key: list len 4
-    ///
-    /// Get the content hash of the set of intents that this intent belongs to.
-    ThisSetAddress,
+/// Typed representation of the opcode, without any associated data.
+pub mod opcode {
+    use core::fmt;
+
+    /// An attempt to parse a byte as an opcode failed.
+    #[derive(Debug)]
+    pub struct InvalidOpcodeError(pub u8);
+
+    /// An error occurring within `Opcode::parse_op` in the case that the
+    /// provided bytes iterator contains insufficient bytes for the expected
+    /// associated operation data.
+    #[derive(Debug)]
+    pub struct NotEnoughBytesError;
+
+    impl fmt::Display for InvalidOpcodeError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Invalid Opcode 0x{:02X}", self.0)
+        }
+    }
+
+    impl fmt::Display for NotEnoughBytesError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Provided iterator did not yield enough bytes")
+        }
+    }
+
+    essential_asm_gen::gen_constraint_opcode_decls!();
+    essential_asm_gen::gen_constraint_opcode_impls!();
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-/// Operations for computing predicates.
-pub enum Pred {
-    /// params -> {lhs, rhs}
-    /// return -> bool
-    Eq,
-    /// params -> {lhs: list len 4, rhs: list len 4}
-    /// return -> bool
-    Eq4,
-    /// params -> {lhs, rhs}
-    /// return -> bool
-    Gt,
-    /// params -> {lhs, rhs}
-    /// return -> bool
-    Lt,
-    /// params -> {lhs, rhs}
-    /// return -> bool
-    Gte,
-    /// params -> {lhs, rhs}
-    /// return -> bool
-    Lte,
-    /// params -> {lhs, rhs}
-    /// return -> bool
-    And,
-    /// params -> {lhs, rhs}
-    /// return -> bool
-    Or,
-    /// params -> word
-    /// return -> bool
-    Not,
+/// Errors that can occur while parsing ops from bytes.
+#[derive(Debug)]
+pub enum FromBytesError {
+    /// An invalid opcode was encountered.
+    InvalidOpcode(InvalidOpcodeError),
+    /// The bytes iterator did not contain enough bytes for a particular operation.
+    NotEnoughBytes(NotEnoughBytesError),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-/// Operations for computing arithmetic and logic.
-pub enum Alu {
-    /// params -> {lhs, rhs}
-    /// return -> word
-    Add,
-    /// params -> {lhs, rhs}
-    /// return -> word
-    Sub,
-    /// params -> {lhs, rhs}
-    /// return -> word
-    Mul,
-    /// params -> {lhs, rhs}
-    /// return -> word
-    Div,
-    /// params -> {lhs, rhs}
-    /// return -> word
-    Mod,
-    /// Adds the offset to the hash.
-    /// params -> {hash: list len 4, offset}
-    /// return -> new_hash: list len 4
-    HashOffset,
+/// Parse operations from the given iterator yielding bytes.
+///
+/// Returns an iterator yielding `Op` results, erroring in the case that an
+/// invalid opcode is encountered or the iterator contains insufficient bytes
+/// for an operation.
+pub fn from_bytes(
+    bytes: impl IntoIterator<Item = u8>,
+) -> impl Iterator<Item = Result<Op, FromBytesError>> {
+    let mut iter = bytes.into_iter();
+    core::iter::from_fn(move || {
+        let opcode_byte = iter.next()?;
+        let op_res = Opcode::try_from(opcode_byte)
+            .map_err(From::from)
+            .and_then(|opcode| opcode.parse_op(&mut iter).map_err(From::from));
+        Some(op_res)
+    })
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-/// Operations for performing cryptographic operations.
-pub enum Crypto {
-    /// params -> {data, data_len}
-    /// return -> hash: list len 4
-    Sha256,
-    /// params -> {data, data_len, signature: list len 8, public_key: list len 4}
-    /// return -> bool
-    VerifyEd25519,
+/// Convert the given iterator yielding operations into and iterator yielding
+/// the serialized form in bytes.
+pub fn to_bytes(ops: impl IntoIterator<Item = Op>) -> impl Iterator<Item = u8> {
+    ops.into_iter().flat_map(|op| op.to_bytes())
+}
+
+impl From<InvalidOpcodeError> for FromBytesError {
+    fn from(err: InvalidOpcodeError) -> Self {
+        Self::InvalidOpcode(err)
+    }
+}
+
+impl From<NotEnoughBytesError> for FromBytesError {
+    fn from(err: NotEnoughBytesError) -> Self {
+        Self::NotEnoughBytes(err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn opcode_roundtrip_u8() {
+        for byte in 0..=core::u8::MAX {
+            if let Ok(opcode) = Opcode::try_from(byte) {
+                println!("{byte:02X}: {opcode:?}");
+                assert_eq!(u8::from(opcode), byte);
+            }
+        }
+    }
+
+    fn roundtrip(ops: Vec<Op>) {
+        assert!(!ops.is_empty());
+        let bytes: Vec<_> = to_bytes(ops.iter().cloned()).collect();
+        assert_eq!(
+            ops,
+            from_bytes(bytes).collect::<Result<Vec<_>, _>>().unwrap()
+        );
+    }
+
+    #[test]
+    fn roundtrip_args_start() {
+        let ops: Vec<Op> = vec![
+            Stack::Push(0x1234567812345678).into(),
+            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+            Stack::Swap.into(),
+            Stack::Dup.into(),
+        ];
+        roundtrip(ops);
+    }
+
+    #[test]
+    fn roundtrip_args_end() {
+        let ops: Vec<Op> = vec![
+            Stack::Swap.into(),
+            Stack::Dup.into(),
+            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+        ];
+        roundtrip(ops);
+    }
+
+    #[test]
+    fn roundtrip_args_interspersed() {
+        let ops: Vec<Op> = vec![
+            Stack::Push(0x1234567812345678).into(),
+            Stack::Swap.into(),
+            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+            Stack::Dup.into(),
+            Stack::Push(0x1234567812345678).into(),
+        ];
+        roundtrip(ops);
+    }
+
+    #[test]
+    fn roundtrip_no_args() {
+        let ops: Vec<Op> = vec![
+            Access::ThisAddress.into(),
+            Access::ThisSetAddress.into(),
+            Stack::Swap.into(),
+            Stack::Dup.into(),
+            Crypto::Sha256.into(),
+        ];
+        roundtrip(ops);
+    }
+
+    fn expect_invalid_opcode(opcode_byte: u8) {
+        let bytes = vec![opcode_byte];
+        let err = from_bytes(bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap_err();
+        match err {
+            FromBytesError::InvalidOpcode(InvalidOpcodeError(byte)) => {
+                assert_eq!(byte, opcode_byte)
+            }
+            _ => panic!("unexpected error variant"),
+        }
+    }
+
+    #[test]
+    fn invalid_opcode_0x00() {
+        let opcode_byte = 0x00;
+        expect_invalid_opcode(opcode_byte);
+    }
+
+    #[test]
+    fn invalid_opcode_0xff() {
+        let opcode_byte = 0xFF;
+        expect_invalid_opcode(opcode_byte);
+    }
+
+    #[test]
+    fn not_enough_bytes() {
+        let opcode_byte = opcode::Stack::Push as u8;
+        let bytes = vec![opcode_byte];
+        let err = from_bytes(bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap_err();
+        match err {
+            FromBytesError::NotEnoughBytes(_) => (),
+            _ => panic!("unexpected error variant"),
+        }
+    }
 }

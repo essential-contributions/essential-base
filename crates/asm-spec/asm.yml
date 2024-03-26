@@ -1,0 +1,383 @@
+StateRead:
+  description: All operations available to state-read execution.
+  group:
+    Constraint:
+      description: |
+        All operations available to the constraint checker.
+
+        Note that this is a subset of the operations available to state read execution.
+      group:
+        Stack:
+          description: Operations related to stack manipulation.
+          group:
+            Push:
+              opcode: 0x01
+              description: Push one word onto the stack.
+              num_arg_bytes: 8
+              stack_out: [value]
+
+            Pop:
+              opcode: 0x02
+              description: Pop one word from the stack.
+              stack_in: [a]
+
+            Dup:
+              opcode: 0x03
+              description: Duplicate the top word on the stack.
+              stack_in: [value]
+              stack_out: [value, value]
+
+            DupFrom:
+              opcode: 0x04
+              description: |
+                Duplicate the word at the given stack depth index.
+
+                `0` is the index of the element at the top of the stack.
+              stack_in: [index]
+              stack_out: [value_i]
+
+            Swap:
+              opcode: 0x05
+              description: Swap top two words on stack.
+              stack_in: [a, b]
+              stack_out: [b, a]
+
+        Pred:
+          description: Operations for computing predicates.
+          group:
+            Eq:
+              opcode: 0x10
+              description: Check equality of two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs == rhs"]
+
+            Eq4:
+              opcode: 0x11
+              description: Check equality of two lists of four words.
+              stack_in: [la, lb, lc, ld, ra, rb, rc, rd]
+              stack_out: ["la == ra && lb == rb && lc == rc && ld == rd"]
+
+            Gt:
+              opcode: 0x12
+              description: Check if left-hand side is greater than right-hand side.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs > rhs"]
+
+            Lt:
+              opcode: 0x13
+              description: Check if left-hand side is less than right-hand side.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs < rhs"]
+
+            Gte:
+              opcode: 0x14
+              description: Check if left-hand side is greater than or equal to right-hand side.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs >= rhs"]
+
+            Lte:
+              opcode: 0x15
+              description: Check if left-hand side is less than or equal to right-hand side.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs <= rhs"]
+
+            And:
+              opcode: 0x16
+              description: Logical AND of two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs && rhs"]
+
+            Or:
+              opcode: 0x17
+              description: Logical OR of two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs || rhs"]
+
+            Not:
+              opcode: 0x18
+              description: Logical NOT of a word.
+              stack_in: [a]
+              stack_out: ["!a"]
+
+        Alu:
+          description: Operations for computing arithmetic and logic.
+          group:
+            Add:
+              opcode: 0x20
+              description: Add two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs + rhs"]
+
+            Sub:
+              opcode: 0x21
+              description: Subtract two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs - rhs"]
+
+            Mul:
+              opcode: 0x22
+              description: Multiply two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs * rhs"]
+
+            Div:
+              opcode: 0x23
+              description: Integer division.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs / rhs"]
+
+            Mod:
+              opcode: 0x24
+              description: Modulus of lhs by rhs.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs % rhs"]
+
+        Access:
+          description: Operations for accessing input data.
+          group:
+            DecisionVar:
+              opcode: 0x30
+              description: |
+                Access a decision variable by `slot`.
+
+                The slot must be in range.
+
+                Returns a decision word.
+              panics:
+                - The slot is out of range.
+              stack_in: [slot]
+              stack_out: [decision_word]
+
+            DecisionVarRange:
+              opcode: 0x31
+              description: |
+                Access a range of decision variables starting from a specified slot.
+
+                Returns a list of decision words with length equal to the specified range.
+              panics:
+                - The range `slot..(slot + range)` is out of range.
+              stack_in: [slot, range]
+              stack_out:
+                elem: decision_word
+                len: range
+
+            State:
+              opcode: 0x32
+              description: |
+                Access a state variable by `slot`.
+
+                Empty slots will be returned as 0. Use `StateIsSome` to check if a slot is empty.
+
+                The `delta` parameter determines if changes are considered.
+              panics:
+                - The slot is out of range.
+              stack_in: [slot, delta]
+              stack_out: [state_word]
+
+            StateRange:
+              opcode: 0x33
+              description: |
+                Access a range of state variables starting from a specified slot.
+
+                Empty slots will be returned as 0. Use `StateIsSome` to check if a slot is empty.
+
+                The delta parameter determines if changes are considered.
+
+                Returns a list of state words with length equal to the specified range.
+              panics:
+                - The range `slot..(slot + range)` is out of range.
+              stack_in: [slot, range, delta]
+              stack_out:
+                elem: state_word
+                len: range
+
+            StateIsSome:
+              opcode: 0x34
+              description: |
+                Check if a state variable at a specified `slot` is set.
+
+                Returns a boolean value indicating the presence of a state variable.
+              panics:
+                - The slot is out of range.
+              stack_in: [slot, delta]
+              stack_out: [is_some]
+
+            StateIsSomeRange:
+              opcode: 0x35
+              description: |
+                Check a `range` of state variables starting from a specified `slot` for their presence.
+
+                Returns a list of boolean values, each indicating the presence of a state variable
+                in the range.
+              panics:
+                - The range `slot..(slot + range)` is out of range.
+              stack_in: [slot, range, delta]
+              stack_out:
+                elem: is_some
+                len: range
+
+            MutKeysLen:
+              opcode: 0x37
+              description: |
+                Get the number of mutable keys being proposed for mutation.
+
+                This operation returns a single word representing the length.
+              stack_out: [word]
+
+            ThisAddress:
+              opcode: 0x38
+              description: |
+                Get the content hash of this intent.
+
+                This operation returns a list of words with a length of 4, representing the hash.
+              stack_out: [key]
+
+            ThisSetAddress:
+              opcode: 0x39
+              description: |
+                Get the content hash of the set of intents that this intent belongs to.
+
+                This operation returns a list of words with a length of 4, representing the set's hash.
+              stack_out: [key]
+
+        Crypto:
+          description: Operations providing cryptographic functionality.
+          group:
+            Sha256:
+              opcode: 0x40
+              description: Produce a SHA 256 hash from the specified data.
+              stack_in: [data, data_len]
+              stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
+
+            VerifyEd25519:
+              opcode: 0x41
+              description: Validate an Ed25519 signature against a public key.
+              stack_in: [data, data_len, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, wig_w7, key_w0, key_w1, key_w2, key_w3]
+              stack_out: [bool]
+
+    ControlFlow:
+      description: Operations for controlling the flow of the program.
+      group:
+        Halt:
+          opcode: 0x50
+          description: End the execution of the program and return the keys and memory.
+
+        Jump:
+          opcode: 0x51
+          description: Jump to the given address.
+          stack_in: [address]
+
+        JumpIf:
+          opcode: 0x52
+          description: Jump to the given address if the value is true.
+          stack_in: [address, value]
+
+    Memory:
+      description: Operations for controlling memory.
+      group:
+        Alloc:
+          opcode: 0x60
+          description: Allocate new memory to the end of the memory.
+          stack_in: [size]
+
+        Free:
+          opcode: 0x61
+          description: Free the given size of memory from the end of the memory.
+          stack_in: [size]
+
+        Truncate:
+          opcode: 0x62
+          description: |
+            Truncate the memory to the given size.
+
+            Does not affect capacity.
+          stack_in: [size]
+
+        Load:
+          opcode: 0x63
+          description: |
+            Load the index of memory onto the stack.
+
+            Returns 0 if value is None.
+          panics:
+            - Index is out of bounds.
+          stack_in: [index]
+          stack_out: [value]
+
+        Store:
+          opcode: 0x64
+          description: Store the value at the index of memory.
+          panics:
+            - Index is out of bounds.
+          stack_in: [index, value]
+
+        Push:
+          opcode: 0x65
+          description: Push the value onto the end of the memory.
+          panics:
+            - Not enough memory allocated.
+          stack_in: [value]
+
+        PushNone:
+          opcode: 0x66
+          description: Push a None value onto the end of the memory.
+          panics:
+            - Not enough memory allocated.
+
+        Clear:
+          opcode: 0x67
+          description: Set the value at the index of memory to None.
+          panics:
+            - Index is out of bounds.
+          stack_in: [index]
+
+        ClearRange:
+          opcode: 0x68
+          description: Set a range of memory to None.
+          panics:
+            - The range is out of bounds.
+          stack_in: [index, amount]
+
+        IsSome:
+          opcode: 0x69
+          description: Check if the value at the index of memory is Some.
+          panics:
+            - Index out of bounds.
+          stack_in: [index]
+          stack_out: [bool]
+
+        Capacity:
+          opcode: 0x6A
+          description: Get the current capacity of the memory.
+          stack_out: [capacity]
+
+        Length:
+          opcode: 0x6B
+          description: Get the current length of the memory.
+          stack_out: [length]
+
+    WordRange:
+      opcode: 0x70
+      description: |
+        Read a range of words from state starting at the key.
+
+        Reads the state key and the number of words from the stack input.
+
+        Returns the memory address at which the data was written via the stack output.
+      panics:
+        - Not enough memory allocated to store the read state.
+      stack_in: [key_w0, key_w1, key_w2, key_w3, n_words]
+      stack_out: [mem_addr]
+
+    WordRangeExtern:
+      opcode: 0x71
+      description: |
+        Read a range of words from external state starting at the key.
+
+        Reads the external address, state key and the number of words from the stack input.
+
+        Returns the memory address at which the data was written via the stack output.
+      panics:
+        - Not enough memory allocated to store the read state.
+      stack_in: [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, key_w1, key_w2, key_w3, n_words]
+      stack_out: [mem_addr]
