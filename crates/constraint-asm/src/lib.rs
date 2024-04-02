@@ -68,6 +68,7 @@ pub enum FromBytesError {
 
 impl fmt::Display for FromBytesError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("failed to parse ops from bytes: ")?;
         match self {
             Self::InvalidOpcode(err) => err.fmt(f),
             Self::NotEnoughBytes(err) => err.fmt(f),
