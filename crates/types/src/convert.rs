@@ -102,7 +102,6 @@ pub fn u8_64_from_word_8(words: [Word; 8]) -> [u8; 64] {
     ]
 }
 
-
 impl From<ContentAddress> for [Word; 4] {
     fn from(address: ContentAddress) -> Self {
         word_4_from_u8_32(address.0)
