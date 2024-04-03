@@ -252,7 +252,7 @@ StateRead:
             VerifyEd25519:
               opcode: 0x41
               description: Validate an Ed25519 signature against a public key.
-              stack_in: [data, data_len, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, wig_w7, key_w0, key_w1, key_w2, key_w3]
+              stack_in: [data, data_len, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, sig_w7, key_w0, key_w1, key_w2, key_w3]
               stack_out: [bool]
 
     ControlFlow:

@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+use core::fmt;
 #[doc(inline)]
 pub use essential_types::Word;
 #[doc(inline)]
@@ -48,6 +49,10 @@ pub mod opcode {
         }
     }
 
+    impl std::error::Error for InvalidOpcodeError {}
+
+    impl std::error::Error for NotEnoughBytesError {}
+
     essential_asm_gen::gen_constraint_opcode_decls!();
     essential_asm_gen::gen_constraint_opcode_impls!();
 }
@@ -59,6 +64,30 @@ pub enum FromBytesError {
     InvalidOpcode(InvalidOpcodeError),
     /// The bytes iterator did not contain enough bytes for a particular operation.
     NotEnoughBytes(NotEnoughBytesError),
+}
+
+impl fmt::Display for FromBytesError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("failed to parse ops from bytes: ")?;
+        match self {
+            Self::InvalidOpcode(err) => err.fmt(f),
+            Self::NotEnoughBytes(err) => err.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for FromBytesError {}
+
+impl From<InvalidOpcodeError> for FromBytesError {
+    fn from(err: InvalidOpcodeError) -> Self {
+        Self::InvalidOpcode(err)
+    }
+}
+
+impl From<NotEnoughBytesError> for FromBytesError {
+    fn from(err: NotEnoughBytesError) -> Self {
+        Self::NotEnoughBytes(err)
+    }
 }
 
 /// Parse operations from the given iterator yielding bytes.
@@ -83,18 +112,6 @@ pub fn from_bytes(
 /// the serialized form in bytes.
 pub fn to_bytes(ops: impl IntoIterator<Item = Op>) -> impl Iterator<Item = u8> {
     ops.into_iter().flat_map(|op| op.to_bytes())
-}
-
-impl From<InvalidOpcodeError> for FromBytesError {
-    fn from(err: InvalidOpcodeError) -> Self {
-        Self::InvalidOpcode(err)
-    }
-}
-
-impl From<NotEnoughBytesError> for FromBytesError {
-    fn from(err: NotEnoughBytesError) -> Self {
-        Self::NotEnoughBytes(err)
-    }
 }
 
 #[cfg(test)]
