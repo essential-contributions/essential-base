@@ -5,8 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{slots::Slots, ConstraintBytecode, StateReadBytecode};
 
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-/// A transient or deployed intent.
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
+/// An individual intent to be solved.
 pub struct Intent {
     /// The slots that this intent can read.
     /// These are the inputs to the intent.
@@ -22,6 +26,7 @@ pub struct Intent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// The directive for the intent.
 pub enum Directive {
     /// All constraints must be satisfied.

@@ -7,6 +7,9 @@ use core::time::Duration;
 use serde::{Deserialize, Serialize};
 use solution::Solution;
 
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
+
 pub mod convert;
 pub mod intent;
 pub mod signature_ser;
@@ -42,10 +45,12 @@ pub struct Signature(
 );
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Content address of an intent or set of intents.
 pub struct ContentAddress(pub Hash);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Address of a persistent intent.
 pub struct IntentAddress {
     /// Content address of the set of intents that this intent is deployed with.
@@ -55,6 +60,7 @@ pub struct IntentAddress {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A signed piece of data.
 pub struct Signed<T> {
     /// The data that is signed.
@@ -64,6 +70,7 @@ pub struct Signed<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A protocol block.
 pub struct Block {
     /// The block number.
@@ -75,6 +82,7 @@ pub struct Block {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A batch of solutions
 pub struct Batch {
     /// The solutions in the batch.
@@ -82,5 +90,6 @@ pub struct Batch {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// The storage layout of a stateful intent.
 pub struct StorageLayout;
