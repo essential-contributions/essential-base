@@ -1,5 +1,6 @@
 //! Helpers for serializing and deserializing `Signature` types.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serializer};
 
 /// Serialize a `Signature.data` as a byte array.
@@ -22,4 +23,9 @@ where
     let mut result = [0; 64];
     result.copy_from_slice(&bytes);
     Ok(result)
+}
+
+/// JSON schema for `Signature.data`.
+pub fn schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+    <Vec<u8>>::json_schema(gen)
 }

@@ -4,4 +4,5 @@ name = "essential-types"
 version = "0.1.0"
 
 [dependencies]
+schemars.workspace = true
 serde.workspace = true

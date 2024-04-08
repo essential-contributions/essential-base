@@ -4,6 +4,7 @@
 
 use core::time::Duration;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use solution::Solution;
 
@@ -31,21 +32,28 @@ pub type Hash = [u8; 32];
 /// Externally owned account.
 pub type Eoa = [u8; 32];
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// Recoverable ECDSA signature over some data.
 pub struct Signature(
     /// Compact signature
+    #[schemars(schema_with = "signature_ser::schema")]
     #[serde(with = "signature_ser")]
     pub [u8; 64],
     /// ID used for public key recovery
     pub u8,
 );
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// Content address of an intent or set of intents.
 pub struct ContentAddress(pub Hash);
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// Address of a persistent intent.
 pub struct IntentAddress {
     /// Content address of the set of intents that this intent is deployed with.
@@ -54,7 +62,9 @@ pub struct IntentAddress {
     pub intent: ContentAddress,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// A signed piece of data.
 pub struct Signed<T> {
     /// The data that is signed.
@@ -63,7 +73,9 @@ pub struct Signed<T> {
     pub signature: Signature,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// A protocol block.
 pub struct Block {
     /// The block number.
@@ -74,13 +86,17 @@ pub struct Block {
     pub batch: Batch,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// A batch of solutions
 pub struct Batch {
     /// The solutions in the batch.
     pub solutions: Vec<Signed<Solution>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// The storage layout of a stateful intent.
 pub struct StorageLayout;

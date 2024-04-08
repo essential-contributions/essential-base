@@ -1,11 +1,14 @@
 //! # Intents
 //! Types needed to represent an intent.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{slots::Slots, ConstraintBytecode, StateReadBytecode};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// A transient or deployed intent.
 pub struct Intent {
     /// The slots that this intent can read.
@@ -21,7 +24,9 @@ pub struct Intent {
     pub directive: Directive,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 /// The directive for the intent.
 pub enum Directive {
     /// All constraints must be satisfied.
