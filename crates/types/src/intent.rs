@@ -9,7 +9,7 @@ use crate::{slots::Slots, ConstraintBytecode, StateReadBytecode};
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
-/// A transient or deployed intent.
+/// An individual intent to be solved.
 pub struct Intent {
     /// The slots that this intent can read.
     /// These are the inputs to the intent.
