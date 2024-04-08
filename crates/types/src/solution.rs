@@ -1,17 +1,18 @@
 //! # Solutions
 //! Data types that are used to create solutions to intents.
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{ContentAddress, IntentAddress, Key, Signed, Word};
 
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
+
 /// Index into the solution data.
 pub type SolutionDataIndex = u16;
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A solution to intents.
 pub struct Solution {
     /// The input data for each intent.
@@ -22,9 +23,8 @@ pub struct Solution {
     pub partial_solutions: Vec<Signed<ContentAddress>>,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A partial solution to intents.
 pub struct PartialSolution {
     /// The partial input data for each intent.
@@ -33,9 +33,8 @@ pub struct PartialSolution {
     pub state_mutations: Vec<StateMutation>,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// The data the solver is required to provide to solve an intent.
 pub struct SolutionData {
     /// Which intent this input data is for.
@@ -44,9 +43,8 @@ pub struct SolutionData {
     pub decision_variables: Vec<DecisionVariable>,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// The partial data the solver is required to provide to solve an intent.
 pub struct PartialSolutionData {
     /// Which intent this input data is for.
@@ -55,9 +53,8 @@ pub struct PartialSolutionData {
     pub decision_variables: Vec<Option<DecisionVariable>>,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A decision variable for a solution.
 pub enum DecisionVariable {
     /// An inline decision variable.
@@ -66,9 +63,8 @@ pub enum DecisionVariable {
     Transient(DecisionVariableIndex),
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Index into the decision variables of a solution data.
 pub struct DecisionVariableIndex {
     /// The solution data that this decision variable is from.
@@ -77,9 +73,8 @@ pub struct DecisionVariableIndex {
     pub variable_index: u16,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A mutation to a single key in state.
 pub struct Mutation {
     /// Key of state.
@@ -89,9 +84,8 @@ pub struct Mutation {
     pub value: Option<Word>,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// The state that is being proposed to be mutated.
 /// This state is owned by the persistent intent.
 pub struct StateMutation {

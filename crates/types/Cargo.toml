@@ -4,5 +4,8 @@ name = "essential-types"
 version = "0.1.0"
 
 [dependencies]
-schemars.workspace = true
+schemars = { workspace = true, optional = true }
 serde.workspace = true
+
+[features]
+schema = ["dep:schemars"]

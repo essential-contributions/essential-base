@@ -1,14 +1,15 @@
 //! # Intents
 //! Types needed to represent an intent.
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{slots::Slots, ConstraintBytecode, StateReadBytecode};
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// An individual intent to be solved.
 pub struct Intent {
     /// The slots that this intent can read.
@@ -24,9 +25,8 @@ pub struct Intent {
     pub directive: Directive,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// The directive for the intent.
 pub enum Directive {
     /// All constraints must be satisfied.

@@ -1,11 +1,12 @@
 //! # Slots
 //! Data types that outline the inputs to an intent.
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// The slots that this intent can read and a solver can fill.
 pub struct Slots {
     /// The amount of decision variables the intent expects.
@@ -14,9 +15,8 @@ pub struct Slots {
     pub state: Vec<StateSlot>,
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A slot for state values to be read into.
 /// This is the result of running a single state read program.
 pub struct StateSlot {
