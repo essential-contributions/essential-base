@@ -40,13 +40,7 @@ pub fn from_bytes(
     bytes: impl IntoIterator<Item = u8>,
 ) -> impl Iterator<Item = Result<Op, FromBytesError>> {
     let mut iter = bytes.into_iter();
-    std::iter::from_fn(move || {
-        let opcode_byte = iter.next()?;
-        let op_res = Opcode::try_from(opcode_byte)
-            .map_err(From::from)
-            .and_then(|opcode| opcode.parse_op(&mut iter).map_err(From::from));
-        Some(op_res)
-    })
+    std::iter::from_fn(move || Op::from_bytes(&mut iter))
 }
 
 /// Convert the given iterator yielding operations into and iterator yielding
