@@ -102,6 +102,17 @@ pub fn u8_64_from_word_8(words: [Word; 8]) -> [u8; 64] {
     ]
 }
 
+/// Convert a `Word` to its `bool` representation.
+///
+/// Returns `None` if the given `Word` is not `0` or `1`.
+pub fn bool_from_word(word: Word) -> Option<bool> {
+    match word {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
+
 impl From<ContentAddress> for [Word; 4] {
     fn from(address: ContentAddress) -> Self {
         word_4_from_u8_32(address.0)

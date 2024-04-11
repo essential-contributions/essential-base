@@ -17,6 +17,7 @@ pub use opcode::{Constraint as Opcode, InvalidOpcodeError, NotEnoughBytesError};
 mod op {
     essential_asm_gen::gen_constraint_op_decls!();
     essential_asm_gen::gen_constraint_op_impls!();
+
     /// Provides the operation type bytes iterators.
     pub mod bytes_iter {
         essential_asm_gen::gen_constraint_op_bytes_iter!();
@@ -99,13 +100,7 @@ pub fn from_bytes(
     bytes: impl IntoIterator<Item = u8>,
 ) -> impl Iterator<Item = Result<Op, FromBytesError>> {
     let mut iter = bytes.into_iter();
-    core::iter::from_fn(move || {
-        let opcode_byte = iter.next()?;
-        let op_res = Opcode::try_from(opcode_byte)
-            .map_err(From::from)
-            .and_then(|opcode| opcode.parse_op(&mut iter).map_err(From::from));
-        Some(op_res)
-    })
+    core::iter::from_fn(move || Op::from_bytes(&mut iter))
 }
 
 /// Convert the given iterator yielding operations into and iterator yielding

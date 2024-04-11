@@ -232,6 +232,27 @@ fn op_enum_impl_opcode(name: &str, group: &Group) -> syn::ItemImpl {
     }
 }
 
+/// Generate the `Op::from_bytes` method for parsing the Op from an iterator yielding bytes.
+fn op_enum_impl_from_bytes(name: &str) -> syn::ItemImpl {
+    let name = syn::Ident::new(name, Span::call_site());
+    syn::parse_quote! {
+        impl #name {
+            /// Parse a single operation from the given iterator yielding bytes.
+            ///
+            /// Returns `None` in the case that the given iterator is empty.
+            pub fn from_bytes(
+                bytes: &mut impl Iterator<Item = u8>,
+            ) -> Option<Result<Self, crate::FromBytesError>> {
+                let opcode_byte = bytes.next()?;
+                let op_res = crate::opcode::#name::try_from(opcode_byte)
+                    .map_err(From::from)
+                    .and_then(|opcode| opcode.parse_op(bytes).map_err(From::from));
+                Some(op_res)
+            }
+        }
+    }
+}
+
 /// Generate a single variant for an op enum's bytes iterator.
 fn op_enum_bytes_iter_decl_variant(name: &str, node: &Node) -> syn::Variant {
     let ident = syn::Ident::new(name, Span::call_site());
@@ -627,6 +648,7 @@ fn op_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
     let mut impls = vec![
         op_enum_impl_opcode(name, group),
         op_enum_impl_to_bytes(name, group),
+        op_enum_impl_from_bytes(name),
     ];
     impls.extend(impl_from_subgroups(name, group));
     impls
