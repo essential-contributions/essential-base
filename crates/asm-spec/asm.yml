@@ -42,22 +42,8 @@ StateRead:
               stack_in: [a, b]
               stack_out: [b, a]
             
-            RepeatDecVar:
-              opcode: 0x06
-              description: Repeat a section of code the number of times set by a decision variable.
-              panics: 
-                - If the slot is out of range.
-              stack_in: [dec_var_slot]
-            
-            RepeatStateSlot:
-              opcode: 0x07
-              description: Repeat a section of code the number of times set by a state slot.
-              panics: 
-                - If the slot is out of range.
-              stack_in: [state_slot, delta]
-
             RepeatEnd:
-              opcode: 0x08
+              opcode: 0x06
               description: |
                 Decrements the top counter on the repeat stack.
                 If the counter is 0 then this pops the counter
@@ -266,8 +252,22 @@ StateRead:
                 This operation returns a list of words with a length of 4, representing the set's hash.
               stack_out: [key]
             
-            RepeatCounter:
+            RepeatDecVar:
               opcode: 0x3A
+              description: Repeat a section of code the number of times set by a decision variable.
+              panics: 
+                - If the slot is out of range.
+              stack_in: [dec_var_slot]
+            
+            RepeatStateSlot:
+              opcode: 0x3B
+              description: Repeat a section of code the number of times set by a state slot.
+              panics: 
+                - If the slot is out of range.
+              stack_in: [state_slot, delta]
+
+            RepeatCounter:
+              opcode: 0x3C
               description: Access the top repeat counters current value.
               stack_out: [counter_value]
 
