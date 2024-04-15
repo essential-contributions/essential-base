@@ -152,3 +152,9 @@ impl fmt::Display for ConstraintsUnsatisfied {
         Ok(())
     }
 }
+
+impl From<core::convert::Infallible> for OpError {
+    fn from(err: core::convert::Infallible) -> Self {
+        match err {}
+    }
+}
