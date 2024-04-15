@@ -119,11 +119,16 @@ impl<Op, I> BytecodeMappedLazy<Op, I> {
     pub fn new<J>(bytes: J) -> Self
     where
         J: IntoIterator<IntoIter = I>,
+        I: Iterator<Item = u8>,
     {
-        Self {
-            mapped: Default::default(),
-            iter: bytes.into_iter(),
-        }
+        let iter = bytes.into_iter();
+        let (min, _) = iter.size_hint();
+        let mapped = BytecodeMapped {
+            bytecode: Vec::with_capacity(min),
+            op_indices: Vec::with_capacity(min),
+            _op_ty: core::marker::PhantomData,
+        };
+        Self { mapped, iter }
     }
 }
 
