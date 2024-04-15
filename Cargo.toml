@@ -6,16 +6,25 @@ resolver = "2"
 edition = "2021"
 
 [workspace.dependencies]
+ed25519-dalek = "2.1.0"
 essential-asm-gen = { path = "crates/asm-gen" }
 essential-asm-spec = { path = "crates/asm-spec" }
 essential-constraint-asm = { path = "crates/constraint-asm" }
+essential-constraint-vm = { path = "crates/constraint-vm" }
 essential-state-asm = { path = "crates/state-asm" }
+essential-state-read-vm = { path = "crates/state-read-vm" }
 essential-types = { path = "crates/types" }
+futures = "0.3" # For `state-read-vm` tests.
 hex = "0.4.3"
 proc-macro2 = "1"
 quote = "1"
+rand = { version = "0.8", features = ["small_rng"] } # For VM tests.
+rayon = "1" # For `constraint-vm` parallelisation.
 schemars = "0.8.16"
 serde = { version = "1.0.195", features = ["derive"] }
 serde_yaml = "0.9"
+sha2 = "0.10.8"
 syn = { version = "2", features = ["extra-traits", "full", "printing"] }
 tempfile = "3.9.0"
+thiserror = "1"
+tokio = { version = "1.36", default-features = false, features = ["macros", "test-util"] } # Used for `state-read-vm` tests.

@@ -1,0 +1,15 @@
+[package]
+name = "essential-state-read-vm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+essential-constraint-vm = { workspace = true }
+essential-state-asm = { workspace = true }
+essential-types = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+futures = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }
