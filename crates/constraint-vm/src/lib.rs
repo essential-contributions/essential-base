@@ -34,7 +34,7 @@
 
 pub use access::{Access, SolutionAccess, StateSlotSlice, StateSlots};
 #[doc(inline)]
-pub use bytecode::{BytecodeMapped, BytecodeMappedSlice};
+pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
 #[doc(inline)]
 pub use error::{CheckResult, ConstraintResult, OpResult, StackResult};
 use error::{ConstraintError, ConstraintErrors, ConstraintsUnsatisfied};
@@ -44,6 +44,8 @@ use essential_constraint_asm::Op;
 pub use essential_types as types;
 use essential_types::{convert::bool_from_word, ConstraintBytecode};
 #[doc(inline)]
+pub use op_access::OpAccess;
+#[doc(inline)]
 pub use stack::Stack;
 
 mod access;
@@ -51,6 +53,7 @@ mod alu;
 mod bytecode;
 mod crypto;
 pub mod error;
+mod op_access;
 mod stack;
 
 /// Check whether the constraints of a single intent are met for the given
