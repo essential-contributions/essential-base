@@ -28,14 +28,12 @@
 //! [`ExecFuture`] docs for further details on the implementation.
 #![deny(missing_docs, unsafe_code)]
 
-#[doc(inline)]
-pub use bytecode::{BytecodeMapped, BytecodeMappedSlice};
 use error::{MemoryError, OpError, OpSyncError, StateReadError};
 #[doc(inline)]
 pub use error::{MemoryResult, OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
 #[doc(inline)]
 pub use essential_constraint_vm::{
-    self as constraint, Access, SolutionAccess, Stack, StateSlotSlice, StateSlots,
+    self as constraint, Access, OpAccess, SolutionAccess, Stack, StateSlotSlice, StateSlots,
 };
 #[doc(inline)]
 pub use essential_state_asm as asm;
@@ -47,7 +45,6 @@ pub use future::ExecFuture;
 pub use memory::Memory;
 pub use state_read::StateRead;
 
-mod bytecode;
 mod ctrl_flow;
 pub mod error;
 mod future;
@@ -67,6 +64,13 @@ pub struct Vm {
 
 /// Unit used to measure gas.
 pub type Gas = u64;
+
+/// Shorthand for the `BytecodeMapped` type representing a mapping to/from state read [`Op`]s.
+pub type BytecodeMapped = constraint::BytecodeMapped<Op>;
+/// Shorthand for the `BytecodeMappedSlice` type for mapping [`Op`]s.
+pub type BytecodeMappedSlice<'a> = constraint::BytecodeMappedSlice<'a, Op>;
+/// Shorthand for the `BytecodeMappedLazy` type for mapping [`Op`]s.
+pub type BytecodeMappedLazy<I> = constraint::BytecodeMappedLazy<Op, I>;
 
 /// Gas limits.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -104,20 +108,6 @@ pub(crate) enum OpAsync {
     StateReadWordRange,
     /// Read a range of words from external state starting at the key.
     StateReadWordRangeExt,
-}
-
-/// Types that provide access to operations.
-///
-/// Implementations are included for `&[Op]`, `BytecodeMapped` and more.
-pub trait OpAccess {
-    /// Any error that might occur during access.
-    type Error: std::error::Error;
-    /// Access the operation at the given index.
-    ///
-    /// Mutable access to self is required in case operations are lazily parsed.
-    ///
-    /// Any implementation should ensure the same index always returns the same operation.
-    fn op_access(&mut self, index: usize) -> Option<Result<Op, Self::Error>>;
 }
 
 /// A mapping from an operation to its gas cost.
@@ -220,37 +210,7 @@ impl Vm {
         I: IntoIterator<Item = u8>,
         I::IntoIter: Unpin,
     {
-        /// A type wrapper around `BytecodeMapped` that lazily constructs the
-        /// map from the given bytecode as operations are accessed.
-        struct BytecodeMappedLazy<I> {
-            mapped: BytecodeMapped,
-            iter: I,
-        }
-
-        // Op access lazily populates operations from the given byte iterator
-        // as necessary.
-        impl<I> OpAccess for BytecodeMappedLazy<I>
-        where
-            I: Iterator<Item = u8>,
-        {
-            type Error = asm::FromBytesError;
-            fn op_access(&mut self, index: usize) -> Option<Result<Op, Self::Error>> {
-                loop {
-                    match self.mapped.op(index) {
-                        Some(op) => return Some(Ok(op)),
-                        None => match Op::from_bytes(&mut self.iter)? {
-                            Err(err) => return Some(Err(err)),
-                            Ok(op) => self.mapped.push_op(op),
-                        },
-                    }
-                }
-            }
-        }
-
-        let bytecode_lazy = BytecodeMappedLazy {
-            mapped: BytecodeMapped::default(),
-            iter: bytecode_iter.into_iter(),
-        };
+        let bytecode_lazy = BytecodeMappedLazy::new(bytecode_iter);
         self.exec(access, state_read, bytecode_lazy, op_gas_cost, gas_limit)
             .await
     }
@@ -277,7 +237,7 @@ impl Vm {
     ) -> Result<Gas, StateReadError<S::Error>>
     where
         S: StateRead,
-        OA: OpAccess + Unpin,
+        OA: OpAccess<Op = Op> + Unpin,
         OA::Error: Into<OpError<S::Error>>,
     {
         future::exec(self, access, state_read, op_access, op_gas_cost, gas_limit).await
@@ -309,20 +269,6 @@ where
 {
     fn op_gas_cost(&self, op: &Op) -> Gas {
         (*self)(op)
-    }
-}
-
-impl<'a> OpAccess for &'a [Op] {
-    type Error = core::convert::Infallible;
-    fn op_access(&mut self, index: usize) -> Option<Result<Op, Self::Error>> {
-        self.get(index).copied().map(Ok)
-    }
-}
-
-impl<'a> OpAccess for &'a BytecodeMapped {
-    type Error = core::convert::Infallible;
-    fn op_access(&mut self, index: usize) -> Option<Result<Op, Self::Error>> {
-        self.op(index).map(Ok)
     }
 }
 

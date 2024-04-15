@@ -1,4 +1,5 @@
 use crate::{
+    asm::Op,
     error::{OpAsyncError, OpError, OutOfGasError, StateReadError},
     state_read::{self, StateReadFuture},
     step_op_sync, Access, ContentAddress, Gas, GasLimit, OpAccess, OpAsync, OpAsyncResult,
@@ -139,7 +140,7 @@ where
 impl<'a, S, OA, OG> Future for ExecFuture<'a, S, OA, OG>
 where
     S: StateRead,
-    OA: OpAccess + Unpin,
+    OA: OpAccess<Op = Op> + Unpin,
     OG: OpGasCost,
     OA::Error: Into<OpError<S::Error>>,
 {
@@ -291,7 +292,7 @@ pub(crate) fn exec<'a, S, OA, OG>(
 ) -> ExecFuture<'a, S, OA, OG>
 where
     S: StateRead,
-    OA: OpAccess + Unpin,
+    OA: OpAccess<Op = Op> + Unpin,
     OG: OpGasCost,
     OA::Error: Into<OpError<S::Error>>,
 {

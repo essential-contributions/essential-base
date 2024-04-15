@@ -233,7 +233,7 @@ mod tests {
             asm::Stack::Push(0).into(), // Slot index.
             asm::Access::DecisionVar.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -287,7 +287,7 @@ mod tests {
             asm::Stack::Push(2).into(), // Slot index.
             asm::Access::DecisionVar.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -312,7 +312,7 @@ mod tests {
             asm::Stack::Push(3).into(), // Range length.
             asm::Access::DecisionVarRange.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[7, 8, 9]);
     }
 
@@ -356,7 +356,7 @@ mod tests {
             asm::Stack::Push(3).into(), // Range length.
             asm::Access::DecisionVarRange.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[9, 8, 7]);
     }
 
@@ -392,7 +392,7 @@ mod tests {
             asm::Stack::Push(0).into(), // Slot index.
             asm::Access::DecisionVar.into(),
         ];
-        let res = exec_ops(ops.iter().copied(), access);
+        let res = exec_ops(ops, access);
         match res {
             Err(ConstraintError::Op(
                 _,
@@ -418,11 +418,9 @@ mod tests {
             asm::Stack::Push(1).into(), // Slot index.
             asm::Access::DecisionVar.into(),
         ];
-        let res = exec_ops(ops.iter().copied(), access);
+        let res = exec_ops(ops, access);
         match res {
-            Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {
-                ()
-            }
+            Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {}
             _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
         }
     }
@@ -441,7 +439,7 @@ mod tests {
             asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
             asm::Access::State.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -459,7 +457,7 @@ mod tests {
             asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
             asm::Access::State.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -477,7 +475,7 @@ mod tests {
             asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
             asm::Access::State.into(),
         ];
-        let res = exec_ops(ops.iter().copied(), access);
+        let res = exec_ops(ops, access);
         match res {
             Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotOutOfBounds))) => (),
             _ => panic!("expected state slot out-of-bounds error, got {res:?}"),
@@ -498,10 +496,9 @@ mod tests {
             asm::Stack::Push(2).into(), // Delta (invalid).
             asm::Access::State.into(),
         ];
-        let res = exec_ops(ops.iter().copied(), access);
+        let res = exec_ops(ops, access);
         match res {
             Err(ConstraintError::Op(_, OpError::Access(AccessError::InvalidStateSlotDelta(2)))) => {
-                ()
             }
             _ => panic!("expected invalid state slot delta error, got {res:?}"),
         }
@@ -521,7 +518,7 @@ mod tests {
             asm::Stack::Push(0).into(), // Delta.
             asm::Access::State.into(),
         ];
-        let res = exec_ops(ops.iter().copied(), access);
+        let res = exec_ops(ops, access);
         match res {
             Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotWasNone))) => (),
             _ => panic!("expected state slot was none error, got {res:?}"),
@@ -543,7 +540,7 @@ mod tests {
             asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
             asm::Access::StateRange.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[10, 20, 30]);
     }
 
@@ -562,7 +559,7 @@ mod tests {
             asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
             asm::Access::StateRange.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         assert_eq!(&stack[..], &[40, 50]);
     }
 
@@ -581,7 +578,7 @@ mod tests {
             asm::Access::StateIsSome.into(),
         ];
         // Expect false for `None`.
-        assert!(!eval_ops(ops.iter().copied(), access).unwrap());
+        assert!(!eval_ops(ops, access).unwrap());
     }
 
     #[test]
@@ -599,7 +596,7 @@ mod tests {
             asm::Access::StateIsSome.into(),
         ];
         // Expect true for `Some(42)`.
-        assert!(eval_ops(ops.iter().copied(), access).unwrap());
+        assert!(eval_ops(ops, access).unwrap());
     }
 
     #[test]
@@ -617,7 +614,7 @@ mod tests {
             asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
             asm::Access::StateIsSomeRange.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         // Expect true, false, true for `Some(10), None, Some(30)`.
         assert_eq!(&stack[..], &[1, 0, 1]);
     }
@@ -637,7 +634,7 @@ mod tests {
             asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
             asm::Access::StateIsSomeRange.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), access).unwrap();
+        let stack = exec_ops(ops, access).unwrap();
         // Expect false, true, false for `None, Some(40), None`.
         assert_eq!(&stack[..], &[0, 1, 0]);
     }
@@ -645,7 +642,7 @@ mod tests {
     #[test]
     fn this_address() {
         let ops = &[asm::Access::ThisAddress.into()];
-        let stack = exec_ops(ops.iter().copied(), TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
         let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.intent.0);
         assert_eq!(&stack[..], expected_words);
     }
@@ -653,7 +650,7 @@ mod tests {
     #[test]
     fn this_set_address() {
         let ops = &[asm::Access::ThisSetAddress.into()];
-        let stack = exec_ops(ops.iter().copied(), TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
         let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.set.0);
         assert_eq!(&stack[..], expected_words);
     }

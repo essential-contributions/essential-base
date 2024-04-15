@@ -224,7 +224,7 @@ mod tests {
             Stack::Push(3).into(), // Index `3` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
         assert_eq!(&stack[..], &[42, 2, 1, 0, 42]);
     }
 
@@ -238,14 +238,14 @@ mod tests {
             Stack::Push(0).into(), // Index `0` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
         assert_eq!(&stack[..], &[3, 2, 1, 42, 42]);
     }
 
     #[test]
     fn push1() {
         let ops = &[Stack::Push(42).into()];
-        let stack = exec_ops(ops.iter().copied(), TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -257,14 +257,14 @@ mod tests {
             Stack::Pop.into(),
             Stack::Push(3).into(),
         ];
-        let stack = exec_ops(ops.iter().copied(), TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
         assert_eq!(&stack[..], &[1, 3]);
     }
 
     #[test]
     fn pop_empty() {
         let ops = &[Stack::Pop.into()];
-        match eval_ops(ops.iter().copied(), TEST_ACCESS) {
+        match eval_ops(ops, TEST_ACCESS) {
             Err(ConstraintError::Op(0, OpError::Stack(StackError::Empty))) => (),
             _ => panic!("expected empty stack error"),
         }
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn index_oob() {
         let ops = &[Stack::Push(0).into(), Stack::DupFrom.into()];
-        match eval_ops(ops.iter().copied(), TEST_ACCESS) {
+        match eval_ops(ops, TEST_ACCESS) {
             Err(ConstraintError::Op(1, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }

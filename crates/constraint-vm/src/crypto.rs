@@ -60,7 +60,7 @@ mod tests {
     };
 
     fn exec_ops_sha256(ops: &[Op]) -> Hash {
-        let stack = exec_ops(ops.iter().copied(), TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
         assert_eq!(stack.len(), 4);
         let bytes: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
         bytes.try_into().unwrap()
@@ -144,14 +144,14 @@ mod tests {
     #[test]
     fn verify_ed25519_true() {
         let ops = test_ed25519_ops();
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(&ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
     fn verify_ed25519_false() {
         let mut ops = test_ed25519_ops();
         ops[0] = Stack::Push(0).into(); // Invalidate data.
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(&ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -163,7 +163,7 @@ mod tests {
         ops[key_ix + 1] = Stack::Push(1).into();
         ops[key_ix + 2] = Stack::Push(1).into();
         ops[key_ix + 3] = Stack::Push(1).into();
-        let res = eval_ops(ops.iter().copied(), TEST_ACCESS);
+        let res = eval_ops(&ops, TEST_ACCESS);
         match res {
             Err(ConstraintError::Op(_, OpError::Crypto(CryptoError::Ed25519(_err)))) => (),
             _ => panic!("expected ed25519 error, got {res:?}"),

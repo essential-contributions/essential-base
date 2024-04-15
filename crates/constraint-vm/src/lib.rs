@@ -11,12 +11,13 @@
 //!
 //! Functions are also exposed for checking constraints individually.
 //!
-//! - The [`exec_bytecode`] and [`exec_ops`] functions allow for executing the
-//!   constraint and returning the resulting `Stack`.
-//! - The [`eval_bytecode`] and [`eval_ops`] functions are similar to their
-//!   `exec_*` counterparts, but expect the top of the `Stack` to contain a
-//!   single boolean value indicating whether the constraint was satisfied (`0`
-//!   for `false`, `1` for `true`) and returns this value.
+//! - The [`exec_bytecode`], [`exec_bytecode_iter`] and [`exec_ops`] functions
+//!   allow for executing the constraint and returning the resulting `Stack`.
+//! - The [`eval_bytecode`], [`eval_bytecode_iter`] and [`eval_ops`] functions
+//!   are similar to their `exec_*` counterparts, but expect the top of
+//!   the `Stack` to contain a single boolean value indicating whether the
+//!   constraint was satisfied (`0` for `false`, `1` for `true`) and returns
+//!   this value.
 //!
 //! ## Performing a Single Operation
 //!
@@ -34,6 +35,8 @@
 
 pub use access::{Access, SolutionAccess, StateSlotSlice, StateSlots};
 #[doc(inline)]
+pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
+#[doc(inline)]
 pub use error::{CheckResult, ConstraintResult, OpResult, StackResult};
 use error::{ConstraintError, ConstraintErrors, ConstraintsUnsatisfied};
 #[doc(inline)]
@@ -42,12 +45,16 @@ use essential_constraint_asm::Op;
 pub use essential_types as types;
 use essential_types::{convert::bool_from_word, ConstraintBytecode};
 #[doc(inline)]
+pub use op_access::OpAccess;
+#[doc(inline)]
 pub use stack::Stack;
 
 mod access;
 mod alu;
+mod bytecode;
 mod crypto;
 pub mod error;
+mod op_access;
 mod stack;
 
 /// Check whether the constraints of a single intent are met for the given
@@ -56,14 +63,14 @@ mod stack;
 ///
 /// In the case that one or more constraints fail or are unsatisfied, the
 /// whole set of failed/unsatisfied constraint indices are returned within the
-/// `CheckError` type.
+/// [`CheckError`][error::CheckError] type.
 ///
 /// The intent is considered to be satisfied if this function returns `Ok(())`.
 pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
     use rayon::{iter::Either, prelude::*};
     let (failed, unsatisfied): (Vec<_>, Vec<_>) = intent
         .par_iter()
-        .map(|bytecode| eval_bytecode(bytecode.iter().copied(), access))
+        .map(|bytecode| eval_bytecode_iter(bytecode.iter().copied(), access))
         .enumerate()
         .filter_map(|(i, constraint_res)| match constraint_res {
             Err(err) => Some(Either::Left((i, err))),
@@ -82,24 +89,38 @@ pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResul
 
 /// Evaluate the bytecode of a single constraint and return its boolean result.
 ///
-/// This is the same as `exec_bytecode`, but retrieves the boolean result from the resulting stack.
-pub fn eval_bytecode(
-    bytes: impl IntoIterator<Item = u8>,
-    access: Access,
-) -> ConstraintResult<bool> {
-    let stack = exec_bytecode(bytes, access)?;
-    let word = match stack.last() {
-        Some(&w) => w,
-        None => return Err(ConstraintError::InvalidEvaluation(stack)),
-    };
-    bool_from_word(word).ok_or_else(|| ConstraintError::InvalidEvaluation(stack))
+/// This is the same as [`exec_bytecode`], but retrieves the boolean result from the resulting stack.
+pub fn eval_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintResult<bool> {
+    eval(bytes, access)
+}
+
+/// Evaluate the bytecode of a single constraint and return its boolean result.
+///
+/// This is the same as [`eval_bytecode`], but lazily constructs the bytecode
+/// mapping as bytes are parsed.
+pub fn eval_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<bool>
+where
+    I: IntoIterator<Item = u8>,
+{
+    eval(BytecodeMappedLazy::new(bytes), access)
 }
 
 /// Evaluate the operations of a single constraint and return its boolean result.
 ///
-/// This is the same as `exec_ops`, but retrieves the boolean result from the resulting stack.
-pub fn eval_ops(ops: impl IntoIterator<Item = Op>, access: Access) -> ConstraintResult<bool> {
-    let stack = exec_ops(ops, access)?;
+/// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
+pub fn eval_ops(ops: &[Op], access: Access) -> ConstraintResult<bool> {
+    eval(ops, access)
+}
+
+/// Evaluate the operations of a single constraint and return its boolean result.
+///
+/// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
+pub fn eval<OA>(op_access: OA, access: Access) -> ConstraintResult<bool>
+where
+    OA: OpAccess<Op = Op>,
+    OA::Error: Into<error::OpError>,
+{
+    let stack = exec(op_access, access)?;
     let word = match stack.last() {
         Some(&w) => w,
         None => return Err(ConstraintError::InvalidEvaluation(stack)),
@@ -108,23 +129,38 @@ pub fn eval_ops(ops: impl IntoIterator<Item = Op>, access: Access) -> Constraint
 }
 
 /// Execute the bytecode of a constraint and return the resulting stack.
-pub fn exec_bytecode(
-    bytes: impl IntoIterator<Item = u8>,
-    access: Access,
-) -> ConstraintResult<Stack> {
-    let mut stack = Stack::default();
-    for (ix, res) in asm::from_bytes(bytes.into_iter()).enumerate() {
-        let op = res.map_err(|err| ConstraintError::Op(ix, err.into()))?;
-        step_op(access, op, &mut stack).map_err(|err| ConstraintError::Op(ix, err))?;
-    }
-    Ok(stack)
+pub fn exec_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintResult<Stack> {
+    exec(bytes, access)
+}
+
+/// Execute the bytecode of a constraint and return the resulting stack.
+///
+/// This is the same as [`exec_bytecode`], but lazily constructs the bytecode
+/// mapping as bytes are parsed.
+pub fn exec_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<Stack>
+where
+    I: IntoIterator<Item = u8>,
+{
+    exec(BytecodeMappedLazy::new(bytes), access)
 }
 
 /// Execute the operations of a constraint and return the resulting stack.
-pub fn exec_ops(ops: impl IntoIterator<Item = Op>, access: Access) -> ConstraintResult<Stack> {
+pub fn exec_ops(ops: &[Op], access: Access) -> ConstraintResult<Stack> {
+    exec(ops, access)
+}
+
+/// Execute the operations of a constraint and return the resulting stack.
+pub fn exec<OA>(mut op_access: OA, access: Access) -> ConstraintResult<Stack>
+where
+    OA: OpAccess<Op = Op>,
+    OA::Error: Into<error::OpError>,
+{
+    let mut pc = 0;
     let mut stack = Stack::default();
-    for (ix, op) in ops.into_iter().enumerate() {
-        step_op(access, op, &mut stack).map_err(|err| ConstraintError::Op(ix, err))?;
+    while let Some(res) = op_access.op_access(pc) {
+        let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
+        step_op(access, op, &mut stack).map_err(|err| ConstraintError::Op(pc, err))?;
+        pc += 1;
     }
     Ok(stack)
 }
@@ -242,7 +278,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Eq.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -252,7 +288,7 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::Eq.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -268,7 +304,7 @@ mod pred_tests {
             Stack::Push(0).into(),
             Pred::Eq4.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -284,7 +320,7 @@ mod pred_tests {
             Stack::Push(4).into(),
             Pred::Eq4.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -294,7 +330,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gt.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -304,7 +340,7 @@ mod pred_tests {
             Stack::Push(6).into(),
             Pred::Gt.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -314,7 +350,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lt.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -324,7 +360,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lt.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -334,7 +370,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -344,13 +380,13 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
         let ops = &[
             Stack::Push(8).into(),
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -360,7 +396,7 @@ mod pred_tests {
             Stack::Push(6).into(),
             Pred::Lte.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -370,13 +406,13 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lte.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
         let ops = &[
             Stack::Push(7).into(),
             Stack::Push(8).into(),
             Pred::Lte.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -386,7 +422,7 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::And.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -396,13 +432,13 @@ mod pred_tests {
             Stack::Push(0).into(),
             Pred::And.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(0).into(),
             Pred::And.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -412,19 +448,19 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(42).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
         let ops = &[
             Stack::Push(42).into(),
             Stack::Push(0).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
@@ -434,18 +470,18 @@ mod pred_tests {
             Stack::Push(0).into(),
             Pred::Or.into(),
         ];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
     fn pred_not_true() {
         let ops = &[Stack::Push(0).into(), Pred::Not.into()];
-        assert!(eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(eval_ops(ops, TEST_ACCESS).unwrap());
     }
 
     #[test]
     fn pred_not_false() {
         let ops = &[Stack::Push(42).into(), Pred::Not.into()];
-        assert!(!eval_ops(ops.iter().copied(), TEST_ACCESS).unwrap());
+        assert!(!eval_ops(ops, TEST_ACCESS).unwrap());
     }
 }
