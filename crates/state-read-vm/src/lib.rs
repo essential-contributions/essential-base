@@ -28,8 +28,6 @@
 //! [`ExecFuture`] docs for further details on the implementation.
 #![deny(missing_docs, unsafe_code)]
 
-#[doc(inline)]
-pub use bytecode::{BytecodeMapped, BytecodeMappedSlice};
 use error::{MemoryError, OpError, OpSyncError, StateReadError};
 #[doc(inline)]
 pub use error::{MemoryResult, OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
@@ -47,7 +45,6 @@ pub use future::ExecFuture;
 pub use memory::Memory;
 pub use state_read::StateRead;
 
-mod bytecode;
 mod ctrl_flow;
 pub mod error;
 mod future;
@@ -67,6 +64,12 @@ pub struct Vm {
 
 /// Unit used to measure gas.
 pub type Gas = u64;
+
+/// Shorthand for the `BytecodeMapped` type representing a mapping to/from state read [`Op`]s.
+pub type BytecodeMapped = constraint::BytecodeMapped<Op>;
+
+/// Shorthand for the `BytecodeMappedSlice` type.
+pub type BytecodeMappedSlice<'a> = constraint::BytecodeMappedSlice<'a, Op>;
 
 /// Gas limits.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -235,10 +238,11 @@ impl Vm {
         {
             type Error = asm::FromBytesError;
             fn op_access(&mut self, index: usize) -> Option<Result<Op, Self::Error>> {
+                use asm::TryFromBytes;
                 loop {
                     match self.mapped.op(index) {
                         Some(op) => return Some(Ok(op)),
-                        None => match Op::from_bytes(&mut self.iter)? {
+                        None => match Op::try_from_bytes(&mut self.iter)? {
                             Err(err) => return Some(Err(err)),
                             Ok(op) => self.mapped.push_op(op),
                         },

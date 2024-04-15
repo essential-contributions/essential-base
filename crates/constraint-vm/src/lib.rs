@@ -34,6 +34,8 @@
 
 pub use access::{Access, SolutionAccess, StateSlotSlice, StateSlots};
 #[doc(inline)]
+pub use bytecode::{BytecodeMapped, BytecodeMappedSlice};
+#[doc(inline)]
 pub use error::{CheckResult, ConstraintResult, OpResult, StackResult};
 use error::{ConstraintError, ConstraintErrors, ConstraintsUnsatisfied};
 #[doc(inline)]
@@ -46,6 +48,7 @@ pub use stack::Stack;
 
 mod access;
 mod alu;
+mod bytecode;
 mod crypto;
 pub mod error;
 mod stack;
