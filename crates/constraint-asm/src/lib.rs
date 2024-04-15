@@ -15,6 +15,34 @@ pub use opcode::{Constraint as Opcode, InvalidOpcodeError, NotEnoughBytesError};
 
 /// Typed representation of an operation its associated data.
 mod op {
+    /// Operation types that may be converted to their serialized form in bytes.
+    pub trait ToBytes {
+        /// The iterator yielding bytes.
+        type Bytes: IntoIterator<Item = u8>;
+        /// Convert the operation to its serialized form in bytes.
+        fn to_bytes(&self) -> Self::Bytes;
+    }
+
+    /// Allows for converting an `Op` into its associated `Opcode`.
+    pub trait ToOpcode {
+        /// The associated `Opcode` type.
+        type Opcode;
+        /// The `opcode` associated with this operation.
+        fn to_opcode(&self) -> Self::Opcode;
+    }
+
+    /// Operation types that may be parsed from a bytecode representation.
+    pub trait TryFromBytes: Sized {
+        /// Represents any error that might occur while parsing an op from bytes.
+        type Error: std::error::Error;
+        /// Parse a single operation from the given iterator yielding bytes.
+        ///
+        /// Returns `None` in the case that the given iterator is empty.
+        fn try_from_bytes(
+            bytes: &mut impl Iterator<Item = u8>,
+        ) -> Option<Result<Self, Self::Error>>;
+    }
+
     essential_asm_gen::gen_constraint_op_decls!();
     essential_asm_gen::gen_constraint_op_impls!();
 
@@ -27,6 +55,21 @@ mod op {
 /// Typed representation of the opcode, without any associated data.
 pub mod opcode {
     use core::fmt;
+
+    /// Parse the operation associated with the opcode.
+    pub trait ParseOp {
+        /// The operation associated with the opcode.
+        type Op;
+        /// Any error that might occur while parsing.
+        type Error;
+        /// Attempt to parse the operation associated with the opcode from the given bytes.
+        ///
+        /// Only consumes the bytes necessary to construct any associated data.
+        ///
+        /// Returns an error in the case that the given `bytes` iterator
+        /// contains insufficient bytes to parse the op.
+        fn parse_op(&self, bytes: &mut impl Iterator<Item = u8>) -> Result<Self::Op, Self::Error>;
+    }
 
     /// An attempt to parse a byte as an opcode failed.
     #[derive(Debug)]
@@ -100,7 +143,7 @@ pub fn from_bytes(
     bytes: impl IntoIterator<Item = u8>,
 ) -> impl Iterator<Item = Result<Op, FromBytesError>> {
     let mut iter = bytes.into_iter();
-    core::iter::from_fn(move || Op::from_bytes(&mut iter))
+    core::iter::from_fn(move || Op::try_from_bytes(&mut iter))
 }
 
 /// Convert the given iterator yielding operations into and iterator yielding

@@ -14,7 +14,9 @@ pub use opcode::{InvalidOpcodeError, NotEnoughBytesError, StateRead as Opcode};
 
 /// Typed representation of an operation its associated data.
 mod op {
-    pub use essential_constraint_asm::{Access, Alu, Constraint, Crypto, Pred, Stack};
+    pub use essential_constraint_asm::{
+        Access, Alu, Constraint, Crypto, Pred, Stack, ToBytes, ToOpcode, TryFromBytes,
+    };
     essential_asm_gen::gen_state_read_op_decls!();
     essential_asm_gen::gen_state_read_op_impls!();
     /// Provides the operation type bytes iterators.
@@ -40,7 +42,7 @@ pub fn from_bytes(
     bytes: impl IntoIterator<Item = u8>,
 ) -> impl Iterator<Item = Result<Op, FromBytesError>> {
     let mut iter = bytes.into_iter();
-    std::iter::from_fn(move || Op::from_bytes(&mut iter))
+    std::iter::from_fn(move || Op::try_from_bytes(&mut iter))
 }
 
 /// Convert the given iterator yielding operations into and iterator yielding

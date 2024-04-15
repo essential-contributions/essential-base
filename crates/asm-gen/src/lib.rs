@@ -197,7 +197,7 @@ fn op_enum_impl_opcode_arms(enum_ident: &syn::Ident, group: &Group) -> Vec<syn::
             let name = syn::Ident::new(name, Span::call_site());
             match node {
                 Node::Group(_) => syn::parse_quote! {
-                    #enum_ident::#name(group) => crate::opcode::#enum_ident::#name(group.opcode()),
+                    #enum_ident::#name(group) => crate::opcode::#enum_ident::#name(group.to_opcode()),
                 },
                 Node::Op(op) if op.num_arg_bytes > 0 => {
                     syn::parse_quote! {
@@ -214,14 +214,14 @@ fn op_enum_impl_opcode_arms(enum_ident: &syn::Ident, group: &Group) -> Vec<syn::
         .collect()
 }
 
-/// Generate the `opcode` method implementation for an operation type.
+/// Generate the `ToOpcode` implementation for an operation type.
 fn op_enum_impl_opcode(name: &str, group: &Group) -> syn::ItemImpl {
     let name = syn::Ident::new(name, Span::call_site());
     let arms = op_enum_impl_opcode_arms(&name, group);
     syn::parse_quote! {
-        impl #name {
-            /// The opcode associated with the operation.
-            pub fn opcode(&self) -> crate::opcode::#name {
+        impl ToOpcode for #name {
+            type Opcode = crate::opcode::#name;
+            fn to_opcode(&self) -> Self::Opcode {
                 match *self {
                     #(
                         #arms
@@ -232,17 +232,17 @@ fn op_enum_impl_opcode(name: &str, group: &Group) -> syn::ItemImpl {
     }
 }
 
-/// Generate the `Op::from_bytes` method for parsing the Op from an iterator yielding bytes.
-fn op_enum_impl_from_bytes(name: &str) -> syn::ItemImpl {
+/// Generate the `TryFromBytes` implementation for parsing the Op from an
+/// iterator yielding bytes.
+fn op_enum_impl_try_from_bytes(name: &str) -> syn::ItemImpl {
     let name = syn::Ident::new(name, Span::call_site());
     syn::parse_quote! {
-        impl #name {
-            /// Parse a single operation from the given iterator yielding bytes.
-            ///
-            /// Returns `None` in the case that the given iterator is empty.
-            pub fn from_bytes(
+        impl TryFromBytes for #name {
+            type Error = crate::FromBytesError;
+            fn try_from_bytes(
                 bytes: &mut impl Iterator<Item = u8>,
-            ) -> Option<Result<Self, crate::FromBytesError>> {
+            ) -> Option<Result<Self, Self::Error>> {
+                use crate::opcode::ParseOp;
                 let opcode_byte = bytes.next()?;
                 let op_res = crate::opcode::#name::try_from(opcode_byte)
                     .map_err(From::from)
@@ -293,7 +293,7 @@ fn op_enum_bytes_iter_decl(name: &str, group: &Group) -> syn::ItemEnum {
     let variants = op_enum_bytes_iter_decl_variants(group);
     let docs = format!(
         "The bytes iterator produced by the \
-        [{name}::to_bytes][super::{name}::to_bytes] method."
+        [{name}::to_bytes][super::ToBytes::to_bytes] method."
     );
     syn::parse_quote! {
         #[doc = #docs]
@@ -407,9 +407,9 @@ fn op_enum_impl_to_bytes(name: &str, group: &Group) -> syn::ItemImpl {
     let name = syn::Ident::new(name, Span::call_site());
     let arms = op_enum_impl_to_bytes_arms(&name, group);
     syn::parse_quote! {
-        impl #name {
-            /// Convert the operation to its serialized form in bytes.
-            pub fn to_bytes(&self) -> bytes_iter::#name {
+        impl ToBytes for #name {
+            type Bytes = bytes_iter::#name;
+            fn to_bytes(&self) -> Self::Bytes {
                 match self {
                     #(
                         #arms
@@ -544,17 +544,20 @@ fn opcode_enum_impl_parse_op(name: &str, group: &Group) -> syn::ItemImpl {
     let ident = syn::Ident::new(name, Span::call_site());
     let arms = opcode_enum_impl_parse_op_arms(&ident, group);
     syn::parse_quote! {
-        impl #ident {
+        impl ParseOp for #ident {
+            type Op = crate::op::#ident;
+            type Error = NotEnoughBytesError;
+
             /// Attempt to parse the operation associated with the opcode from the given bytes.
             ///
             /// Only consumes the bytes necessary to construct any associated data.
             ///
             /// Returns an error in the case that the given `bytes` iterator
             /// contains insufficient bytes to parse the op.
-            pub fn parse_op(
+            fn parse_op(
                 &self,
                 bytes: &mut impl Iterator<Item = u8>,
-            ) -> Result<crate::op::#ident, NotEnoughBytesError> {
+            ) -> Result<Self::Op, Self::Error> {
                 match *self {
                     #(
                         #arms
@@ -648,7 +651,7 @@ fn op_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
     let mut impls = vec![
         op_enum_impl_opcode(name, group),
         op_enum_impl_to_bytes(name, group),
-        op_enum_impl_from_bytes(name),
+        op_enum_impl_try_from_bytes(name),
     ];
     impls.extend(impl_from_subgroups(name, group));
     impls
