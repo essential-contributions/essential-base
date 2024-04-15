@@ -420,9 +420,7 @@ mod tests {
         ];
         let res = exec_ops(ops.iter().copied(), access);
         match res {
-            Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {
-                ()
-            }
+            Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {}
             _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
         }
     }
@@ -501,7 +499,6 @@ mod tests {
         let res = exec_ops(ops.iter().copied(), access);
         match res {
             Err(ConstraintError::Op(_, OpError::Access(AccessError::InvalidStateSlotDelta(2)))) => {
-                ()
             }
             _ => panic!("expected invalid state slot delta error, got {res:?}"),
         }
