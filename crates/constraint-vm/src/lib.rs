@@ -63,7 +63,7 @@ mod stack;
 ///
 /// In the case that one or more constraints fail or are unsatisfied, the
 /// whole set of failed/unsatisfied constraint indices are returned within the
-/// `CheckError` type.
+/// [`CheckError`][error::CheckError] type.
 ///
 /// The intent is considered to be satisfied if this function returns `Ok(())`.
 pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
@@ -89,14 +89,15 @@ pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResul
 
 /// Evaluate the bytecode of a single constraint and return its boolean result.
 ///
-/// This is the same as `exec_bytecode`, but retrieves the boolean result from the resulting stack.
+/// This is the same as [`exec_bytecode`], but retrieves the boolean result from the resulting stack.
 pub fn eval_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintResult<bool> {
     eval(bytes, access)
 }
 
 /// Evaluate the bytecode of a single constraint and return its boolean result.
 ///
-/// This is the same as `exec_bytecode`, but retrieves the boolean result from the resulting stack.
+/// This is the same as [`eval_bytecode`], but lazily constructs the bytecode
+/// mapping as bytes are parsed.
 pub fn eval_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<bool>
 where
     I: IntoIterator<Item = u8>,
@@ -106,14 +107,14 @@ where
 
 /// Evaluate the operations of a single constraint and return its boolean result.
 ///
-/// This is the same as `exec_ops`, but retrieves the boolean result from the resulting stack.
+/// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
 pub fn eval_ops(ops: &[Op], access: Access) -> ConstraintResult<bool> {
     eval(ops, access)
 }
 
 /// Evaluate the operations of a single constraint and return its boolean result.
 ///
-/// This is the same as `exec`, but retrieves the boolean result from the resulting stack.
+/// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
 pub fn eval<OA>(op_access: OA, access: Access) -> ConstraintResult<bool>
 where
     OA: OpAccess<Op = Op>,
@@ -133,6 +134,9 @@ pub fn exec_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintRe
 }
 
 /// Execute the bytecode of a constraint and return the resulting stack.
+///
+/// This is the same as [`exec_bytecode`], but lazily constructs the bytecode
+/// mapping as bytes are parsed.
 pub fn exec_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<Stack>
 where
     I: IntoIterator<Item = u8>,
