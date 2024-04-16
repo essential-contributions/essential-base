@@ -256,7 +256,10 @@ mod tests {
         eval_ops, exec_ops,
         test_util::*,
     };
-    use essential_types::solution::DecisionVariableIndex;
+    use essential_types::{
+        solution::{DecisionVariableIndex, Mutation, Solution, StateMutation},
+        ContentAddress, IntentAddress,
+    };
 
     #[test]
     fn decision_var_inline() {
@@ -470,6 +473,81 @@ mod tests {
             Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {}
             _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
         }
+    }
+
+    #[test]
+    fn mut_keys_len() {
+        // The intent that we're checking.
+        let intent_addr = TEST_INTENT_ADDR;
+
+        // An example solution with some state mutations proposed for the intent
+        // at index `1`.
+        let solution = Solution {
+            data: vec![
+                // Solution data for some other intent.
+                SolutionData {
+                    intent_to_solve: IntentAddress {
+                        set: ContentAddress([0x13; 32]),
+                        intent: ContentAddress([0x31; 32]),
+                    },
+                    decision_variables: vec![],
+                },
+                // Solution data for the intent we're checking.
+                SolutionData {
+                    intent_to_solve: intent_addr.clone(),
+                    decision_variables: vec![],
+                },
+            ],
+            // All state mutations, 3 of which point to the intent we're solving.
+            state_mutations: vec![
+                StateMutation {
+                    pathway: 0,
+                    mutations: vec![Mutation {
+                        key: [0, 0, 0, 1],
+                        value: Some(1),
+                    }],
+                },
+                StateMutation {
+                    pathway: 1,
+                    mutations: vec![
+                        Mutation {
+                            key: [1, 1, 1, 1],
+                            value: Some(6),
+                        },
+                        Mutation {
+                            key: [1, 1, 1, 2],
+                            value: Some(7),
+                        },
+                    ],
+                },
+                StateMutation {
+                    pathway: 1,
+                    mutations: vec![Mutation {
+                        key: [2, 2, 2, 1],
+                        value: Some(42),
+                    }],
+                },
+            ],
+            partial_solutions: vec![],
+        };
+
+        // The intent we're solving is the second intent, i.e. index `1`.
+        let intent_index = 1;
+
+        // Construct access to the parts of the solution that we need for checking.
+        let access = Access {
+            solution: SolutionAccess::new(&solution, intent_index),
+            state_slots: StateSlots::EMPTY,
+        };
+
+        // Check that there are actually 3 mutations.
+        let expected_mut_keys_len = 3;
+        assert_eq!(access.solution.mut_keys_count, expected_mut_keys_len);
+
+        // We're only going to execute the `MutKeysLen` op to check the expected value.
+        let ops = &[asm::Access::MutKeysLen.into()];
+        let stack = exec_ops(ops, access).unwrap();
+        assert_eq!(&stack[..], &[expected_mut_keys_len]);
     }
 
     #[test]
