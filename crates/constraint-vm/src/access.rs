@@ -7,7 +7,6 @@ use essential_types::{
     solution::{DecisionVariable, Solution, SolutionData, SolutionDataIndex},
     Key,
 };
-use std::collections::HashSet;
 
 /// All necessary solution data and state access required to check an individual intent.
 #[derive(Clone, Copy, Debug)]
@@ -32,7 +31,7 @@ pub struct SolutionAccess<'a> {
     /// The number of unique state key locations proposed for mutation for the intent.
     ///
     /// This is determined ahead of execution by inspecting the solution and
-    /// counting the total number of state mutations proposed for this intent.
+    /// counting the total number of state mutations proposed for this intent instance.
     pub mut_keys_len: Word,
 }
 
@@ -51,9 +50,13 @@ pub type StateSlotSlice = [Option<Word>];
 impl<'a> SolutionAccess<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
     /// the intent at the given index within the given solution.
+    ///
+    /// This constructor assumes that the given solution does not contain
+    /// multiple mutations to the same key. If it does, `mut_keys_len` will
+    /// be greater than the actual number of unique mutable keys.
     pub fn new(solution: &'a Solution, intent_index: SolutionDataIndex) -> Self {
-        let mut_keys_len = Word::try_from(unique_mut_keys(solution, intent_index).len())
-            .expect("unique mut keys count would overflow `Word`");
+        let mut_keys_len = Word::try_from(mut_keys(solution, intent_index).count())
+            .expect("mut keys count would overflow `Word`");
         Self {
             data: &solution.data,
             index: intent_index.into(),
@@ -79,20 +82,23 @@ impl<'a> StateSlots<'a> {
     };
 }
 
-/// A helper for collecting all unique mutable keys that are proposed for
-/// mutation for the intent at the given index.
+/// A helper for collecting all mutable keys that are proposed for mutation for
+/// the intent at the given index.
 ///
 /// Specifically, assists in calculating the `mut_keys_len` for
-/// `SolutionAccess`, as this is equal to the `.len()` of the returned set.
-// TODO: Is it ever possible for a valid solution to attempt to mutate the same
-// key twice? If not, should consider producing a `Vec` or `Iterator` instead of a set.
-pub fn unique_mut_keys(solution: &Solution, intent_index: SolutionDataIndex) -> HashSet<&Key> {
+/// `SolutionAccess`, as this is equal to the `.count()` of the returned iterator.
+///
+/// **Note:** In the case that the given solution is invalid and contains multiple
+/// mutations to the same key, the same key will be yielded multiple times.
+pub fn mut_keys(
+    solution: &Solution,
+    intent_index: SolutionDataIndex,
+) -> impl Iterator<Item = &Key> {
     solution
         .state_mutations
         .iter()
-        .filter(|state_mutation| state_mutation.pathway == intent_index)
+        .filter(move |state_mutation| state_mutation.pathway == intent_index)
         .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| &m.key))
-        .collect()
 }
 
 /// `Access::DecisionVar` implementation.

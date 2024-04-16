@@ -33,7 +33,7 @@
 //! behaviour of individual operations.
 #![deny(missing_docs, unsafe_code)]
 
-pub use access::{unique_mut_keys, Access, SolutionAccess, StateSlotSlice, StateSlots};
+pub use access::{mut_keys, Access, SolutionAccess, StateSlotSlice, StateSlots};
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
 #[doc(inline)]
