@@ -25,6 +25,7 @@ pub const TEST_SOLUTION_DATA: SolutionData = SolutionData {
 pub const TEST_SOLUTION_ACCESS: SolutionAccess = SolutionAccess {
     data: &[TEST_SOLUTION_DATA],
     index: 0,
+    mut_keys_len: 0,
 };
 pub const TEST_ACCESS: Access = Access {
     solution: TEST_SOLUTION_ACCESS,

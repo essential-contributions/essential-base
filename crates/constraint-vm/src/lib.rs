@@ -33,7 +33,7 @@
 //! behaviour of individual operations.
 #![deny(missing_docs, unsafe_code)]
 
-pub use access::{Access, SolutionAccess, StateSlotSlice, StateSlots};
+pub use access::{mut_keys, Access, SolutionAccess, StateSlotSlice, StateSlots};
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
 #[doc(inline)]
@@ -181,7 +181,7 @@ pub fn step_op_access(access: Access, op: asm::Access, stack: &mut Stack) -> OpR
     match op {
         asm::Access::DecisionVar => access::decision_var(access.solution, stack),
         asm::Access::DecisionVarRange => access::decision_var_range(access.solution, stack),
-        asm::Access::MutKeysLen => todo!(),
+        asm::Access::MutKeysLen => access::mut_keys_len(access.solution, stack),
         asm::Access::State => access::state(access.state_slots, stack),
         asm::Access::StateRange => access::state_range(access.state_slots, stack),
         asm::Access::StateIsSome => access::state_is_some(access.state_slots, stack),
@@ -256,6 +256,7 @@ pub(crate) mod test_util {
     pub(crate) const TEST_SOLUTION_ACCESS: SolutionAccess = SolutionAccess {
         data: &[TEST_SOLUTION_DATA],
         index: 0,
+        mut_keys_len: 0,
     };
     pub(crate) const TEST_ACCESS: Access = Access {
         solution: TEST_SOLUTION_ACCESS,

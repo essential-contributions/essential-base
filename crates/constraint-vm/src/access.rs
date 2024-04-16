@@ -4,7 +4,8 @@ use crate::{error::AccessError, types::convert::bool_from_word, OpResult, Stack}
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
-    solution::{DecisionVariable, SolutionData},
+    solution::{DecisionVariable, Solution, SolutionData, SolutionDataIndex},
+    Key,
 };
 
 /// All necessary solution data and state access required to check an individual intent.
@@ -27,6 +28,11 @@ pub struct SolutionAccess<'a> {
     /// Checking is performed for one intent at a time. This index refers to
     /// the checked intent's associated solution data within `data`.
     pub index: usize,
+    /// The number of unique state key locations proposed for mutation for the intent.
+    ///
+    /// This is determined ahead of execution by inspecting the solution and
+    /// counting the total number of state mutations proposed for this intent instance.
+    pub mut_keys_len: Word,
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -42,6 +48,22 @@ pub struct StateSlots<'a> {
 pub type StateSlotSlice = [Option<Word>];
 
 impl<'a> SolutionAccess<'a> {
+    /// A shorthand for constructing a `SolutionAccess` instance for checking
+    /// the intent at the given index within the given solution.
+    ///
+    /// This constructor assumes that the given solution does not contain
+    /// multiple mutations to the same key. If it does, `mut_keys_len` will
+    /// be greater than the actual number of unique mutable keys.
+    pub fn new(solution: &'a Solution, intent_index: SolutionDataIndex) -> Self {
+        let mut_keys_len = Word::try_from(mut_keys(solution, intent_index).count())
+            .expect("mut keys count would overflow `Word`");
+        Self {
+            data: &solution.data,
+            index: intent_index.into(),
+            mut_keys_len,
+        }
+    }
+
     /// The solution data associated with the intent currently being checked.
     ///
     /// **Panics** in the case that `self.index` is out of range of the `self.data` slice.
@@ -58,6 +80,25 @@ impl<'a> StateSlots<'a> {
         pre: &[],
         post: &[],
     };
+}
+
+/// A helper for collecting all mutable keys that are proposed for mutation for
+/// the intent at the given index.
+///
+/// Specifically, assists in calculating the `mut_keys_len` for
+/// `SolutionAccess`, as this is equal to the `.count()` of the returned iterator.
+///
+/// **Note:** In the case that the given solution is invalid and contains multiple
+/// mutations to the same key, the same key will be yielded multiple times.
+pub fn mut_keys(
+    solution: &Solution,
+    intent_index: SolutionDataIndex,
+) -> impl Iterator<Item = &Key> {
+    solution
+        .state_mutations
+        .iter()
+        .filter(move |state_mutation| state_mutation.pathway == intent_index)
+        .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| &m.key))
 }
 
 /// `Access::DecisionVar` implementation.
@@ -77,6 +118,12 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
         let w = resolve_decision_var(solution.data, solution.index, dec_var_ix)?;
         stack.push(w)?;
     }
+    Ok(())
+}
+
+/// `Access::MutKeysLen` implementation.
+pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
+    stack.push(solution.mut_keys_len)?;
     Ok(())
 }
 
@@ -215,7 +262,10 @@ mod tests {
         eval_ops, exec_ops,
         test_util::*,
     };
-    use essential_types::solution::DecisionVariableIndex;
+    use essential_types::{
+        solution::{DecisionVariableIndex, Mutation, Solution, StateMutation},
+        ContentAddress, IntentAddress,
+    };
 
     #[test]
     fn decision_var_inline() {
@@ -226,6 +276,7 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -280,6 +331,7 @@ mod tests {
                 ],
                 // Solution data for intent being solved is at index 1.
                 index: 1,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -304,6 +356,7 @@ mod tests {
                     ],
                 }],
                 index: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -348,6 +401,7 @@ mod tests {
                     },
                 ],
                 index: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -385,6 +439,7 @@ mod tests {
                     },
                 ],
                 index: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -411,6 +466,7 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -423,6 +479,81 @@ mod tests {
             Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {}
             _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
         }
+    }
+
+    #[test]
+    fn mut_keys_len() {
+        // The intent that we're checking.
+        let intent_addr = TEST_INTENT_ADDR;
+
+        // An example solution with some state mutations proposed for the intent
+        // at index `1`.
+        let solution = Solution {
+            data: vec![
+                // Solution data for some other intent.
+                SolutionData {
+                    intent_to_solve: IntentAddress {
+                        set: ContentAddress([0x13; 32]),
+                        intent: ContentAddress([0x31; 32]),
+                    },
+                    decision_variables: vec![],
+                },
+                // Solution data for the intent we're checking.
+                SolutionData {
+                    intent_to_solve: intent_addr.clone(),
+                    decision_variables: vec![],
+                },
+            ],
+            // All state mutations, 3 of which point to the intent we're solving.
+            state_mutations: vec![
+                StateMutation {
+                    pathway: 0,
+                    mutations: vec![Mutation {
+                        key: [0, 0, 0, 1],
+                        value: Some(1),
+                    }],
+                },
+                StateMutation {
+                    pathway: 1,
+                    mutations: vec![
+                        Mutation {
+                            key: [1, 1, 1, 1],
+                            value: Some(6),
+                        },
+                        Mutation {
+                            key: [1, 1, 1, 2],
+                            value: Some(7),
+                        },
+                    ],
+                },
+                StateMutation {
+                    pathway: 1,
+                    mutations: vec![Mutation {
+                        key: [2, 2, 2, 1],
+                        value: Some(42),
+                    }],
+                },
+            ],
+            partial_solutions: vec![],
+        };
+
+        // The intent we're solving is the second intent, i.e. index `1`.
+        let intent_index = 1;
+
+        // Construct access to the parts of the solution that we need for checking.
+        let access = Access {
+            solution: SolutionAccess::new(&solution, intent_index),
+            state_slots: StateSlots::EMPTY,
+        };
+
+        // Check that there are actually 3 mutations.
+        let expected_mut_keys_len = 3;
+        assert_eq!(access.solution.mut_keys_len, expected_mut_keys_len);
+
+        // We're only going to execute the `MutKeysLen` op to check the expected value.
+        let ops = &[asm::Access::MutKeysLen.into()];
+        let stack = exec_ops(ops, access).unwrap();
+        assert_eq!(&stack[..], &[expected_mut_keys_len]);
     }
 
     #[test]
