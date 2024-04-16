@@ -256,7 +256,7 @@ pub(crate) mod test_util {
     pub(crate) const TEST_SOLUTION_ACCESS: SolutionAccess = SolutionAccess {
         data: &[TEST_SOLUTION_DATA],
         index: 0,
-        mut_keys_count: 0,
+        mut_keys_len: 0,
     };
     pub(crate) const TEST_ACCESS: Access = Access {
         solution: TEST_SOLUTION_ACCESS,

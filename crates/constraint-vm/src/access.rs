@@ -33,7 +33,7 @@ pub struct SolutionAccess<'a> {
     ///
     /// This is determined ahead of execution by inspecting the solution and
     /// counting the total number of state mutations proposed for this intent.
-    pub mut_keys_count: Word,
+    pub mut_keys_len: Word,
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -52,12 +52,12 @@ impl<'a> SolutionAccess<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
     /// the intent at the given index within the given solution.
     pub fn new(solution: &'a Solution, intent_index: SolutionDataIndex) -> Self {
-        let mut_keys_count = Word::try_from(unique_mut_keys(solution, intent_index).len())
+        let mut_keys_len = Word::try_from(unique_mut_keys(solution, intent_index).len())
             .expect("unique mut keys count would overflow `Word`");
         Self {
             data: &solution.data,
             index: intent_index.into(),
-            mut_keys_count,
+            mut_keys_len,
         }
     }
 
@@ -82,7 +82,7 @@ impl<'a> StateSlots<'a> {
 /// A helper for collecting all unique mutable keys that are proposed for
 /// mutation for the intent at the given index.
 ///
-/// Specifically, assists in calculating the `mut_keys_count` for
+/// Specifically, assists in calculating the `mut_keys_len` for
 /// `SolutionAccess`, as this is equal to the `.len()` of the returned set.
 // TODO: Is it ever possible for a valid solution to attempt to mutate the same
 // key twice? If not, should consider producing a `Vec` or `Iterator` instead of a set.
@@ -117,7 +117,7 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
 
 /// `Access::MutKeysLen` implementation.
 pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    stack.push(solution.mut_keys_count)?;
+    stack.push(solution.mut_keys_len)?;
     Ok(())
 }
 
@@ -270,7 +270,7 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
-                mut_keys_count: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -325,7 +325,7 @@ mod tests {
                 ],
                 // Solution data for intent being solved is at index 1.
                 index: 1,
-                mut_keys_count: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -350,7 +350,7 @@ mod tests {
                     ],
                 }],
                 index: 0,
-                mut_keys_count: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -395,7 +395,7 @@ mod tests {
                     },
                 ],
                 index: 0,
-                mut_keys_count: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -433,7 +433,7 @@ mod tests {
                     },
                 ],
                 index: 0,
-                mut_keys_count: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -460,7 +460,7 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
-                mut_keys_count: 0,
+                mut_keys_len: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -542,7 +542,7 @@ mod tests {
 
         // Check that there are actually 3 mutations.
         let expected_mut_keys_len = 3;
-        assert_eq!(access.solution.mut_keys_count, expected_mut_keys_len);
+        assert_eq!(access.solution.mut_keys_len, expected_mut_keys_len);
 
         // We're only going to execute the `MutKeysLen` op to check the expected value.
         let ops = &[asm::Access::MutKeysLen.into()];
