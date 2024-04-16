@@ -4,8 +4,10 @@ use crate::{error::AccessError, types::convert::bool_from_word, OpResult, Stack}
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
-    solution::{DecisionVariable, SolutionData},
+    solution::{DecisionVariable, Solution, SolutionData, SolutionDataIndex},
+    Key,
 };
+use std::collections::HashSet;
 
 /// All necessary solution data and state access required to check an individual intent.
 #[derive(Clone, Copy, Debug)]
@@ -27,6 +29,11 @@ pub struct SolutionAccess<'a> {
     /// Checking is performed for one intent at a time. This index refers to
     /// the checked intent's associated solution data within `data`.
     pub index: usize,
+    /// The number of unique state key locations proposed for mutation for the intent.
+    ///
+    /// This is determined ahead of execution by inspecting the solution and
+    /// counting the total number of state mutations proposed for this intent.
+    pub mut_keys_count: usize,
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -42,6 +49,17 @@ pub struct StateSlots<'a> {
 pub type StateSlotSlice = [Option<Word>];
 
 impl<'a> SolutionAccess<'a> {
+    /// A shorthand for constructing a `SolutionAccess` instance for checking
+    /// the intent at the given index within the given solution.
+    pub fn new(solution: &'a Solution, intent_index: SolutionDataIndex) -> Self {
+        let mut_keys_count = unique_mut_keys(solution, intent_index).len();
+        Self {
+            data: &solution.data,
+            index: intent_index.into(),
+            mut_keys_count,
+        }
+    }
+
     /// The solution data associated with the intent currently being checked.
     ///
     /// **Panics** in the case that `self.index` is out of range of the `self.data` slice.
@@ -58,6 +76,22 @@ impl<'a> StateSlots<'a> {
         pre: &[],
         post: &[],
     };
+}
+
+/// A helper for collecting all unique mutable keys that are proposed for
+/// mutation for the intent at the given index.
+///
+/// Specifically, assists in calculating the `mut_keys_count` for
+/// `SolutionAccess`, as this is equal to the `.len()` of the returned set.
+// TODO: Is it ever possible for a valid solution to attempt to mutate the same
+// key twice? If not, should consider producing a `Vec` or `Iterator` instead of a set.
+pub fn unique_mut_keys(solution: &Solution, intent_index: SolutionDataIndex) -> HashSet<&Key> {
+    solution
+        .state_mutations
+        .iter()
+        .filter(|state_mutation| state_mutation.pathway == intent_index)
+        .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| &m.key))
+        .collect()
 }
 
 /// `Access::DecisionVar` implementation.
@@ -226,6 +260,7 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
+                mut_keys_count: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -280,6 +315,7 @@ mod tests {
                 ],
                 // Solution data for intent being solved is at index 1.
                 index: 1,
+                mut_keys_count: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -304,6 +340,7 @@ mod tests {
                     ],
                 }],
                 index: 0,
+                mut_keys_count: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -348,6 +385,7 @@ mod tests {
                     },
                 ],
                 index: 0,
+                mut_keys_count: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -385,6 +423,7 @@ mod tests {
                     },
                 ],
                 index: 0,
+                mut_keys_count: 0,
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -411,6 +450,7 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
+                mut_keys_count: 0,
             },
             state_slots: StateSlots::EMPTY,
         };

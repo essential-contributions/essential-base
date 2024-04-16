@@ -205,12 +205,12 @@ async fn read_pre_post_state_and_check_constraints() {
         partial_solutions: vec![],
     };
 
+    // The index of the solution data associated with the intent we're solving.
+    let intent_index = 0;
+
     // Construct access to the necessary solution data for the VM.
     let mut access = Access {
-        solution: SolutionAccess {
-            data: &solution.data,
-            index: 0,
-        },
+        solution: SolutionAccess::new(&solution, intent_index),
         // Haven't calculated these yet.
         state_slots: StateSlots::EMPTY,
     };
@@ -239,7 +239,7 @@ async fn read_pre_post_state_and_check_constraints() {
 
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
-    for mutation in solution.state_mutations {
+    for mutation in &solution.state_mutations {
         let solution_data = &solution.data[usize::from(mutation.pathway)];
         let set_addr = &solution_data.intent_to_solve.set;
         for Mutation { key, value } in mutation.mutations.iter() {

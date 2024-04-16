@@ -33,7 +33,7 @@
 //! behaviour of individual operations.
 #![deny(missing_docs, unsafe_code)]
 
-pub use access::{Access, SolutionAccess, StateSlotSlice, StateSlots};
+pub use access::{unique_mut_keys, Access, SolutionAccess, StateSlotSlice, StateSlots};
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
 #[doc(inline)]
@@ -256,6 +256,7 @@ pub(crate) mod test_util {
     pub(crate) const TEST_SOLUTION_ACCESS: SolutionAccess = SolutionAccess {
         data: &[TEST_SOLUTION_DATA],
         index: 0,
+        mut_keys_count: 0,
     };
     pub(crate) const TEST_ACCESS: Access = Access {
         solution: TEST_SOLUTION_ACCESS,
