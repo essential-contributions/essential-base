@@ -33,7 +33,7 @@ pub struct SolutionAccess<'a> {
     ///
     /// This is determined ahead of execution by inspecting the solution and
     /// counting the total number of state mutations proposed for this intent.
-    pub mut_keys_count: usize,
+    pub mut_keys_count: Word,
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -52,7 +52,8 @@ impl<'a> SolutionAccess<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
     /// the intent at the given index within the given solution.
     pub fn new(solution: &'a Solution, intent_index: SolutionDataIndex) -> Self {
-        let mut_keys_count = unique_mut_keys(solution, intent_index).len();
+        let mut_keys_count = Word::try_from(unique_mut_keys(solution, intent_index).len())
+            .expect("unique mut keys count would overflow `Word`");
         Self {
             data: &solution.data,
             index: intent_index.into(),
@@ -111,6 +112,12 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
         let w = resolve_decision_var(solution.data, solution.index, dec_var_ix)?;
         stack.push(w)?;
     }
+    Ok(())
+}
+
+/// `Access::MutKeysLen` implementation.
+pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
+    stack.push(solution.mut_keys_count)?;
     Ok(())
 }
 
