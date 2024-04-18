@@ -28,27 +28,29 @@ pub trait StateRead {
     /// using `std::future::Ready`, however more involved implementations that
     /// require calling `async` functions with anonymised return types may
     /// require using a `Box` in order to name the anonymised type.
-    type Future: Future<Output = Result<Vec<Option<Word>>, Self::Error>> + Unpin;
+    type Future<'s>: Future<Output = Result<Vec<Option<Word>>, Self::Error>> + Unpin + 's
+    where
+        Self: 's;
 
     /// Read the given number of words from state at the given key associated
     /// with the given intent set address.
-    fn word_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future;
+    fn word_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future<'_>;
 }
 
 /// A future representing the asynchronous `StateRead` (or `StateReadExtern`) operation.
 ///
 /// Performs the state read and then writes the result to memory.
-pub(crate) struct StateReadFuture<'vm, S>
+pub(crate) struct StateReadFuture<'vm, 's, S>
 where
-    S: StateRead,
+    S: StateRead + 's,
 {
     /// The future produced by the `StateRead::word_range` implementation.
-    future: S::Future,
+    future: S::Future<'s>,
     /// Access to the `Vm` so that the result of the future can be written to memory.
     pub(crate) vm: &'vm mut Vm,
 }
 
-impl<'vm, S> Future for StateReadFuture<'vm, S>
+impl<'vm, 's, S> Future for StateReadFuture<'vm, 's, S>
 where
     S: StateRead,
 {
@@ -69,11 +71,11 @@ where
 }
 
 /// `StateRead::WordRange` operation.
-pub fn word_range<'vm, S>(
-    state_read: &S,
+pub fn word_range<'vm, 's, S>(
+    state_read: &'s S,
     set_addr: &ContentAddress,
     vm: &'vm mut Vm,
-) -> OpAsyncResult<StateReadFuture<'vm, S>, S::Error>
+) -> OpAsyncResult<StateReadFuture<'vm, 's, S>, S::Error>
 where
     S: StateRead,
 {
@@ -82,10 +84,10 @@ where
 }
 
 /// `StateRead::WordRangeExtern` operation.
-pub fn word_range_ext<'vm, S>(
-    state_read: &S,
+pub fn word_range_ext<'vm, 's, S>(
+    state_read: &'s S,
     vm: &'vm mut Vm,
-) -> OpAsyncResult<StateReadFuture<'vm, S>, S::Error>
+) -> OpAsyncResult<StateReadFuture<'vm, 's, S>, S::Error>
 where
     S: StateRead,
 {
@@ -94,11 +96,11 @@ where
 }
 
 /// Read the length and key from the top of the stack and read the associated words from state.
-fn read_word_range<S>(
-    state_read: &S,
+fn read_word_range<'s, S>(
+    state_read: &'s S,
     set_addr: &ContentAddress,
     vm: &mut Vm,
-) -> OpAsyncResult<S::Future, S::Error>
+) -> OpAsyncResult<S::Future<'s>, S::Error>
 where
     S: StateRead,
 {
@@ -110,7 +112,10 @@ where
 
 /// Read the length, key and external set address from the top of the stack and
 /// read the associated words from state.
-fn read_word_range_ext<S>(state_read: &S, vm: &mut Vm) -> OpAsyncResult<S::Future, S::Error>
+fn read_word_range_ext<'s, S>(
+    state_read: &'s S,
+    vm: &mut Vm,
+) -> OpAsyncResult<S::Future<'s>, S::Error>
 where
     S: StateRead,
 {

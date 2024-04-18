@@ -114,8 +114,8 @@ impl core::ops::Deref for State {
 
 impl StateRead for State {
     type Error = InvalidStateRead;
-    type Future = Ready<Result<Vec<Option<Word>>, Self::Error>>;
-    fn word_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
+    type Future<'s> = Ready<Result<Vec<Option<Word>>, Self::Error>>;
+    fn word_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future<'_> {
         future::ready(self.word_range(set_addr, key, num_words))
     }
 }

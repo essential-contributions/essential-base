@@ -81,7 +81,7 @@ where
     gas: GasExec,
     /// In the case that the operation future is pending (i.e a state read is in
     /// progress), we store the future here.
-    pending_op: Option<PendingOp<'a, S>>,
+    pending_op: Option<PendingOp<'a, 'a, S>>,
 }
 
 /// Track gas limits and expenditure for execution.
@@ -95,23 +95,23 @@ struct GasExec {
 }
 
 /// Encapsulates a pending operation.
-struct PendingOp<'a, S>
+struct PendingOp<'a, 's, S>
 where
     S: StateRead,
 {
     // The future representing the operation in progress.
-    future: StepOpAsyncFuture<'a, S>,
+    future: StepOpAsyncFuture<'a, 's, S>,
     /// Total gas that will have been spent upon completing the op.
     next_spent: Gas,
 }
 
 /// The future type produced when performing an async operation.
-enum StepOpAsyncFuture<'a, S>
+enum StepOpAsyncFuture<'a, 's, S>
 where
     S: StateRead,
 {
     /// The async `StateRead::WordRange` (or `WordRangeExtern`) operation future.
-    StateRead(StateReadFuture<'a, S>),
+    StateRead(StateReadFuture<'a, 's, S>),
 }
 
 impl From<GasLimit> for GasExec {
@@ -126,11 +126,11 @@ impl From<GasLimit> for GasExec {
 }
 
 // Allow for consuming the async operation future to retake ownership of the stored `&mut Vm`.
-impl<'a, S> From<StepOpAsyncFuture<'a, S>> for &'a mut Vm
+impl<'a, 's, S> From<StepOpAsyncFuture<'a, 's, S>> for &'a mut Vm
 where
     S: StateRead,
 {
-    fn from(future: StepOpAsyncFuture<'a, S>) -> Self {
+    fn from(future: StepOpAsyncFuture<'a, 's, S>) -> Self {
         match future {
             StepOpAsyncFuture::StateRead(future) => future.vm,
         }
@@ -258,7 +258,7 @@ where
     }
 }
 
-impl<'vm, S> Future for StepOpAsyncFuture<'vm, S>
+impl<'vm, 's, S> Future for StepOpAsyncFuture<'vm, 's, S>
 where
     S: StateRead,
 {
@@ -315,7 +315,7 @@ fn step_op_async<'a, S>(
     set_addr: ContentAddress,
     state_read: &'a S,
     vm: &'a mut Vm,
-) -> OpAsyncResult<StepOpAsyncFuture<'a, S>, S::Error>
+) -> OpAsyncResult<StepOpAsyncFuture<'a, 'a, S>, S::Error>
 where
     S: StateRead,
 {
