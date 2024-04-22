@@ -28,6 +28,7 @@
 //! [`ExecFuture`] docs for further details on the implementation.
 #![deny(missing_docs, unsafe_code)]
 
+use constraint::{Repeat, UpdateProgram};
 use error::{MemoryError, OpError, OpSyncError, StateReadError};
 #[doc(inline)]
 pub use error::{MemoryResult, OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
@@ -58,6 +59,10 @@ pub struct Vm {
     pub pc: usize,
     /// The stack machine.
     pub stack: Stack,
+    /// The memory for temporary storage of words.
+    pub temp_memory: essential_constraint_vm::Memory,
+    /// The repeat stack.
+    pub repeat: Repeat,
     /// The program memory, primarily used for collecting the state being read.
     pub memory: Memory,
 }
@@ -279,7 +284,20 @@ where
 /// this step, or `None` in the case that execution has halted.
 pub(crate) fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncResult<Option<usize>> {
     match op {
-        OpSync::Constraint(op) => constraint::step_op(access, op, &mut vm.stack)?,
+        OpSync::Constraint(op) => {
+            let Vm {
+                stack,
+                repeat,
+                pc,
+                temp_memory,
+                ..
+            } = vm;
+            match constraint::step_op(access, op, stack, temp_memory, pc, repeat)? {
+                Some(UpdateProgram::Pc(pc)) => return Ok(Some(pc)),
+                Some(UpdateProgram::Halt) => return Ok(None),
+                None => (),
+            }
+        }
         OpSync::ControlFlow(op) => return step_op_ctrl_flow(op, vm).map_err(From::from),
         OpSync::Memory(op) => step_op_memory(op, &mut *vm)?,
     }
