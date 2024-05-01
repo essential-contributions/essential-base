@@ -89,9 +89,6 @@ pub enum AccessError {
     /// A state slot delta value was invalid. Must be `0` (pre) or `1` (post).
     #[error("invalid state slot delta: expected `0` or `1`, found {0}")]
     InvalidStateSlotDelta(Word),
-    /// Attempted to access a state slot that has no value.
-    #[error("attempted to access a state slot that has no value")]
-    StateSlotWasNone,
 }
 
 /// ALU operation error.
