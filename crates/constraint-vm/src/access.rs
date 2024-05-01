@@ -649,11 +649,8 @@ mod tests {
             asm::Stack::Push(0).into(), // Delta.
             asm::Access::State.into(),
         ];
-        let res = exec_ops(ops, access);
-        match res {
-            Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotWasNone))) => (),
-            _ => panic!("expected state slot was none error, got {res:?}"),
-        }
+        let stack = exec_ops(ops, access).unwrap();
+        assert_eq!(&stack[..], &[0]);
     }
 
     #[test]
