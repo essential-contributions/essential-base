@@ -131,7 +131,7 @@ pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpRes
 pub(crate) fn state(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
     stack.pop2_push1(|slot, delta| {
         let slot = state_slot(slots, slot, delta)?;
-        let word = slot.ok_or(AccessError::StateSlotWasNone)?;
+        let word = slot.unwrap_or_default();
         Ok(word)
     })
 }
@@ -141,7 +141,7 @@ pub(crate) fn state_range(slots: StateSlots, stack: &mut Stack) -> OpResult<()> 
     let [slot, len, delta] = stack.pop3()?;
     let slice = state_slot_range(slots, slot, len, delta)?;
     for slot in slice {
-        let word = slot.ok_or(AccessError::StateSlotWasNone)?;
+        let word = slot.unwrap_or_default();
         stack.push(word)?;
     }
     Ok(())
