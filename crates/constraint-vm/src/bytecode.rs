@@ -17,9 +17,9 @@ use crate::asm::{opcode::ParseOp, ToBytes, ToOpcode, TryFromBytes};
 /// a list of indices into the bytecode representing the location of each
 /// operation.
 #[derive(Clone, Debug, PartialEq)]
-pub struct BytecodeMapped<Op> {
+pub struct BytecodeMapped<Op, Bytes = Vec<u8>> {
     /// The bytecode representation of a program's operations.
-    bytecode: Vec<u8>,
+    bytecode: Bytes,
     /// The index of each op within the bytecode slice.
     ///
     /// Indices are guaranteed to be valid by construction and point to a valid operation.
@@ -29,7 +29,7 @@ pub struct BytecodeMapped<Op> {
 }
 
 /// A slice into a [`BytecodeMapped`] instance.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BytecodeMappedSlice<'a, Op> {
     /// The full bytecode slice from the original `BytecodeMapped`.
     bytecode: &'a [u8],
@@ -48,7 +48,7 @@ pub struct BytecodeMappedLazy<Op, I> {
     pub(crate) iter: I,
 }
 
-impl<Op> BytecodeMapped<Op> {
+impl<Op> BytecodeMapped<Op, Vec<u8>> {
     /// Push a single operation onto the bytecode mapping.
     pub fn push_op(&mut self, op: Op)
     where
@@ -57,15 +57,50 @@ impl<Op> BytecodeMapped<Op> {
         self.op_indices.push(self.bytecode.len());
         self.bytecode.extend(op.to_bytes());
     }
+}
+
+impl<Op, Bytes> BytecodeMapped<Op, Bytes>
+where
+    Bytes: core::ops::Deref<Target = [u8]>,
+{
+    /// Attempt to construct a `BytecodeMapped` from an existing slice of bytes.
+    ///
+    /// `bytes` may be any type that dereferences to a slice of bytes, e.g.
+    /// `&[u8]`, `Arc<[u8]>`, `Vec<u8>`, etc.
+    pub fn try_from_bytes(bytes: Bytes) -> Result<BytecodeMapped<Op, Bytes>, Op::Error>
+    where
+        Op: ToOpcode + TryFromBytes,
+        Op::Opcode: ParseOp<Op = Op> + TryFrom<u8>,
+        Op::Error: From<<Op::Opcode as TryFrom<u8>>::Error> + From<<Op::Opcode as ParseOp>::Error>,
+    {
+        let bytecode = bytes.deref();
+        let mut op_indices = Vec::with_capacity(bytecode.len() / std::mem::size_of::<Op>());
+        let mut iter_enum = bytecode.iter().enumerate();
+        while let Some((ix, &opcode_byte)) = iter_enum.next() {
+            let opcode = Op::Opcode::try_from(opcode_byte)?;
+            let mut op_bytes = iter_enum.by_ref().map(|(_, &byte)| byte);
+            let _op = opcode.parse_op(&mut op_bytes)?;
+            op_indices.push(ix);
+        }
+        Ok(BytecodeMapped {
+            bytecode: bytes,
+            op_indices,
+            _op_ty: core::marker::PhantomData,
+        })
+    }
+
+    /// Borrow the inner bytecode and op_indices slices and return a [`BytecodeMappedSlice`].
+    pub fn as_slice(&self) -> BytecodeMappedSlice<Op> {
+        BytecodeMappedSlice {
+            bytecode: self.bytecode(),
+            op_indices: self.op_indices(),
+            _op_ty: self._op_ty,
+        }
+    }
 
     /// The inner slice of bytecode that has been mapped.
     pub fn bytecode(&self) -> &[u8] {
-        &self.bytecode
-    }
-
-    /// The slice of operation indices within the mapped bytecode.
-    pub fn op_indices(&self) -> &[usize] {
-        &self.op_indices
+        self.bytecode.deref()
     }
 
     /// Slice the op indices from the given index.
@@ -75,7 +110,7 @@ impl<Op> BytecodeMapped<Op> {
     /// Returns `None` if `start` is out of range of the `op_indices` slice.
     pub fn ops_from(&self, start: usize) -> Option<BytecodeMappedSlice<Op>> {
         Some(BytecodeMappedSlice {
-            bytecode: &self.bytecode,
+            bytecode: self.bytecode(),
             op_indices: self.op_indices.get(start..)?,
             _op_ty: self._op_ty,
         })
@@ -95,7 +130,14 @@ impl<Op> BytecodeMapped<Op> {
     where
         Op: TryFromBytes,
     {
-        expect_ops_from_indices(&self.bytecode, self.op_indices.iter().copied())
+        expect_ops_from_indices(self.bytecode(), self.op_indices.iter().copied())
+    }
+}
+
+impl<Op, Bytes> BytecodeMapped<Op, Bytes> {
+    /// The slice of operation indices within the mapped bytecode.
+    pub fn op_indices(&self) -> &[usize] {
+        &self.op_indices
     }
 }
 
@@ -171,19 +213,20 @@ where
 {
     type Error = Op::Error;
     fn try_from(bytecode: Vec<u8>) -> Result<Self, Self::Error> {
-        let mut op_indices = Vec::with_capacity(bytecode.len() / std::mem::size_of::<Op>());
-        let mut iter_enum = bytecode.iter().enumerate();
-        while let Some((ix, &opcode_byte)) = iter_enum.next() {
-            let opcode = Op::Opcode::try_from(opcode_byte)?;
-            let mut op_bytes = iter_enum.by_ref().map(|(_, &byte)| byte);
-            let _op = opcode.parse_op(&mut op_bytes)?;
-            op_indices.push(ix);
-        }
-        Ok(BytecodeMapped {
-            bytecode,
-            op_indices,
-            _op_ty: core::marker::PhantomData,
-        })
+        Self::try_from_bytes(bytecode)
+    }
+}
+
+/// Allow for consuming and mapping an existing `&[u8]`.
+impl<'a, Op> TryFrom<&'a [u8]> for BytecodeMapped<Op, &'a [u8]>
+where
+    Op: ToOpcode + TryFromBytes,
+    Op::Opcode: ParseOp<Op = Op> + TryFrom<u8>,
+    Op::Error: From<<Op::Opcode as TryFrom<u8>>::Error> + From<<Op::Opcode as ParseOp>::Error>,
+{
+    type Error = Op::Error;
+    fn try_from(bytecode: &'a [u8]) -> Result<Self, Self::Error> {
+        Self::try_from_bytes(bytecode)
     }
 }
 

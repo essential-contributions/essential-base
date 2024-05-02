@@ -32,9 +32,10 @@ where
     }
 }
 
-impl<'a, Op> OpAccess for &'a BytecodeMapped<Op>
+impl<'a, Op, Bytes> OpAccess for &'a BytecodeMapped<Op, Bytes>
 where
     Op: TryFromBytes,
+    Bytes: core::ops::Deref<Target = [u8]>,
 {
     type Op = Op;
     type Error = core::convert::Infallible;

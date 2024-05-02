@@ -66,7 +66,7 @@ pub struct Vm {
 pub type Gas = u64;
 
 /// Shorthand for the `BytecodeMapped` type representing a mapping to/from state read [`Op`]s.
-pub type BytecodeMapped = constraint::BytecodeMapped<Op>;
+pub type BytecodeMapped<Bytes = Vec<u8>> = constraint::BytecodeMapped<Op, Bytes>;
 /// Shorthand for the `BytecodeMappedSlice` type for mapping [`Op`]s.
 pub type BytecodeMappedSlice<'a> = constraint::BytecodeMappedSlice<'a, Op>;
 /// Shorthand for the `BytecodeMappedLazy` type for mapping [`Op`]s.
@@ -169,9 +169,9 @@ impl Vm {
     /// This can be a more memory efficient alternative to [`Vm::exec_ops`] due
     /// to the compact representation of operations in the form of bytecode and
     /// indices.
-    pub async fn exec_bytecode<'a, S>(
+    pub async fn exec_bytecode<'a, S, B>(
         &mut self,
-        bytecode_mapped: &BytecodeMapped,
+        bytecode_mapped: &BytecodeMapped<B>,
         access: Access<'a>,
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
@@ -179,6 +179,7 @@ impl Vm {
     ) -> Result<Gas, StateReadError<S::Error>>
     where
         S: StateRead,
+        B: core::ops::Deref<Target = [u8]>,
     {
         self.exec(access, state_read, bytecode_mapped, op_gas_cost, gas_limit)
             .await
