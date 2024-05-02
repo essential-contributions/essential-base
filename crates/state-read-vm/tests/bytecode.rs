@@ -50,12 +50,18 @@ fn mapped_from_bytes() {
     let mapped_a: BytecodeMapped = asm::from_bytes(bytes.iter().copied())
         .collect::<Result<_, _>>()
         .unwrap();
-    let mapped_b = BytecodeMapped::try_from(bytes).unwrap();
+    // Check mapping of `Vec<u8>`.
+    let mapped_b = BytecodeMapped::try_from(bytes.clone()).unwrap();
     assert_eq!(mapped_a, mapped_b);
+    // Check mapping of `&[u8]`.
+    let mapped_c = BytecodeMapped::try_from(&bytes[..]).unwrap();
+    assert_eq!(mapped_a.as_slice(), mapped_c.as_slice());
 
     // Ensure the roundtrip conversion is correct.
     let ops_a: Vec<_> = mapped_a.ops().collect();
     let ops_b: Vec<_> = mapped_b.ops().collect();
+    let ops_c: Vec<_> = mapped_c.ops().collect();
     assert_eq!(ops_a, ops);
     assert_eq!(ops_b, ops);
+    assert_eq!(ops_c, ops);
 }
