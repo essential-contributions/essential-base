@@ -3,19 +3,28 @@
 //!
 //! ## Solution Validation.
 //!
-//! - [`solution::check_signed`] validates a signed solution. Also exposes:
-//!     - [`solution::check`] validates an unsigned solution.
-//!     - [`solution::check_data`] validates the solution data slice.
-//!     - [`solution::check_state_mutations`] validates the solution's state mutation slice.
-//!     - [`solution::check_partial_solutions`] validates the solution's signed partial solutions.
+//! - [`solution::check_signed`] validates a signed solution.
+//! - [`solution::check`] validates an unsigned solution.
+//! - [`solution::check_data`] validates a solution's data slice.
+//! - [`solution::check_state_mutations`] validates a solution's state mutation slice.
+//! - [`solution::check_partial_solutions`] validates a solution's signed partial solutions.
 //!
 //! ## Solution + Intent Validation
 //!
 //! - [`solution::check_intents`] validates a solution's data against their associated intents.
-//!   Also exposes:
-//!     - [`solution::check_intent`] validates a single solution data against an associated intent.
-//!     - [`solution::check_intent_constraints`] the intent constraint checking part of solution
-//!       data validation.
+//! - [`solution::check_intent`] validates a single solution data against an associated intent.
+//! - [`solution::check_intent_constraints`] the intent constraint checking part of solution
+//!   data validation.
+//!
+//! ## Intent Validation.
+//!
+//! - [`intent::check_signed_set`] validates a signed set of intents. Also exposes:
+//! - [`intent::check_set`] validates a set of intents.
+//! - [`intent::check`] validate an individual intent.
+//! - [`intent::check_slots`] validate an intent's slots.
+//! - [`intent::check_directive`] validate an intent's directive.
+//! - [`intent::check_state_reads`] validate an intent's state read bytecode.
+//! - [`intent::check_constraints`] validate an intent's constraint bytecode.
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
@@ -36,6 +45,7 @@ pub use essential_types as types;
 pub use solution::Utility;
 use std::sync::Arc;
 
+pub mod intent;
 pub mod solution;
 
 // TODO: Remove this `StateTransactionWrite` and `apply_mutation` stuff. It's
