@@ -16,6 +16,7 @@ essential-state-read-vm = { path = "crates/state-read-vm" }
 essential-types = { path = "crates/types" }
 futures = "0.3" # For `state-read-vm` tests.
 hex = "0.4.3"
+postcard = { version = "1.0.8", default-featues = false, features = ["alloc"] }
 proc-macro2 = "1"
 quote = "1"
 rand = { version = "0.8", features = ["small_rng"] } # For VM tests.
