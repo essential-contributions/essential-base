@@ -1,0 +1,15 @@
+[package]
+name = "essential-sign"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+essential-hash = { workspace = true }
+essential-types = { workspace = true }
+secp256k1 = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+hex = { workspace = true }
+rand = { workspace = true }
+secp256k1 = { workspace = true, features = ["rand-std"] }
