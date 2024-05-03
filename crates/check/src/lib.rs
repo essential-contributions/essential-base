@@ -1,10 +1,38 @@
+//! Core logic for validating [`Intent`]s, [`Solution`]s and
+//! [`SolutionData`][crate::types::solution::SolutionData] against associated intents.
+//!
+//! ## Solution Validation.
+//!
+//! - [`solution::check_signed`] validates a signed solution. Also exposes:
+//!     - [`solution::check`] validates an unsigned solution.
+//!     - [`solution::check_data`] validates the solution data slice.
+//!     - [`solution::check_state_mutations`] validates the solution's state mutation slice.
+//!     - [`solution::check_partial_solutions`] validates the solution's signed partial solutions.
+//!
+//! ## Solution + Intent Validation
+//!
+//! - [`solution::check_intents`] validates a solution's data against their associated intents.
+//!   Also exposes:
+//!     - [`solution::check_intent`] validates a single solution data against an associated intent.
+//!     - [`solution::check_intent_constraints`] the intent constraint checking part of solution
+//!       data validation.
+
+#![deny(missing_docs)]
+#![deny(unsafe_code)]
+
 use crate::{
     state_read_vm::{Gas, StateRead},
     types::{intent::Intent, solution::Solution, ContentAddress, IntentAddress, Key, Word},
 };
+#[doc(inline)]
 pub use essential_constraint_vm as constraint_vm;
+#[doc(inline)]
+pub use essential_sign as sign;
+#[doc(inline)]
 pub use essential_state_read_vm as state_read_vm;
+#[doc(inline)]
 pub use essential_types as types;
+#[doc(inline)]
 pub use solution::Utility;
 use std::sync::Arc;
 

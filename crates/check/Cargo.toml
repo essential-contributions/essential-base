@@ -7,8 +7,9 @@ edition.workspace = true
 [dependencies]
 anyhow = "1"
 essential-constraint-vm = { workspace = true }
+essential-sign = { workspace = true }
 essential-state-read-vm = { workspace = true }
 essential-types = { workspace = true }
 rayon = { workspace = true }
-thiserror = "1"
+thiserror = { workspace = true }
 tokio = { workspace = true }
