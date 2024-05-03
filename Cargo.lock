@@ -269,6 +269,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "essential-constraint-vm",
+ "essential-sign",
  "essential-state-read-vm",
  "essential-types",
  "rayon",

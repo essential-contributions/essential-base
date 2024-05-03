@@ -1,7 +1,7 @@
 //! Items related to validating `Solution`s.
 
 use crate::{
-    constraint_vm,
+    constraint_vm, sign,
     state_read_vm::{
         self, Access, BytecodeMapped, Gas, GasLimit, SolutionAccess, StateRead, StateSlotSlice,
         StateSlots,
@@ -9,8 +9,8 @@ use crate::{
     types::{
         intent::{Directive, Intent},
         slots::{self, StateSlot},
-        solution::{Solution, SolutionDataIndex},
-        IntentAddress, Word,
+        solution::{Solution, SolutionData, SolutionDataIndex},
+        ContentAddress, IntentAddress, Signed, Word,
     },
 };
 use std::sync::Arc;
@@ -19,12 +19,97 @@ use tokio::task::JoinSet;
 /// The utility score of a solution.
 pub type Utility = f64;
 
-/// Checks a solution against its associated intents, one task per solution data.
+/// Maximum number of decision variables of a solution.
+pub const MAX_DECISION_VARIABLES: u32 = 100;
+/// Maximum number of solution data of a solution.
+pub const MAX_SOLUTION_DATA: usize = 100;
+/// Maximum number of state mutations of a solution.
+pub const MAX_STATE_MUTATIONS: usize = 1000;
+/// Maximum number of partial solutions of a solution.
+pub const MAX_PARTIAL_SOLUTIONS: usize = 20;
+
+/// Validate a [`Signed<Solution>`][Signed], to the extent it can be validated
+/// without reference to its associated intents or partial solutions.
 ///
-/// For each of the solution's `data` elements, reads the pre and post state
-/// slots for the associated intent with access to the given `pre_state` and
-/// `post_state`, then checks all constraints over the resulting pre and post
-/// state slots.
+/// This includes solution data, state mutations and associated partial solutions.
+pub fn check_signed(solution: &Signed<Solution>) -> anyhow::Result<()> {
+    anyhow::ensure!(sign::verify(solution), "Invalid solution signature");
+    check(&solution.data)?;
+    Ok(())
+}
+
+/// Validate a solution, to the extent it can be validated without reference to
+/// its associated intents or partial solutions.
+///
+/// This includes solution data, state mutations and associated partial solutions.
+pub fn check(solution: &Solution) -> anyhow::Result<()> {
+    check_data(&solution.data)?;
+    check_state_mutations(solution)?;
+    check_partial_solutions(&solution.partial_solutions)?;
+    Ok(())
+}
+
+/// Validate the solution's slice of [`SolutionData`].
+pub fn check_data(data: &[SolutionData]) -> anyhow::Result<()> {
+    // Validate solution data.
+    // Ensure that at solution has at least one solution data.
+    anyhow::ensure!(!data.is_empty(), "Must be at least one solution data");
+    // Ensure that solution data length is below limit length.
+    anyhow::ensure!(data.len() <= MAX_SOLUTION_DATA, "Too many solution data");
+    // Ensure that decision variables of each solution data are below limit length.
+    anyhow::ensure!(
+        data.iter().all(|d| d
+            .decision_variables
+            .len()
+            .try_into()
+            .map_or(false, |num: u32| num <= MAX_DECISION_VARIABLES)),
+        "Too many decision variables"
+    );
+    Ok(())
+}
+
+/// Validate the solution's state mutations.
+pub fn check_state_mutations(solution: &Solution) -> anyhow::Result<()> {
+    // Validate state mutations.
+    // Ensure that solution state mutations length is below limit length.
+    anyhow::ensure!(
+        solution.state_mutations.len() <= MAX_STATE_MUTATIONS,
+        "Too many state mutations"
+    );
+    // Ensure that all state mutations with a pathway points to some solution data.
+    anyhow::ensure!(
+        solution
+            .state_mutations
+            .iter()
+            .map(|mutation| &mutation.pathway)
+            .all(|pathway| solution.data.len() > *pathway as usize),
+        "All state mutations must have an intent in the set"
+    );
+    Ok(())
+}
+
+/// Validate the solution's associated partial solutions.
+pub fn check_partial_solutions(partial_solutions: &[Signed<ContentAddress>]) -> anyhow::Result<()> {
+    // Validate partial solutions.
+    // Ensure that solution partial solutions length is below limit length.
+    anyhow::ensure!(
+        partial_solutions.len() <= MAX_PARTIAL_SOLUTIONS,
+        "Too many partial solutions"
+    );
+    // Verify signatures of all partial solutions.
+    anyhow::ensure!(
+        partial_solutions.iter().all(sign::verify),
+        "Invalid partial solution signature"
+    );
+    Ok(())
+}
+
+/// Checks all of a solution's `SolutionData` against its associated intents.
+///
+/// For each of the solution's `data` elements, a single task is spawned that
+/// reads the pre and post state slots for the associated intent with access to
+/// the given `pre_state` and `post_state`, then checks all constraints over the
+/// resulting pre and post state slots.
 ///
 /// ## Arguments
 ///
