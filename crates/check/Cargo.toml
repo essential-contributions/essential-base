@@ -9,5 +9,6 @@ anyhow = "1"
 essential-constraint-vm = { workspace = true }
 essential-state-read-vm = { workspace = true }
 essential-types = { workspace = true }
+rayon = { workspace = true }
 thiserror = "1"
 tokio = { workspace = true }

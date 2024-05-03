@@ -11,7 +11,7 @@ use std::sync::Arc;
 pub mod solution;
 
 // TODO: Remove this `StateTransactionWrite` and `apply_mutation` stuff. It's
-// just a temporary demo on how the state mutations can.
+// just a temporary demo on how the state mutations can be applied separately.
 
 // be separated out from the solution checking.
 /// State transaction types that may be written to.

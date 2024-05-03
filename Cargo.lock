@@ -271,6 +271,7 @@ dependencies = [
  "essential-constraint-vm",
  "essential-state-read-vm",
  "essential-types",
+ "rayon",
  "thiserror",
  "tokio",
 ]
