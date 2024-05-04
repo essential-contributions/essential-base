@@ -1,7 +1,17 @@
 //! Core logic for validating [`Intent`]s, [`Solution`]s and
 //! [`SolutionData`][crate::types::solution::SolutionData] against associated intents.
 //!
-//! ## Solution Validation.
+//! ## Intent Validation
+//!
+//! - [`intent::check_signed_set`] validates a signed set of intents. Also exposes:
+//! - [`intent::check_set`] validates a set of intents.
+//! - [`intent::check`] validate an individual intent.
+//! - [`intent::check_slots`] validate an intent's slots.
+//! - [`intent::check_directive`] validate an intent's directive.
+//! - [`intent::check_state_reads`] validate an intent's state read bytecode.
+//! - [`intent::check_constraints`] validate an intent's constraint bytecode.
+//!
+//! ## Solution Validation
 //!
 //! - [`solution::check_signed`] validates a signed solution.
 //! - [`solution::check`] validates an unsigned solution.
@@ -15,16 +25,6 @@
 //! - [`solution::check_intent`] validates a single solution data against an associated intent.
 //! - [`solution::check_intent_constraints`] the intent constraint checking part of solution
 //!   data validation.
-//!
-//! ## Intent Validation.
-//!
-//! - [`intent::check_signed_set`] validates a signed set of intents. Also exposes:
-//! - [`intent::check_set`] validates a set of intents.
-//! - [`intent::check`] validate an individual intent.
-//! - [`intent::check_slots`] validate an intent's slots.
-//! - [`intent::check_directive`] validate an intent's directive.
-//! - [`intent::check_state_reads`] validate an intent's state read bytecode.
-//! - [`intent::check_constraints`] validate an intent's constraint bytecode.
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
