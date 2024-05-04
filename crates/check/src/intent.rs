@@ -1,16 +1,117 @@
 //! Items related to the validation of [`Intent`]s.
 
 use crate::{
-    sign::verify,
+    sign::{secp256k1, verify},
     types::{
         intent::{Directive, Intent},
         slots::{state_len, Slots},
         ConstraintBytecode, Signed, StateReadBytecode,
     },
 };
-use anyhow::ensure;
+use thiserror::Error;
 
-/// Maximum number of intents that of an intent set.
+/// [`check_signed_set`] error.
+#[derive(Debug, Error)]
+pub enum SignedSetError {
+    /// Failed to validate the signature over the set.
+    #[error("invalid signature: {0}")]
+    InvalidSignature(#[from] secp256k1::Error),
+    /// The intent set was invalid.
+    #[error("invalid set: {0}")]
+    InvalidSet(#[from] SetError),
+}
+
+/// [`check_set`] error.
+#[derive(Debug, Error)]
+pub enum SetError {
+    /// The number of intents in the set exceeds the limit.
+    #[error("the number of intents ({0}) exceeds the limit ({MAX_INTENTS})")]
+    TooManyIntents(usize),
+    /// The intent at the given index was invalid.
+    #[error("intent at index {0} is invalid: {1}")]
+    InvalidIntent(usize, IntentError),
+}
+
+/// [`check`] error indicating part of an intent was invalid.
+#[derive(Debug, Error)]
+pub enum IntentError {
+    /// The intent's slots are invalid.
+    #[error("invalid slots: {0}")]
+    Slots(#[from] SlotsError),
+    /// The intent's directive is invalid.
+    #[error("invalid directive: {0}")]
+    Directive(#[from] DirectiveError),
+    /// The intent's state reads are invalid.
+    #[error("invalid state reads: {0}")]
+    StateReads(#[from] StateReadsError),
+    /// The intent's constraints are invalid.
+    #[error("invalid constraints: {0}")]
+    Constraints(#[from] ConstraintsError),
+}
+
+/// [`check_slots`] error.
+#[derive(Debug, Error)]
+pub enum SlotsError {
+    /// The intent expects too many decision variables.
+    #[error("the number of decision vars ({0}) exceeds the limit ({MAX_DECISION_VARIABLES})")]
+    TooManyDecisionVariables(u32),
+    /// The number of state slots exceeds the limit.
+    #[error("the number of state slots ({0}) exceeds the limit ({MAX_NUM_STATE_SLOTS})")]
+    TooManyStateSlots(usize),
+    /// The total length of all state slots exceeds the limit.
+    ///
+    /// `None` in the case that the length exceeds `u32::MAX`.
+    #[error("the total length of all state slots ({0:?}) exceeds the limit ({MAX_STATE_LEN})")]
+    StateSlotLengthExceedsLimit(Option<u32>),
+}
+
+/// [`check_directive`] error.
+#[derive(Debug, Error)]
+pub enum DirectiveError {
+    /// The length of the bytecode exceeds the limit.
+    #[error("the length of the bytecode ({0}) exceeds the limit ({MAX_DIRECTIVE_SIZE})")]
+    TooManyBytes(usize),
+}
+
+/// [`check_state_reads`] error.
+#[derive(Debug, Error)]
+pub enum StateReadsError {
+    /// The number of state reads exceeds the limit.
+    #[error("the number of state reads ({0}) exceeds the limit ({MAX_STATE_READS})")]
+    TooManyStateReads(usize),
+    /// The state read at the given index failed to validate.
+    #[error("state read at index {0} failed to validate: {1}")]
+    StateRead(usize, StateReadError),
+}
+
+/// [`check_state_read`] error.
+#[derive(Debug, Error)]
+pub enum StateReadError {
+    /// The length of the bytecode exceeds the limit.
+    #[error("the length of the bytecode ({0}) exceeds the limit ({MAX_STATE_READ_SIZE_IN_BYTES}")]
+    TooManyBytes(usize),
+}
+
+/// [`check_constraints`] error.
+#[derive(Debug, Error)]
+pub enum ConstraintsError {
+    /// The number of constraints exceeds the limit.
+    #[error("the number of constraints ({0}) exceeds the limit ({MAX_CONSTRAINTS})")]
+    TooManyConstraints(usize),
+    /// The constraint at the given index failed to validate.
+    #[error("constraint at index {0} failed to validate: {1}")]
+    Constraint(usize, ConstraintError),
+}
+
+/// [`check_constraint`] error.
+#[derive(Debug, Error)]
+pub enum ConstraintError {
+    /// The length of the bytecode exceeds the limit.
+    #[error("the length of the bytecode ({0}) exceeds the limit ({MAX_CONSTRAINT_SIZE_IN_BYTES}")]
+    TooManyBytes(usize),
+}
+
+/// Maximum number of intents in a set.
 pub const MAX_INTENTS: usize = 100;
 /// Maximum number of state read programs of an intent.
 pub const MAX_STATE_READS: usize = 100;
@@ -32,19 +133,21 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Validate a signed set of intents.
 ///
 /// Verifies the signature and then validates the intent set.
-pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> anyhow::Result<()> {
-    ensure!(verify(intents), "Failed to verify intent set signature");
+pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), SignedSetError> {
+    verify(intents)?;
     check_set(&intents.data)?;
     Ok(())
 }
 
-/// Validate a set of intents
+/// Validate a set of intents.
 ///
 /// Checks the size of the set and then validates each intent.
-pub fn check_set(intents: &[Intent]) -> anyhow::Result<()> {
-    ensure!(intents.len() <= MAX_INTENTS, "Too many intents");
-    for intent in intents {
-        check(intent)?;
+pub fn check_set(intents: &[Intent]) -> Result<(), SetError> {
+    if intents.len() > MAX_INTENTS {
+        return Err(SetError::TooManyIntents(intents.len()));
+    }
+    for (ix, intent) in intents.iter().enumerate() {
+        check(intent).map_err(|e| SetError::InvalidIntent(ix, e))?;
     }
     Ok(())
 }
@@ -52,7 +155,7 @@ pub fn check_set(intents: &[Intent]) -> anyhow::Result<()> {
 /// Validate a single intent.
 ///
 /// Validates the slots, directive, state reads, and constraints.
-pub fn check(intent: &Intent) -> anyhow::Result<()> {
+pub fn check(intent: &Intent) -> Result<(), IntentError> {
     check_slots(&intent.slots)?;
     check_directive(&intent.directive)?;
     check_state_reads(&intent.state_read)?;
@@ -61,52 +164,68 @@ pub fn check(intent: &Intent) -> anyhow::Result<()> {
 }
 
 /// Validate an intent's slots.
-pub fn check_slots(slots: &Slots) -> anyhow::Result<()> {
-    ensure!(
-        slots.decision_variables <= MAX_DECISION_VARIABLES,
-        "Too many decision variables"
-    );
-    ensure!(
-        slots.state.len() <= MAX_NUM_STATE_SLOTS,
-        "Too many state slots"
-    );
-    let len = state_len(&slots.state);
-    ensure!(len.is_some(), "Invalid slots state length");
-    ensure!(
-        len.unwrap() <= MAX_STATE_LEN,
-        "Slots state length too large"
-    );
-    Ok(())
+///
+/// Checks the number of decision variables, state slots and the total state length in words.
+pub fn check_slots(slots: &Slots) -> Result<(), SlotsError> {
+    if slots.decision_variables > MAX_DECISION_VARIABLES {
+        return Err(SlotsError::TooManyDecisionVariables(
+            slots.decision_variables,
+        ));
+    }
+    if slots.state.len() > MAX_NUM_STATE_SLOTS {
+        return Err(SlotsError::TooManyStateSlots(slots.state.len()));
+    }
+    match state_len(&slots.state) {
+        None => Err(SlotsError::StateSlotLengthExceedsLimit(None)),
+        Some(len) if len > MAX_STATE_LEN => Err(SlotsError::StateSlotLengthExceedsLimit(Some(len))),
+        _ => Ok(()),
+    }
 }
 
 /// Validate an intent's directive.
-pub fn check_directive(directive: &Directive) -> anyhow::Result<()> {
+pub fn check_directive(directive: &Directive) -> Result<(), DirectiveError> {
     if let Directive::Maximize(program) | Directive::Minimize(program) = directive {
-        ensure!(program.len() <= MAX_DIRECTIVE_SIZE, "Directive too large");
+        if program.len() > MAX_DIRECTIVE_SIZE {
+            return Err(DirectiveError::TooManyBytes(program.len()));
+        }
     }
     Ok(())
 }
 
 /// Validate an intent's state read bytecode.
-pub fn check_state_reads(state_reads: &[StateReadBytecode]) -> anyhow::Result<()> {
-    ensure!(state_reads.len() <= MAX_STATE_READS, "Too many state reads");
-    ensure!(
-        state_reads
-            .iter()
-            .all(|sr| sr.len() <= MAX_STATE_READ_SIZE_IN_BYTES),
-        "State read too large"
-    );
+pub fn check_state_reads(state_reads: &[StateReadBytecode]) -> Result<(), StateReadsError> {
+    if state_reads.len() > MAX_STATE_READS {
+        return Err(StateReadsError::TooManyStateReads(state_reads.len()));
+    }
+    for (ix, state_read) in state_reads.iter().enumerate() {
+        check_state_read(state_read).map_err(|e| StateReadsError::StateRead(ix, e))?;
+    }
+    Ok(())
+}
+
+/// Validate a single state read bytecode slice.
+pub fn check_state_read(state_read: &[u8]) -> Result<(), StateReadError> {
+    if state_read.len() > MAX_STATE_READ_SIZE_IN_BYTES {
+        return Err(StateReadError::TooManyBytes(state_read.len()));
+    }
     Ok(())
 }
 
 /// Validate an intent's constraint bytecode.
-pub fn check_constraints(constraints: &[ConstraintBytecode]) -> anyhow::Result<()> {
-    ensure!(constraints.len() <= MAX_CONSTRAINTS, "Too many constraints");
-    ensure!(
-        constraints
-            .iter()
-            .all(|c| c.len() <= MAX_CONSTRAINT_SIZE_IN_BYTES),
-        "Constraint too large"
-    );
+pub fn check_constraints(constraints: &[ConstraintBytecode]) -> Result<(), ConstraintsError> {
+    if constraints.len() > MAX_CONSTRAINTS {
+        return Err(ConstraintsError::TooManyConstraints(constraints.len()));
+    }
+    for (ix, constraint) in constraints.iter().enumerate() {
+        check_constraint(constraint).map_err(|e| ConstraintsError::Constraint(ix, e))?;
+    }
+    Ok(())
+}
+
+/// Validate a single constraint bytecode slice.
+pub fn check_constraint(constraint: &[u8]) -> Result<(), ConstraintError> {
+    if constraint.len() > MAX_CONSTRAINT_SIZE_IN_BYTES {
+        return Err(ConstraintError::TooManyBytes(constraint.len()));
+    }
     Ok(())
 }
