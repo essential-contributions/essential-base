@@ -1,10 +1,14 @@
 //! Items related to validating `Solution`s.
 
 use crate::{
-    constraint_vm, sign,
+    constraint_vm::{
+        self,
+        error::{CheckError, ConstraintErrors, ConstraintsUnsatisfied},
+    },
+    sign::{self, secp256k1},
     state_read_vm::{
-        self, Access, BytecodeMapped, Gas, GasLimit, SolutionAccess, StateRead, StateSlotSlice,
-        StateSlots,
+        self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
+        SolutionAccess, StateRead, StateSlotSlice, StateSlots,
     },
     types::{
         intent::{Directive, Intent},
@@ -13,11 +17,163 @@ use crate::{
         ContentAddress, IntentAddress, Signed, Word,
     },
 };
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
+use thiserror::Error;
 use tokio::task::JoinSet;
+
+/// [`check_signed`] error.
+#[derive(Debug, Error)]
+pub enum SignedSolutionError {
+    /// Invalid signature.
+    #[error("failed to validate solution signature")]
+    InvalidSignature(#[from] secp256k1::Error),
+    /// Invalid solution.
+    #[error("invalid solution: {0}")]
+    Solution(#[from] SolutionError),
+}
+
+/// [`check`] error.
+#[derive(Debug, Error)]
+pub enum SolutionError {
+    /// Invalid solution data.
+    #[error("invalid solution data: {0}")]
+    Data(#[from] SolutionDataError),
+    /// State mutations validation failed.
+    #[error("state mutations validation failed: {0}")]
+    StateMutations(#[from] StateMutationsError),
+    /// Partial solutions validation failed.
+    #[error("partial solutions validation failed: {0}")]
+    PartialSolutions(#[from] PartialSolutionsError),
+}
+
+/// [`check_data`] error.
+#[derive(Debug, Error)]
+pub enum SolutionDataError {
+    /// There must be at least one solution data.
+    #[error("must be at least one solution data")]
+    Empty,
+    /// The number of solution data exceeds the limit.
+    #[error("the number of solution data ({0}) exceeds the limit ({MAX_SOLUTION_DATA})")]
+    TooMany(usize),
+    /// A solution data expects too many decision variables.
+    #[error("data {0} expects too many decision vars {1} (limit: {MAX_DECISION_VARIABLES})")]
+    TooManyDecisionVariables(usize, usize),
+}
+
+/// [`check_state_mutations`] error.
+#[derive(Debug, Error)]
+pub enum StateMutationsError {
+    /// The number of state mutations exceeds the limit.
+    #[error("the number of state mutations ({0}) exceeds the limit ({MAX_STATE_MUTATIONS})")]
+    TooMany(usize),
+    /// State mutation pathway at the given index is out of range of solution data.
+    #[error("state mutation pathway {0} out of range of solution data")]
+    PathwayOutOfRangeOfSolutionData(u16),
+}
+
+/// [`check_partial_solutions`] error.
+#[derive(Debug, Error)]
+pub enum PartialSolutionsError {
+    /// The number of partial solutions exceeded the limit.
+    #[error("the number of partial solutions ({0}) exceeds the limit ({MAX_PARTIAL_SOLUTIONS})")]
+    TooMany(usize),
+    /// Failed to validate the signature of the partial solution at the given index.
+    #[error("failed to validate the signature of the partial solution at index {0}: {1}")]
+    InvalidSignature(usize, secp256k1::Error),
+}
+
+/// [`check_intents`] error.
+#[derive(Debug, Error)]
+pub enum IntentsError<E> {
+    /// One or more solution data failed their associated intent checks.
+    #[error("one or more solution data failed their associated intent checks: {0}")]
+    Failed(#[from] IntentErrors<E>),
+    /// One or more tasks failed to join.
+    #[error("one or more spawned tasks failed to join: {0}")]
+    Join(#[from] tokio::task::JoinError),
+    /// Summing solution data utility resulted in overflow.
+    #[error("summing solution data utility overflowed")]
+    UtilityOverflowed,
+    /// Summing solution data gas resulted in overflow.
+    #[error("summing solution data gas overflowed")]
+    GasOverflowed,
+}
+
+/// Intent checking failed for the solution data at the given indices.
+#[derive(Debug, Error)]
+pub struct IntentErrors<E>(pub Vec<(SolutionDataIndex, IntentError<E>)>);
+
+/// [`check_intent`] error.
+#[derive(Debug, Error)]
+pub enum IntentError<E> {
+    /// The intent itself was invalid.
+    // TODO: Should we be skipping these errors, and document that intents must be
+    // validated prior to `solution::check_intent`?
+    #[error("the intent itself is invalid: {0}")]
+    InvalidIntent(#[from] crate::intent::IntentError),
+    /// Failed to parse ops from bytecode during bytecode mapping.
+    #[error("failed to parse an op during bytecode mapping: {0}")]
+    OpsFromBytesError(#[from] FromBytesError),
+    /// Failed to read state.
+    #[error("state read executino error: {0}")]
+    StateRead(#[from] StateReadError<E>),
+    /// Failed to write state slots to temporary slice.
+    #[error("failed to write state slots to temporary slice: {0}")]
+    WriteStateSlots(#[from] WriteStateSlotsError),
+    /// Constraint checking failed.
+    #[error("constraint checking failed: {0}")]
+    Constraints(#[from] IntentConstraintsError),
+}
+
+/// Failed to write state slots.
+#[derive(Debug, Error)]
+pub enum WriteStateSlotsError {
+    /// No program index matching state read index.
+    #[error("no program index matching state read index {0}")]
+    NoProgramIndexMatchingStateReadIndex(u16),
+    /// Length of read state slots does not match expected length.
+    #[error("length of read state slots ({found}) does not match expected length ({expected})")]
+    StateSlotLengthMismatch {
+        /// The number of read state slots.
+        found: usize,
+        /// The expected number of state slots.
+        expected: usize,
+    },
+}
+
+/// [`check_intent_constraints`] error.
+#[derive(Debug, Error)]
+pub enum IntentConstraintsError {
+    /// Constraint checking failed.
+    #[error("check failed: {0}")]
+    Check(#[from] constraint_vm::error::CheckError),
+    /// Failed to receive result from spawned task.
+    #[error("failed to recv: {0}")]
+    Recv(#[from] tokio::sync::oneshot::error::RecvError),
+    /// Failed to calculate the utility.
+    #[error("failed to calculate utility: {0}")]
+    Utility(#[from] UtilityError),
+}
 
 /// The utility score of a solution.
 pub type Utility = f64;
+
+/// [`calculate_utility`] error.
+#[derive(Debug, Error)]
+pub enum UtilityError {
+    /// The range specified by the intent's directive is invalid.
+    #[error("the range specified by the directive [{0}..{1}] is invalid")]
+    InvalidDirectiveRange(Word, Word),
+    /// The stack returned from directive execution is invalid.
+    #[error("invalid stack result after directive execution: {0}")]
+    InvalidStack(#[from] constraint_vm::error::StackError),
+    /// Failed to execute the directive using the constraint VM.
+    #[error("directive execution with constraint VM failed: {0}")]
+    Execution(#[from] constraint_vm::error::ConstraintError),
+    /// Failed to receive result from spawned task.
+    #[error("failed to recv: {0}")]
+    Recv(#[from] tokio::sync::oneshot::error::RecvError),
+}
 
 /// Maximum number of decision variables of a solution.
 pub const MAX_DECISION_VARIABLES: u32 = 100;
@@ -28,12 +184,22 @@ pub const MAX_STATE_MUTATIONS: usize = 1000;
 /// Maximum number of partial solutions of a solution.
 pub const MAX_PARTIAL_SOLUTIONS: usize = 20;
 
+impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("intent checking failed for one or more solution data:\n")?;
+        for (ix, err) in &self.0 {
+            f.write_str(&format!("  {ix}: {err}\n"))?;
+        }
+        Ok(())
+    }
+}
+
 /// Validate a [`Signed<Solution>`][Signed], to the extent it can be validated
 /// without reference to its associated intents or partial solutions.
 ///
 /// This includes solution data, state mutations and associated partial solutions.
-pub fn check_signed(solution: &Signed<Solution>) -> anyhow::Result<()> {
-    anyhow::ensure!(sign::verify(solution), "Invalid solution signature");
+pub fn check_signed(solution: &Signed<Solution>) -> Result<(), SignedSolutionError> {
+    sign::verify(solution)?;
     check(&solution.data)?;
     Ok(())
 }
@@ -42,7 +208,7 @@ pub fn check_signed(solution: &Signed<Solution>) -> anyhow::Result<()> {
 /// its associated intents or partial solutions.
 ///
 /// This includes solution data, state mutations and associated partial solutions.
-pub fn check(solution: &Solution) -> anyhow::Result<()> {
+pub fn check(solution: &Solution) -> Result<(), SolutionError> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
     check_partial_solutions(&solution.partial_solutions)?;
@@ -50,57 +216,59 @@ pub fn check(solution: &Solution) -> anyhow::Result<()> {
 }
 
 /// Validate the solution's slice of [`SolutionData`].
-pub fn check_data(data: &[SolutionData]) -> anyhow::Result<()> {
+pub fn check_data(data: &[SolutionData]) -> Result<(), SolutionDataError> {
     // Validate solution data.
     // Ensure that at solution has at least one solution data.
-    anyhow::ensure!(!data.is_empty(), "Must be at least one solution data");
+    if data.is_empty() {
+        return Err(SolutionDataError::Empty);
+    }
     // Ensure that solution data length is below limit length.
-    anyhow::ensure!(data.len() <= MAX_SOLUTION_DATA, "Too many solution data");
+    if data.len() > MAX_SOLUTION_DATA {
+        return Err(SolutionDataError::TooMany(data.len()));
+    }
     // Ensure that decision variables of each solution data are below limit length.
-    anyhow::ensure!(
-        data.iter().all(|d| d
-            .decision_variables
-            .len()
-            .try_into()
-            .map_or(false, |num: u32| num <= MAX_DECISION_VARIABLES)),
-        "Too many decision variables"
-    );
+    for (ix, data) in data.iter().enumerate() {
+        if data.decision_variables.len() > MAX_DECISION_VARIABLES as usize {
+            return Err(SolutionDataError::TooManyDecisionVariables(
+                ix,
+                data.decision_variables.len(),
+            ));
+        }
+    }
     Ok(())
 }
 
 /// Validate the solution's state mutations.
-pub fn check_state_mutations(solution: &Solution) -> anyhow::Result<()> {
+pub fn check_state_mutations(solution: &Solution) -> Result<(), StateMutationsError> {
     // Validate state mutations.
     // Ensure that solution state mutations length is below limit length.
-    anyhow::ensure!(
-        solution.state_mutations.len() <= MAX_STATE_MUTATIONS,
-        "Too many state mutations"
-    );
+    if solution.state_mutations.len() > MAX_STATE_MUTATIONS {
+        return Err(StateMutationsError::TooMany(solution.state_mutations.len()));
+    }
     // Ensure that all state mutations with a pathway points to some solution data.
-    anyhow::ensure!(
-        solution
-            .state_mutations
-            .iter()
-            .map(|mutation| &mutation.pathway)
-            .all(|pathway| solution.data.len() > *pathway as usize),
-        "All state mutations must have an intent in the set"
-    );
+    for state_mut in &solution.state_mutations {
+        if solution.data.len() <= usize::from(state_mut.pathway) {
+            return Err(StateMutationsError::PathwayOutOfRangeOfSolutionData(
+                state_mut.pathway,
+            ));
+        }
+    }
     Ok(())
 }
 
 /// Validate the solution's associated partial solutions.
-pub fn check_partial_solutions(partial_solutions: &[Signed<ContentAddress>]) -> anyhow::Result<()> {
+pub fn check_partial_solutions(
+    partial_solutions: &[Signed<ContentAddress>],
+) -> Result<(), PartialSolutionsError> {
     // Validate partial solutions.
     // Ensure that solution partial solutions length is below limit length.
-    anyhow::ensure!(
-        partial_solutions.len() <= MAX_PARTIAL_SOLUTIONS,
-        "Too many partial solutions"
-    );
+    if partial_solutions.len() > MAX_PARTIAL_SOLUTIONS {
+        return Err(PartialSolutionsError::TooMany(partial_solutions.len()));
+    }
     // Verify signatures of all partial solutions.
-    anyhow::ensure!(
-        partial_solutions.iter().all(sign::verify),
-        "Invalid partial solution signature"
-    );
+    for (ix, signed) in partial_solutions.iter().enumerate() {
+        sign::verify(signed).map_err(|e| PartialSolutionsError::InvalidSignature(ix, e))?;
+    }
     Ok(())
 }
 
@@ -116,7 +284,7 @@ pub fn check_partial_solutions(partial_solutions: &[Signed<ContentAddress>]) -> 
 /// - `pre_state` must provide access to state *prior to* mutations being applied.
 /// - `post_state` must provide access to state *post* mutations being applied.
 /// - `get_intent` provides immediate access to an intent associated with the given
-///   solution. Calls to `intent` must complete immediately. The necessary
+///   solution. Calls to `intent` must complete immediately. All necessary
 ///   intents are assumed to have been read from storage ahead of time.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
@@ -124,35 +292,39 @@ pub async fn check_intents<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    get_intent: impl Fn(&IntentAddress) -> Option<Arc<Intent>>,
-) -> anyhow::Result<(Utility, Gas)>
+    get_intent: impl Fn(&IntentAddress) -> Arc<Intent>,
+) -> Result<(Utility, Gas), IntentsError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
-    SB: Clone + StateRead + Send + Sync + 'static,
+    SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
     SA::Future: Send,
     SB::Future: Send,
+    SA::Error: Send,
 {
+    // check(&solution)?;
+
     // Read pre and post states then check constraints.
-    let mut set: JoinSet<anyhow::Result<_>> = JoinSet::new();
+    let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
     for (solution_data_index, data) in solution.data.iter().enumerate() {
-        let solution_data_index: SolutionDataIndex = solution_data_index.try_into()?;
-        let Some(intent) = get_intent(&data.intent_to_solve) else {
-            anyhow::bail!("Intent in solution data not found in intents set");
-        };
+        let solution_data_index: SolutionDataIndex = solution_data_index
+            .try_into()
+            .expect("solution data index already validated");
+        let intent = get_intent(&data.intent_to_solve);
         let solution = solution.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         set.spawn(async move {
             let pre_state = pre_state;
             let post_state = post_state;
-            check_intent(
+            let res = check_intent(
                 &pre_state,
                 &post_state,
                 solution,
                 intent,
                 solution_data_index,
             )
-            .await
+            .await;
+            (solution_data_index, res)
         });
     }
 
@@ -161,16 +333,25 @@ where
     // Add gas tracking for constraint checking.
     let mut total_gas: u64 = 0;
     let mut utility: f64 = 0.0;
+    let mut failed = vec![];
     while let Some(res) = set.join_next().await {
-        let (u, g) = res??;
+        let (solution_data_ix, res) = res?;
+        let (u, g) = match res {
+            Ok(ok) => ok,
+            Err(e) => {
+                failed.push((solution_data_ix, e));
+                continue;
+            }
+        };
         utility += u;
 
-        // Ensure utility does not overflow.
-        anyhow::ensure!(utility != f64::INFINITY, "Utility overflow");
+        if utility == f64::INFINITY {
+            return Err(IntentsError::UtilityOverflowed);
+        }
 
         total_gas = total_gas
             .checked_add(g)
-            .ok_or(anyhow::anyhow!("Gas overflow"))?;
+            .ok_or(IntentsError::GasOverflowed)?;
     }
 
     Ok((utility, total_gas))
@@ -194,15 +375,19 @@ pub async fn check_intent<SA, SB>(
     solution: Arc<Solution>,
     intent: Arc<Intent>,
     solution_data_index: SolutionDataIndex,
-) -> anyhow::Result<(Utility, Gas)>
+) -> Result<(Utility, Gas), IntentError<SA::Error>>
 where
     SA: StateRead + Sync,
-    SB: StateRead + Sync,
+    SB: StateRead<Error = SA::Error> + Sync,
 {
+    // TODO: Should we assume checked, and instead document expectation of valid intent?
+    crate::intent::check(&intent)?;
+
     // Get the length of state slots for this intent.
     let intent_state_len: usize = slots::state_len(&intent.slots.state)
-        .ok_or(anyhow::anyhow!("State slots have no length"))?
-        .try_into()?;
+        .expect("intent state slot length previously validated")
+        .try_into()
+        .expect("`u32` to `usize` conversion cannot fail on 32 or 64-bit machines");
 
     // Track the total gas spent over all execution.
     let mut total_gas = 0;
@@ -214,7 +399,9 @@ where
 
     // Read pre and post states.
     for (state_read_index, state_read) in intent.state_read.iter().enumerate() {
-        let state_read_index: u16 = state_read_index.try_into()?;
+        let state_read_index: u16 = state_read_index
+            .try_into()
+            .expect("intent state read count checked previously");
 
         // Map the bytecode ops ahead of execution to share the mapping
         // between both pre and post state slot reads.
@@ -285,7 +472,7 @@ async fn read_state_slots<S>(
     bytecode_mapped: &BytecodeMapped<&[u8]>,
     access: Access<'_>,
     state_read: &S,
-) -> anyhow::Result<(Gas, Box<StateSlotSlice>)>
+) -> Result<(Gas, Box<StateSlotSlice>), state_read_vm::error::StateReadError<S::Error>>
 where
     S: StateRead,
 {
@@ -301,8 +488,7 @@ where
             &|_: &state_read_vm::asm::Op| 1,
             GasLimit::UNLIMITED,
         )
-        .await
-        .map_err(|e| anyhow::anyhow!("State read VM execution failed: {e}"))?;
+        .await?;
 
     Ok((gas_spent, vm.into_state_slots().into_boxed_slice()))
 }
@@ -313,9 +499,8 @@ fn write_state_slots(
     state_slots: &[StateSlot],
     slots: &mut StateSlotSlice,
     output_slots: &StateSlotSlice,
-) -> anyhow::Result<()> {
-    // Find the correct state slot based matching the state read index
-    // with the program index.
+) -> Result<(), WriteStateSlotsError> {
+    // Find the state slot by matching the state read index with the program index.
     let Some(slots) = state_slots
         .iter()
         .find(|slot| slot.program_index == state_read_index)
@@ -326,15 +511,19 @@ fn write_state_slots(
             slots.get_mut(start..end)
         })
     else {
-        anyhow::bail!("State slot not found for state read program");
+        return Err(WriteStateSlotsError::NoProgramIndexMatchingStateReadIndex(
+            state_read_index,
+        ));
     };
 
     // The length of the output slots must match the length of the slots
     // that are being written to.
-    anyhow::ensure!(
-        slots.len() == output_slots.len(),
-        "State slot length mismatch"
-    );
+    if slots.len() != output_slots.len() {
+        return Err(WriteStateSlotsError::StateSlotLengthMismatch {
+            found: output_slots.len(),
+            expected: slots.len(),
+        });
+    }
 
     // Write the output slots to the correct position in the slots.
     slots.copy_from_slice(output_slots);
@@ -352,7 +541,7 @@ pub async fn check_intent_constraints(
     intent: Arc<Intent>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
-) -> anyhow::Result<Utility> {
+) -> Result<Utility, IntentConstraintsError> {
     check_intent_constraints_parallel(
         solution.clone(),
         solution_data_index,
@@ -360,16 +549,16 @@ pub async fn check_intent_constraints(
         pre_slots.clone(),
         post_slots.clone(),
     )
-    .await
-    .map_err(|e| anyhow::anyhow!("Constraint VM execution failed: {e}"))?;
-    calculate_utility(
+    .await?;
+    let util = calculate_utility(
         solution,
         solution_data_index,
         intent.clone(),
         pre_slots,
         post_slots,
     )
-    .await
+    .await?;
+    Ok(util)
 }
 
 /// Check intents in parallel without sleeping any threads.
@@ -379,12 +568,12 @@ async fn check_intent_constraints_parallel(
     intent: Arc<Intent>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
-) -> anyhow::Result<()> {
+) -> Result<(), IntentConstraintsError> {
     let mut handles = Vec::with_capacity(intent.constraints.len());
 
     // Spawn each constraint onto a rayon thread and
     // check them in parallel.
-    for i in 0..intent.constraints.len() {
+    for ix in 0..intent.constraints.len() {
         let (tx, rx) = tokio::sync::oneshot::channel();
         handles.push(rx);
 
@@ -408,7 +597,7 @@ async fn check_intent_constraints_parallel(
             let res = constraint_vm::eval_bytecode_iter(
                 intent
                     .constraints
-                    .get(i)
+                    .get(ix)
                     .expect("Safe due to above len check")
                     .iter()
                     .copied(),
@@ -416,7 +605,7 @@ async fn check_intent_constraints_parallel(
             );
             // Send the result back to the main thread.
             // Send errors are ignored as if the recv is gone there's no one to send to.
-            let _ = tx.send((i, res));
+            let _ = tx.send((ix, res));
         })
     }
 
@@ -429,12 +618,12 @@ async fn check_intent_constraints_parallel(
     // constraints make progress independently.
     for handle in handles {
         // Get the index and result from the handle.
-        let (i, res): (usize, Result<bool, _>) = handle.await?;
+        let (ix, res): (usize, Result<bool, _>) = handle.await?;
         match res {
             // If the constraint failed, add it to the failed list.
-            Err(err) => failed.push((i, err)),
+            Err(err) => failed.push((ix, err)),
             // If the constraint was unsatisfied, add it to the unsatisfied list.
-            Ok(b) if !b => unsatisfied.push(i),
+            Ok(b) if !b => unsatisfied.push(ix),
             // Otherwise, the constraint was satisfied.
             _ => (),
         }
@@ -442,12 +631,12 @@ async fn check_intent_constraints_parallel(
 
     // If there are any failed constraints, return an error.
     if !failed.is_empty() {
-        return Err(essential_constraint_vm::error::ConstraintErrors(failed).into());
+        return Err(CheckError::from(ConstraintErrors(failed)).into());
     }
 
     // If there are any unsatisfied constraints, return an error.
     if !unsatisfied.is_empty() {
-        return Err(essential_constraint_vm::error::ConstraintsUnsatisfied(unsatisfied).into());
+        return Err(CheckError::from(ConstraintsUnsatisfied(unsatisfied)).into());
     }
     Ok(())
 }
@@ -461,57 +650,50 @@ async fn calculate_utility(
     intent: Arc<Intent>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
-) -> anyhow::Result<f64> {
+) -> Result<Utility, UtilityError> {
     match &intent.directive {
-        Directive::Satisfy => Ok(1.0),
-        Directive::Maximize(_) | Directive::Minimize(_) => {
-            // Spawn this sync code onto a rayon thread.
-            let (tx, rx) = tokio::sync::oneshot::channel();
-            rayon::spawn(move || {
-                let solution_access = SolutionAccess::new(&solution, solution_data_index);
-                let access = Access {
-                    solution: solution_access,
-                    state_slots: StateSlots {
-                        pre: &pre_slots,
-                        post: &post_slots,
-                    },
-                };
-                // Extract the directive code.
-                let code = match intent.directive {
-                    Directive::Maximize(ref code) | Directive::Minimize(ref code) => code,
-                    _ => unreachable!("As this is already checked above"),
-                };
+        Directive::Satisfy => return Ok(1.0),
+        Directive::Maximize(_) | Directive::Minimize(_) => (),
+    }
 
-                // Execute the directive code.
-                match constraint_vm::exec_bytecode_iter(code.iter().copied(), access) {
-                    Ok(mut stack) => match stack.pop3() {
-                        Ok([start, end, value]) => {
-                            // Return the normalized value back to the main thread.
-                            // Send errors are ignored as if the recv is dropped.
-                            let _ = tx.send(normalize_utility(value, start, end));
-                        }
-                        Err(e) => {
-                            // Return the error back to the main thread.
-                            // Send errors are ignored as if the recv is dropped.
-                            let _ = tx.send(Err(e.into()));
-                        }
-                    },
-                    Err(e) => {
-                        // Return the error back to the main thread.
-                        // Send errors are ignored as if the recv is dropped.
-                        let _ = tx.send(Err(e.into()));
-                    }
-                }
+    // Spawn this sync code onto a rayon thread.
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    rayon::spawn(move || {
+        let solution_access = SolutionAccess::new(&solution, solution_data_index);
+        let access = Access {
+            solution: solution_access,
+            state_slots: StateSlots {
+                pre: &pre_slots,
+                post: &post_slots,
+            },
+        };
+        // Extract the directive code.
+        let code = match intent.directive {
+            Directive::Maximize(ref code) | Directive::Minimize(ref code) => code,
+            _ => unreachable!("As this is already checked above"),
+        };
+
+        // Execute the directive code.
+        let res = constraint_vm::exec_bytecode_iter(code.iter().copied(), access)
+            .map_err(UtilityError::from)
+            .and_then(|mut stack| {
+                let [start, end, value] = stack.pop3()?;
+                let util = normalize_utility(value, start, end)?;
+                Ok(util)
             });
 
-            // Await the result of the utility calculation.
-            rx.await?
-        }
-    }
+        // Send errors are ignored as if the recv is dropped.
+        let _ = tx.send(res);
+    });
+
+    // Await the result of the utility calculation.
+    rx.await?
 }
 
-fn normalize_utility(value: Word, start: Word, end: Word) -> anyhow::Result<Utility> {
-    anyhow::ensure!(start < end, "Invalid range for directive");
+fn normalize_utility(value: Word, start: Word, end: Word) -> Result<Utility, UtilityError> {
+    if start >= end {
+        return Err(UtilityError::InvalidDirectiveRange(start, end));
+    }
     let normalized = (value - start) as f64 / (end - start) as f64;
     Ok(normalized.clamp(0.0, 1.0))
 }

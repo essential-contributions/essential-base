@@ -66,16 +66,18 @@ pub trait StateTransactionWrite {
 pub async fn apply_mutation_and_check_solution<S>(
     pre_state: &S,
     solution: Arc<Solution>,
-    intents: impl Fn(&IntentAddress) -> Option<Arc<Intent>>,
+    intents: impl Fn(&IntentAddress) -> Arc<Intent>,
 ) -> anyhow::Result<(S, Utility, Gas)>
 where
     S: Clone + Send + Sync + StateRead + StateTransactionWrite + 'static,
     S::Future: Send,
+    S::Error: Send,
 {
     let post_state = apply_mutation(pre_state, &solution)?;
     solution::check_intents(pre_state, &post_state, solution, intents)
         .await
         .map(|(utility, gas)| (post_state, utility, gas))
+        .map_err(|e| anyhow::Error::msg(e.to_string()))
 }
 
 /// Clones the given `pre_state`, applies the mutation and returns the resulting `post_state`.
