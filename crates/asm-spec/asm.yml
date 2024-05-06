@@ -248,6 +248,14 @@ StateRead:
 
                 This operation returns a list of words with a length of 4, representing the set's hash.
               stack_out: [key]
+            
+            ThisPathway:
+              opcode: 0x3B
+              description: |
+                Get the pathway of this intent.
+
+                This operation returns the index of the solution data currently being used to check this intent.
+              stack_out: [in]
 
         Crypto:
           description: Operations providing cryptographic functionality.

@@ -191,6 +191,7 @@ pub fn step_op_access(access: Access, op: asm::Access, stack: &mut Stack) -> OpR
         asm::Access::StateIsSomeRange => access::state_is_some_range(access.state_slots, stack),
         asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
         asm::Access::ThisSetAddress => access::this_set_address(access.solution.this_data(), stack),
+        asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
     }
 }
 
