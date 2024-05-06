@@ -223,9 +223,18 @@ StateRead:
 
                 This operation returns a single word representing the length.
               stack_out: [word]
+            
+            MutKeysContains:
+              opcode: 0x38
+              description: |
+                Check if the mutable keys being proposed contain the given key.
+
+                This operation returns a true if the key is found, false otherwise.
+              stack_in: [key, key_len]
+              stack_out: [bool]
 
             ThisAddress:
-              opcode: 0x38
+              opcode: 0x39
               description: |
                 Get the content hash of this intent.
 
@@ -233,7 +242,7 @@ StateRead:
               stack_out: [key]
 
             ThisSetAddress:
-              opcode: 0x39
+              opcode: 0x3A
               description: |
                 Get the content hash of the set of intents that this intent belongs to.
 

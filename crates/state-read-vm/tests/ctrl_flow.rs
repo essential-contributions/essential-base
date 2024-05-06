@@ -24,7 +24,7 @@ async fn jump_forward() {
     let spent = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_op: &Op| 1,
             GasLimit::UNLIMITED,
@@ -58,7 +58,7 @@ async fn jump_back() {
         total,
     };
     let res = vm
-        .exec_ops(ops, TEST_ACCESS, &State::EMPTY, &|_op: &Op| 1, gas_limit)
+        .exec_ops(ops, *test_access(), &State::EMPTY, &|_op: &Op| 1, gas_limit)
         .await;
     let err = match res {
         // The failing operations hould be the `Push` that follows the final
@@ -94,7 +94,7 @@ async fn jump_if_forward() {
     let spent = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_op: &Op| 1,
             GasLimit::UNLIMITED,
@@ -139,7 +139,7 @@ async fn jump_if_back() {
     let spent = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_op: &Op| 1,
             GasLimit::UNLIMITED,
@@ -166,7 +166,7 @@ async fn jump_if_invalid_cond() {
     let res = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -192,7 +192,7 @@ async fn missing_halt() {
     let res = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -216,7 +216,7 @@ async fn jump_pc_out_of_range() {
     let res = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,

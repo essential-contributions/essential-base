@@ -9,7 +9,7 @@ use util::*;
 
 #[tokio::test]
 async fn state_read_3_42s() {
-    let access = TEST_ACCESS;
+    let access = *test_access();
     let state = State::new(vec![(
         access.solution.this_data().intent_to_solve.set.clone(),
         vec![([0, 0, 0, 0], 42), ([0, 0, 0, 1], 42), ([0, 0, 0, 2], 42)],
@@ -36,7 +36,7 @@ async fn state_read_3_42s() {
 
 #[tokio::test]
 async fn state_read_some_none_some() {
-    let access = TEST_ACCESS;
+    let access = *test_access();
     let state = State::new(vec![(
         access.solution.this_data().intent_to_solve.set.clone(),
         vec![([0, 0, 0, 0], 42), ([0, 0, 0, 2], 42)],
@@ -86,9 +86,15 @@ async fn state_read_ext() {
         asm::StateRead::WordRangeExtern,
         asm::ControlFlow::Halt.into(),
     ];
-    vm.exec_ops(ops, TEST_ACCESS, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
-        .unwrap();
+    vm.exec_ops(
+        ops,
+        *test_access(),
+        &state,
+        &|_: &Op| 1,
+        GasLimit::UNLIMITED,
+    )
+    .await
+    .unwrap();
     assert_eq!(&vm.memory[..], &[Some(40), Some(41), Some(42)]);
     assert_eq!(vm.memory.capacity(), 3);
 }
@@ -115,9 +121,15 @@ async fn state_read_ext_nones() {
         asm::StateRead::WordRangeExtern,
         asm::ControlFlow::Halt.into(),
     ];
-    vm.exec_ops(ops, TEST_ACCESS, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
-        .unwrap();
+    vm.exec_ops(
+        ops,
+        *test_access(),
+        &state,
+        &|_: &Op| 1,
+        GasLimit::UNLIMITED,
+    )
+    .await
+    .unwrap();
     assert_eq!(&vm.memory[..], &[None, None, None]);
     assert_eq!(vm.memory.capacity(), 3);
 }
