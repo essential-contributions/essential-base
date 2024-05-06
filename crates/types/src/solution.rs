@@ -63,7 +63,7 @@ pub enum DecisionVariable {
     Transient(DecisionVariableIndex),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Index into the decision variables of a solution data.
 pub struct DecisionVariableIndex {
