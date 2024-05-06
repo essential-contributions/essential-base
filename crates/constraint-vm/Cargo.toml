@@ -15,3 +15,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
+secp256k1 = { workspace = true, features = ["rand"]}

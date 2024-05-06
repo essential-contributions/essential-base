@@ -257,7 +257,10 @@ StateRead:
             
             RecoverSecp256k1:
               opcode: 0x42
-              description: Recover the public key from a secp256k1 signature.
+              description: |
+                Recover the public key from a secp256k1 signature.
+
+                If the signature is invalid, the operation will return all zeros.
               stack_in: [hash_0, hash_1, hash_2, hash_3, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, sig_w7, sig_8]
               stack_out: [pub_key_w0, pub_key_w1, pub_key_w2, pub_key_w3, pub_key_4]
 
