@@ -273,6 +273,7 @@ dependencies = [
  "ed25519-dalek",
  "essential-constraint-asm",
  "essential-types",
+ "once_cell",
  "rand",
  "rayon",
  "secp256k1",
@@ -320,6 +321,7 @@ dependencies = [
  "essential-state-asm",
  "essential-types",
  "futures",
+ "once_cell",
  "rand",
  "thiserror",
  "tokio",
@@ -545,6 +547,12 @@ checksum = "a6a622008b6e321afc04970976f62ee297fdbaa6f95318ca343e3eebb9648441"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "pin-project-lite"

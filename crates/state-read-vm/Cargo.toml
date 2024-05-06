@@ -11,5 +11,6 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 futures = { workspace = true }
+once_cell = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }

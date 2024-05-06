@@ -1,5 +1,7 @@
 //! Access operation implementations.
 
+use std::collections::HashSet;
+
 use crate::{error::AccessError, types::convert::bool_from_word, OpResult, Stack};
 use essential_constraint_asm::Word;
 use essential_types::{
@@ -33,6 +35,8 @@ pub struct SolutionAccess<'a> {
     /// This is determined ahead of execution by inspecting the solution and
     /// counting the total number of state mutations proposed for this intent instance.
     pub mut_keys_len: Word,
+    /// The keys being proposed for mutation for the intent.
+    pub mutable_keys: &'a HashSet<&'a [Word]>,
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -54,13 +58,18 @@ impl<'a> SolutionAccess<'a> {
     /// This constructor assumes that the given solution does not contain
     /// multiple mutations to the same key. If it does, `mut_keys_len` will
     /// be greater than the actual number of unique mutable keys.
-    pub fn new(solution: &'a Solution, intent_index: SolutionDataIndex) -> Self {
-        let mut_keys_len = Word::try_from(mut_keys(solution, intent_index).count())
-            .expect("mut keys count would overflow `Word`");
+    pub fn new(
+        solution: &'a Solution,
+        intent_index: SolutionDataIndex,
+        mutable_keys: &'a HashSet<&[Word]>,
+    ) -> Self {
+        let mut_keys_len =
+            Word::try_from(mutable_keys.len()).expect("mut keys count would overflow `Word`");
         Self {
             data: &solution.data,
             index: intent_index.into(),
             mut_keys_len,
+            mutable_keys,
         }
     }
 
@@ -101,6 +110,23 @@ pub fn mut_keys(
         .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| &m.key))
 }
 
+/// Get the mutable keys as slices
+pub fn mut_keys_slices(
+    solution: &Solution,
+    intent_index: SolutionDataIndex,
+) -> impl Iterator<Item = &[Word]> {
+    solution
+        .state_mutations
+        .iter()
+        .filter(move |state_mutation| state_mutation.pathway == intent_index)
+        .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| m.key.as_ref()))
+}
+
+/// Get the set of mutable keys for this intent.
+pub fn mut_keys_set(solution: &Solution, intent_index: SolutionDataIndex) -> HashSet<&[Word]> {
+    mut_keys_slices(solution, intent_index).collect()
+}
+
 /// `Access::DecisionVar` implementation.
 pub(crate) fn decision_var(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
     stack.pop1_push1(|slot| {
@@ -124,6 +150,14 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
 /// `Access::MutKeysLen` implementation.
 pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
     stack.push(solution.mut_keys_len)?;
+    Ok(())
+}
+
+pub(crate) fn mut_keys_contains(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
+    let found = stack.pop_len_words::<_, bool, crate::error::OpError>(|words| {
+        Ok(solution.mutable_keys.contains(words))
+    })?;
+    stack.push(Word::from(found))?;
     Ok(())
 }
 
@@ -277,6 +311,7 @@ mod tests {
                 }],
                 index: 0,
                 mut_keys_len: 0,
+                mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -332,6 +367,7 @@ mod tests {
                 // Solution data for intent being solved is at index 1.
                 index: 1,
                 mut_keys_len: 0,
+                mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -357,6 +393,7 @@ mod tests {
                 }],
                 index: 0,
                 mut_keys_len: 0,
+                mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -402,6 +439,7 @@ mod tests {
                 ],
                 index: 0,
                 mut_keys_len: 0,
+                mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -440,6 +478,7 @@ mod tests {
                 ],
                 index: 0,
                 mut_keys_len: 0,
+                mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -467,6 +506,7 @@ mod tests {
                 }],
                 index: 0,
                 mut_keys_len: 0,
+                mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
         };
@@ -540,9 +580,11 @@ mod tests {
         // The intent we're solving is the second intent, i.e. index `1`.
         let intent_index = 1;
 
+        let mutable_keys = mut_keys_set(&solution, intent_index);
+
         // Construct access to the parts of the solution that we need for checking.
         let access = Access {
-            solution: SolutionAccess::new(&solution, intent_index),
+            solution: SolutionAccess::new(&solution, intent_index, &mutable_keys),
             state_slots: StateSlots::EMPTY,
         };
 
@@ -559,7 +601,7 @@ mod tests {
     #[test]
     fn state_pre_mutation() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(0), Some(42)],
                 post: &[Some(0), Some(0)],
@@ -577,7 +619,7 @@ mod tests {
     #[test]
     fn state_post_mutation() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(0), Some(0)],
                 post: &[Some(42), Some(0)],
@@ -595,7 +637,7 @@ mod tests {
     #[test]
     fn state_pre_mutation_oob() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(0), Some(42)],
                 post: &[Some(0), Some(0)],
@@ -616,7 +658,7 @@ mod tests {
     #[test]
     fn invalid_state_slot_delta() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(0), Some(42)],
                 post: &[Some(0), Some(0)],
@@ -638,7 +680,7 @@ mod tests {
     #[test]
     fn state_slot_was_none() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[None],
                 post: &[None],
@@ -656,7 +698,7 @@ mod tests {
     #[test]
     fn state_range_pre_mutation() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(10), Some(20), Some(30)],
                 post: &[Some(0), Some(0), Some(0)],
@@ -675,7 +717,7 @@ mod tests {
     #[test]
     fn state_range_post_mutation() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(0), Some(0), Some(0)],
                 post: &[Some(0), Some(40), Some(50)],
@@ -694,7 +736,7 @@ mod tests {
     #[test]
     fn state_is_some_pre_mutation_false() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(0), None],
                 post: &[Some(0), Some(0)],
@@ -712,7 +754,7 @@ mod tests {
     #[test]
     fn state_is_some_post_mutation_true() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[None, None],
                 post: &[Some(42), None],
@@ -730,7 +772,7 @@ mod tests {
     #[test]
     fn state_is_some_range_pre_mutation() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[Some(10), None, Some(30)],
                 post: &[None, None, None],
@@ -750,7 +792,7 @@ mod tests {
     #[test]
     fn state_is_some_range_post_mutation() {
         let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
+            solution: *test_solution_access(),
             state_slots: StateSlots {
                 pre: &[None, None, None],
                 post: &[None, Some(40), None],
@@ -770,7 +812,7 @@ mod tests {
     #[test]
     fn this_address() {
         let ops = &[asm::Access::ThisAddress.into()];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, *test_access()).unwrap();
         let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.intent.0);
         assert_eq!(&stack[..], expected_words);
     }
@@ -778,7 +820,7 @@ mod tests {
     #[test]
     fn this_set_address() {
         let ops = &[asm::Access::ThisSetAddress.into()];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, *test_access()).unwrap();
         let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.set.0);
         assert_eq!(&stack[..], expected_words);
     }

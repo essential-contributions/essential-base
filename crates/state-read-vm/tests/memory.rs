@@ -19,7 +19,7 @@ async fn alloc() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -42,7 +42,7 @@ async fn capacity() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -66,7 +66,7 @@ async fn clear() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -84,7 +84,7 @@ async fn clear() {
     vm.pc = 0;
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -114,7 +114,7 @@ async fn clear_range() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -133,7 +133,7 @@ async fn clear_range() {
     vm.pc = 0;
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -160,7 +160,7 @@ async fn free() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -184,7 +184,7 @@ async fn is_some() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -211,7 +211,7 @@ async fn length() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -238,7 +238,7 @@ async fn load() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -261,7 +261,7 @@ async fn push() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -285,7 +285,7 @@ async fn push_none() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -315,7 +315,7 @@ async fn store() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -342,7 +342,7 @@ async fn truncate() {
     ];
     vm.exec_ops(
         ops,
-        TEST_ACCESS,
+        *test_access(),
         &State::EMPTY,
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
@@ -364,7 +364,7 @@ async fn load_index_oob() {
     let res = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -391,7 +391,7 @@ async fn store_index_oob() {
     let res = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -417,7 +417,7 @@ async fn push_overflow() {
     let res = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -441,7 +441,7 @@ async fn alloc_overflow() {
     let res = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
