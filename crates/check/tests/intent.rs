@@ -1,36 +1,12 @@
 use essential_check::intent;
-use essential_sign::{
-    secp256k1::{PublicKey, Secp256k1, SecretKey},
-    sign,
-};
+use essential_sign::sign;
 use essential_types::{
     intent::{Directive, Intent},
     slots::{Slots, StateSlot},
 };
+use util::{empty_intent, empty_state_slot, random_keypair};
 
-fn empty_intent() -> Intent {
-    Intent {
-        slots: Default::default(),
-        state_read: Default::default(),
-        constraints: Default::default(),
-        directive: Directive::Satisfy,
-    }
-}
-
-fn empty_state_slot() -> StateSlot {
-    StateSlot {
-        amount: Default::default(),
-        index: Default::default(),
-        program_index: Default::default(),
-    }
-}
-
-fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
-    use rand::SeedableRng;
-    let mut rng = rand::rngs::SmallRng::from_seed(seed);
-    let secp = Secp256k1::new();
-    secp.generate_keypair(&mut rng)
-}
+pub mod util;
 
 #[test]
 fn signed_set_one_empty_intent() {

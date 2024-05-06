@@ -13,11 +13,13 @@ use crate::{
     types::{
         intent::{Directive, Intent},
         slots::{self, StateSlot},
-        solution::{Solution, SolutionData, SolutionDataIndex},
-        ContentAddress, IntentAddress, Signed, Word,
+        solution::{
+            DecisionVariable, DecisionVariableIndex, Solution, SolutionData, SolutionDataIndex,
+        },
+        ContentAddress, IntentAddress, Key, Signed, Word,
     },
 };
-use std::{fmt, sync::Arc};
+use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
 
@@ -58,6 +60,12 @@ pub enum InvalidSolutionData {
     /// A solution data expects too many decision variables.
     #[error("data {0} expects too many decision vars {1} (limit: {MAX_DECISION_VARIABLES})")]
     TooManyDecisionVariables(usize, usize),
+    /// A decision variable fails to resolve within the solution's data.
+    #[error("the following decision variable fails to resolve: {0:?}")]
+    UnresolvingDecisionVariable(DecisionVariableIndex),
+    /// A set of decision variables were found to cause a cycle during resolution.
+    #[error("the following set of decision variables form a cycle: {0:?}")]
+    DecisionVariablesCycle(HashSet<DecisionVariableIndex>),
 }
 
 /// [`check_state_mutations`] error.
@@ -69,6 +77,9 @@ pub enum InvalidStateMutations {
     /// State mutation pathway at the given index is out of range of solution data.
     #[error("state mutation pathway {0} out of range of solution data")]
     PathwayOutOfRangeOfSolutionData(u16),
+    /// Discovered multiple mutations to the same slot.
+    #[error("attempt to apply multiple mutations to the same slot: {0:?} {1:?}")]
+    MultipleMutationsForSlot(IntentAddress, Key),
 }
 
 /// [`check_partial_solutions`] error.
@@ -79,7 +90,7 @@ pub enum InvalidPartialSolutions {
     TooMany(usize),
     /// Failed to validate the signature of the partial solution at the given index.
     #[error("failed to validate the signature of the partial solution at index {0}: {1}")]
-    InvalidSignature(usize, secp256k1::Error),
+    Signature(usize, secp256k1::Error),
 }
 
 /// [`check_intents`] error.
@@ -111,6 +122,10 @@ pub enum IntentError<E> {
     // validated prior to `solution::check_intent`?
     #[error("the intent itself is invalid: {0}")]
     InvalidIntent(#[from] crate::intent::InvalidIntent),
+    /// The number of decision variables provided by the solution data differs
+    /// from the number expected by the intent.
+    #[error("{0}")]
+    DecisionVariablesMismatch(#[from] InvalidDecisionVariablesLength),
     /// Failed to parse ops from bytecode during bytecode mapping.
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
@@ -123,6 +138,17 @@ pub enum IntentError<E> {
     /// Constraint checking failed.
     #[error("constraint checking failed: {0}")]
     Constraints(#[from] IntentConstraintsError),
+}
+
+/// The number of decision variables provided by the solution data differs to
+/// the number expected by the intent.
+#[derive(Debug, Error)]
+#[error("number of solution data decision variables ({data}) differs from intent ({intent})")]
+pub struct InvalidDecisionVariablesLength {
+    /// Number of decision variables provided by solution data.
+    pub data: usize,
+    /// Number of decision variables expected by the solution data's associated intent.
+    pub intent: u32,
 }
 
 /// Failed to write state slots.
@@ -216,23 +242,72 @@ pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
 }
 
 /// Validate the solution's slice of [`SolutionData`].
-pub fn check_data(data: &[SolutionData]) -> Result<(), InvalidSolutionData> {
+pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData> {
     // Validate solution data.
     // Ensure that at solution has at least one solution data.
-    if data.is_empty() {
+    if data_slice.is_empty() {
         return Err(InvalidSolutionData::Empty);
     }
     // Ensure that solution data length is below limit length.
-    if data.len() > MAX_SOLUTION_DATA {
-        return Err(InvalidSolutionData::TooMany(data.len()));
+    if data_slice.len() > MAX_SOLUTION_DATA {
+        return Err(InvalidSolutionData::TooMany(data_slice.len()));
     }
-    // Ensure that decision variables of each solution data are below limit length.
-    for (ix, data) in data.iter().enumerate() {
+
+    // Check whether we have too many decision vars, or if any don't resolve.
+    // We track already `resolved` variables to avoid checking them multiple times.
+    // We re-use a `visited` set between transient entry points to check for cycles.
+    let mut resolved = HashSet::new();
+    let mut visited = HashSet::new(); // Re-used to track visited dec vars, checking for cycles.
+    for (data_ix, data) in data_slice.iter().enumerate() {
+        // Ensure the length limit is not exceeded.
         if data.decision_variables.len() > MAX_DECISION_VARIABLES as usize {
             return Err(InvalidSolutionData::TooManyDecisionVariables(
-                ix,
+                data_ix,
                 data.decision_variables.len(),
             ));
+        }
+
+        // Ensure that all transient decision variables resolve without cycling.
+        for var_ix in 0..data.decision_variables.len() {
+            let mut ix = DecisionVariableIndex {
+                solution_data_index: u16::try_from(data_ix).expect("checked prev"),
+                variable_index: u16::try_from(var_ix).expect("checked prev"),
+            };
+
+            // If we already know this resolves because it was previously
+            // visited in a successful resolution, we can skip the following check.
+            if resolved.contains(&ix) {
+                continue;
+            }
+
+            // Reset our visited set.
+            visited.clear();
+            loop {
+                let dec_var = data_slice
+                    .get(ix.solution_data_index as usize)
+                    .and_then(|data| data.decision_variables.get(ix.variable_index as usize))
+                    .ok_or(InvalidSolutionData::UnresolvingDecisionVariable(ix))?;
+
+                // We managed to resolve both data and the dec var for this index.
+                let already_resolved = !resolved.insert(ix);
+
+                match *dec_var {
+                    DecisionVariable::Inline(_w) => break,
+                    DecisionVariable::Transient(ref transient) => {
+                        // We're traversing transient data, so track vars already visited.
+                        if !visited.insert(ix) {
+                            return Err(InvalidSolutionData::DecisionVariablesCycle(visited));
+                        }
+                        // Now that we know we're not cycling and this transient
+                        // var has already been resolved before, we're done.
+                        if already_resolved {
+                            break;
+                        }
+                        // Otherwise, continue resolving.
+                        ix = *transient;
+                    }
+                }
+            }
         }
     }
     Ok(())
@@ -247,6 +322,7 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
             solution.state_mutations.len(),
         ));
     }
+
     // Ensure that all state mutations with a pathway points to some solution data.
     for state_mut in &solution.state_mutations {
         if solution.data.len() <= usize::from(state_mut.pathway) {
@@ -255,6 +331,21 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
             ));
         }
     }
+
+    // Ensure that no more than one mutation per slot is proposed.
+    let mut mut_keys = HashSet::new();
+    for state_mutation in &solution.state_mutations {
+        let intent_addr = &solution.data[state_mutation.pathway as usize].intent_to_solve;
+        for mutation in &state_mutation.mutations {
+            if !mut_keys.insert((intent_addr, &mutation.key)) {
+                return Err(InvalidStateMutations::MultipleMutationsForSlot(
+                    intent_addr.clone(),
+                    mutation.key,
+                ));
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -269,7 +360,32 @@ pub fn check_partial_solutions(
     }
     // Verify signatures of all partial solutions.
     for (ix, signed) in partial_solutions.iter().enumerate() {
-        sign::verify(signed).map_err(|e| InvalidPartialSolutions::InvalidSignature(ix, e))?;
+        sign::verify(signed).map_err(|e| InvalidPartialSolutions::Signature(ix, e))?;
+    }
+    Ok(())
+}
+
+/// Validate the solution data decision variables against those expected by their associated intent.
+///
+/// This function assumes that `Solution` and `Intent` have already been
+/// independently validated, and may `panic!` otherwise.
+///
+/// Upon error, returns the index of the failed data alongside the error.
+pub fn check_decision_variable_lengths(
+    solution: &Solution,
+    get_intent: impl Fn(&IntentAddress) -> Arc<Intent>,
+) -> Result<(), (u16, InvalidDecisionVariablesLength)> {
+    for (ix, data) in solution.data.iter().enumerate() {
+        let intent = get_intent(&data.intent_to_solve);
+        // Ensure the numbers match.
+        if data.decision_variables.len() != intent.slots.decision_variables as usize {
+            let err = InvalidDecisionVariablesLength {
+                data: data.decision_variables.len(),
+                intent: intent.slots.decision_variables,
+            };
+            let ix = u16::try_from(ix).expect("solution data length already validated");
+            return Err((ix, err));
+        }
     }
     Ok(())
 }
@@ -281,13 +397,18 @@ pub fn check_partial_solutions(
 /// the given `pre_state` and `post_state`, then checks all constraints over the
 /// resulting pre and post state slots.
 ///
+/// **NOTE:** This assumes that the given `Solution` and all `Intent`s
+/// have already been independently validated using
+/// [`solution::check`][crate::solution::check] and
+/// [`intent::check`][crate::intent::check] respectively.
+///
 /// ## Arguments
 ///
 /// - `pre_state` must provide access to state *prior to* mutations being applied.
 /// - `post_state` must provide access to state *post* mutations being applied.
 /// - `get_intent` provides immediate access to an intent associated with the given
 ///   solution. Calls to `intent` must complete immediately. All necessary
-///   intents are assumed to have been read from storage ahead of time.
+///   intents are assumed to have been read from storage and validated ahead of time.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
 pub async fn check_intents<SA, SB>(
@@ -303,7 +424,11 @@ where
     SB::Future: Send,
     SA::Error: Send,
 {
-    // check(&solution)?;
+    // Check decision variable lengths before spawning tasks.
+    if let Err((ix, err)) = check_decision_variable_lengths(&solution, &get_intent) {
+        let failed = vec![(ix, IntentError::DecisionVariablesMismatch(err))];
+        return Err(IntentErrors(failed).into());
+    }
 
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
@@ -356,12 +481,21 @@ where
             .ok_or(IntentsError::GasOverflowed)?;
     }
 
+    // If any intents failed, return an error.
+    if !failed.is_empty() {
+        return Err(IntentErrors(failed).into());
+    }
+
     Ok((utility, total_gas))
 }
 
 /// Checks a solution against a single intent using the solution data at the given index.
 ///
 /// Reads all pre and post state slots into memory, then checks all constraints.
+///
+/// **NOTE:** This assumes that the given `Solution` and `Intent` have been
+/// independently validated using [`solution::check`][crate::solution::check]
+/// and [`intent::check`][crate::intent::check] respectively.
 ///
 /// ## Arguments
 ///
@@ -382,12 +516,9 @@ where
     SA: StateRead + Sync,
     SB: StateRead<Error = SA::Error> + Sync,
 {
-    // TODO: Should we assume checked, and instead document expectation of valid intent?
-    crate::intent::check(&intent)?;
-
     // Get the length of state slots for this intent.
     let intent_state_len: usize = slots::state_len(&intent.slots.state)
-        .expect("intent state slot length previously validated")
+        .expect("intent state slot length must be validated prior to calling `check_intent`")
         .try_into()
         .expect("`u32` to `usize` conversion cannot fail on 32 or 64-bit machines");
 
