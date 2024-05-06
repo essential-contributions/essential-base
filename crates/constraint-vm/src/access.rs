@@ -30,11 +30,6 @@ pub struct SolutionAccess<'a> {
     /// Checking is performed for one intent at a time. This index refers to
     /// the checked intent's associated solution data within `data`.
     pub index: usize,
-    /// The number of unique state key locations proposed for mutation for the intent.
-    ///
-    /// This is determined ahead of execution by inspecting the solution and
-    /// counting the total number of state mutations proposed for this intent instance.
-    pub mut_keys_len: Word,
     /// The keys being proposed for mutation for the intent.
     pub mutable_keys: &'a HashSet<&'a [Word]>,
 }
@@ -55,20 +50,16 @@ impl<'a> SolutionAccess<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
     /// the intent at the given index within the given solution.
     ///
-    /// This constructor assumes that the given solution does not contain
-    /// multiple mutations to the same key. If it does, `mut_keys_len` will
-    /// be greater than the actual number of unique mutable keys.
+    /// This constructor assumes that the given mutable keys set is correct
+    /// for this solution. It is not checked by this function for performance.
     pub fn new(
         solution: &'a Solution,
         intent_index: SolutionDataIndex,
         mutable_keys: &'a HashSet<&[Word]>,
     ) -> Self {
-        let mut_keys_len =
-            Word::try_from(mutable_keys.len()).expect("mut keys count would overflow `Word`");
         Self {
             data: &solution.data,
             index: intent_index.into(),
-            mut_keys_len,
             mutable_keys,
         }
     }
@@ -149,7 +140,13 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
 
 /// `Access::MutKeysLen` implementation.
 pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    stack.push(solution.mut_keys_len)?;
+    stack.push(
+        solution
+            .mutable_keys
+            .len()
+            .try_into()
+            .map_err(|_| AccessError::SolutionDataOutOfBounds)?,
+    )?;
     Ok(())
 }
 
@@ -310,7 +307,6 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
-                mut_keys_len: 0,
                 mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
@@ -366,7 +362,6 @@ mod tests {
                 ],
                 // Solution data for intent being solved is at index 1.
                 index: 1,
-                mut_keys_len: 0,
                 mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
@@ -392,7 +387,6 @@ mod tests {
                     ],
                 }],
                 index: 0,
-                mut_keys_len: 0,
                 mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
@@ -438,7 +432,6 @@ mod tests {
                     },
                 ],
                 index: 0,
-                mut_keys_len: 0,
                 mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
@@ -477,7 +470,6 @@ mod tests {
                     },
                 ],
                 index: 0,
-                mut_keys_len: 0,
                 mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
@@ -505,7 +497,6 @@ mod tests {
                     decision_variables: vec![DecisionVariable::Inline(42)],
                 }],
                 index: 0,
-                mut_keys_len: 0,
                 mutable_keys: test_empty_keys(),
             },
             state_slots: StateSlots::EMPTY,
@@ -590,7 +581,6 @@ mod tests {
 
         // Check that there are actually 3 mutations.
         let expected_mut_keys_len = 3;
-        assert_eq!(access.solution.mut_keys_len, expected_mut_keys_len);
 
         // We're only going to execute the `MutKeysLen` op to check the expected value.
         let ops = &[asm::Access::MutKeysLen.into()];

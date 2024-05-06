@@ -280,7 +280,6 @@ pub(crate) mod test_util {
         INSTANCE.get_or_init(|| SolutionAccess {
             data: test_solution_data_arr(),
             index: 0,
-            mut_keys_len: 0,
             mutable_keys: test_empty_keys(),
         })
     }
