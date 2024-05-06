@@ -13,3 +13,7 @@ essential-types = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true }
+secp256k1 = { workspace = true, features = ["rand-std"] }

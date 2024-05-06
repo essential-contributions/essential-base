@@ -78,7 +78,7 @@ pub enum DirectiveError {
 pub enum StateReadsError {
     /// The number of state reads exceeds the limit.
     #[error("the number of state reads ({0}) exceeds the limit ({MAX_STATE_READS})")]
-    TooManyStateReads(usize),
+    TooMany(usize),
     /// The state read at the given index failed to validate.
     #[error("state read at index {0} failed to validate: {1}")]
     StateRead(usize, StateReadError),
@@ -195,7 +195,7 @@ pub fn check_directive(directive: &Directive) -> Result<(), DirectiveError> {
 /// Validate an intent's state read bytecode.
 pub fn check_state_reads(state_reads: &[StateReadBytecode]) -> Result<(), StateReadsError> {
     if state_reads.len() > MAX_STATE_READS {
-        return Err(StateReadsError::TooManyStateReads(state_reads.len()));
+        return Err(StateReadsError::TooMany(state_reads.len()));
     }
     for (ix, state_read) in state_reads.iter().enumerate() {
         check_state_read(state_read).map_err(|e| StateReadsError::StateRead(ix, e))?;
