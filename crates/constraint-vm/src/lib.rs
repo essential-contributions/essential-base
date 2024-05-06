@@ -48,6 +48,7 @@ use essential_types::{convert::bool_from_word, ConstraintBytecode};
 pub use op_access::OpAccess;
 #[doc(inline)]
 pub use stack::Stack;
+use tracing::instrument;
 
 mod access;
 mod alu;
@@ -66,6 +67,7 @@ mod stack;
 /// [`CheckError`][error::CheckError] type.
 ///
 /// The intent is considered to be satisfied if this function returns `Ok(())`.
+#[instrument(err)]
 pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
     use rayon::{iter::Either, prelude::*};
     let (failed, unsatisfied): (Vec<_>, Vec<_>) = intent
@@ -101,6 +103,7 @@ pub fn eval_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintRe
 pub fn eval_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<bool>
 where
     I: IntoIterator<Item = u8>,
+    I::IntoIter: core::fmt::Debug,
 {
     eval(BytecodeMappedLazy::new(bytes), access)
 }
@@ -117,7 +120,7 @@ pub fn eval_ops(ops: &[Op], access: Access) -> ConstraintResult<bool> {
 /// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
 pub fn eval<OA>(op_access: OA, access: Access) -> ConstraintResult<bool>
 where
-    OA: OpAccess<Op = Op>,
+    OA: OpAccess<Op = Op> + core::fmt::Debug,
     OA::Error: Into<error::OpError>,
 {
     let stack = exec(op_access, access)?;
@@ -140,6 +143,7 @@ pub fn exec_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintRe
 pub fn exec_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<Stack>
 where
     I: IntoIterator<Item = u8>,
+    I::IntoIter: core::fmt::Debug,
 {
     exec(BytecodeMappedLazy::new(bytes), access)
 }
@@ -150,9 +154,10 @@ pub fn exec_ops(ops: &[Op], access: Access) -> ConstraintResult<Stack> {
 }
 
 /// Execute the operations of a constraint and return the resulting stack.
+#[instrument(err)]
 pub fn exec<OA>(mut op_access: OA, access: Access) -> ConstraintResult<Stack>
 where
-    OA: OpAccess<Op = Op>,
+    OA: OpAccess<Op = Op> + core::fmt::Debug,
     OA::Error: Into<error::OpError>,
 {
     let mut pc = 0;

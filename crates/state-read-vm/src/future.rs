@@ -6,6 +6,7 @@ use crate::{
     OpGasCost, OpKind, StateRead, Vm,
 };
 use core::{
+    fmt::Debug,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -140,7 +141,7 @@ where
 impl<'a, S, OA, OG> Future for ExecFuture<'a, S, OA, OG>
 where
     S: StateRead,
-    OA: OpAccess<Op = Op> + Unpin,
+    OA: OpAccess<Op = Op> + Unpin + Debug,
     OG: OpGasCost,
     OA::Error: Into<OpError<S::Error>>,
 {
@@ -167,6 +168,7 @@ where
                     Ok(new_pc) => vm.pc = new_pc,
                     Err(err) => {
                         let err = StateReadError::Op(vm.pc, err.into());
+                        tracing::error!("State read op failed. {:?}", self.op_access);
                         return Poll::Ready(Err(err));
                     }
                 };
@@ -186,6 +188,7 @@ where
                 Ok(op) => op,
                 Err(err) => {
                     let err = StateReadError::Op(vm.pc, err.into());
+                    tracing::error!("State read access error. {:?}", self.op_access);
                     return Poll::Ready(Err(err));
                 }
             };
@@ -201,7 +204,10 @@ where
                 .ok_or_else(|| out_of_gas(&self.gas, op_gas))
                 .map_err(|err| StateReadError::Op(vm.pc, err.into()))
             {
-                Err(err) => return Poll::Ready(Err(err)),
+                Err(err) => {
+                    tracing::error!("State read gas limit exceeded. {:?}", self.op_access);
+                    return Poll::Ready(Err(err));
+                }
                 Ok(next_spent) => next_spent,
             };
 
@@ -229,6 +235,7 @@ where
                 Ok(opt) => opt,
                 Err(err) => {
                     let err = StateReadError::Op(vm.pc, err.into());
+                    tracing::error!("State read error. {:?}", self.op_access);
                     return Poll::Ready(Err(err));
                 }
             };
@@ -253,6 +260,7 @@ where
             }
         }
 
+        tracing::error!("State read must complete with `Halt`. {:?}", self.op_access);
         // Programs must complete with a `Halt` operation.
         Poll::Ready(Err(StateReadError::PcOutOfRange(vm.pc)))
     }

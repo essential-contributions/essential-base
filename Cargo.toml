@@ -32,3 +32,4 @@ syn = { version = "2", features = ["extra-traits", "full", "printing"] }
 tempfile = "3.9.0"
 thiserror = "1"
 tokio = { version = "1.36", default-features = false, features = ["macros", "test-util"] } # Used for `state-read-vm` tests.
+tracing = "0.1"
