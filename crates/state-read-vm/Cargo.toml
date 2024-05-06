@@ -8,9 +8,12 @@ essential-constraint-vm = { workspace = true }
 essential-state-asm = { workspace = true }
 essential-types = { workspace = true }
 thiserror = { workspace = true }
-tracing = {workspace = true}
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 futures = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }
+
+[features]
+tracing = ["dep:tracing"]

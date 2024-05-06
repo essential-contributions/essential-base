@@ -168,6 +168,7 @@ where
                     Ok(new_pc) => vm.pc = new_pc,
                     Err(err) => {
                         let err = StateReadError::Op(vm.pc, err.into());
+                        #[cfg(feature = "tracing")]
                         tracing::error!("State read op failed. {:?}", self.op_access);
                         return Poll::Ready(Err(err));
                     }
@@ -188,6 +189,7 @@ where
                 Ok(op) => op,
                 Err(err) => {
                     let err = StateReadError::Op(vm.pc, err.into());
+                    #[cfg(feature = "tracing")]
                     tracing::error!("State read access error. {:?}", self.op_access);
                     return Poll::Ready(Err(err));
                 }
@@ -205,6 +207,7 @@ where
                 .map_err(|err| StateReadError::Op(vm.pc, err.into()))
             {
                 Err(err) => {
+                    #[cfg(feature = "tracing")]
                     tracing::error!("State read gas limit exceeded. {:?}", self.op_access);
                     return Poll::Ready(Err(err));
                 }
@@ -235,6 +238,7 @@ where
                 Ok(opt) => opt,
                 Err(err) => {
                     let err = StateReadError::Op(vm.pc, err.into());
+                    #[cfg(feature = "tracing")]
                     tracing::error!("State read error. {:?}", self.op_access);
                     return Poll::Ready(Err(err));
                 }
@@ -260,6 +264,7 @@ where
             }
         }
 
+        #[cfg(feature = "tracing")]
         tracing::error!("State read must complete with `Halt`. {:?}", self.op_access);
         // Programs must complete with a `Halt` operation.
         Poll::Ready(Err(StateReadError::PcOutOfRange(vm.pc)))

@@ -48,6 +48,7 @@ use essential_types::{convert::bool_from_word, ConstraintBytecode};
 pub use op_access::OpAccess;
 #[doc(inline)]
 pub use stack::Stack;
+#[cfg(feature = "tracing")]
 use tracing::instrument;
 
 mod access;
@@ -67,7 +68,7 @@ mod stack;
 /// [`CheckError`][error::CheckError] type.
 ///
 /// The intent is considered to be satisfied if this function returns `Ok(())`.
-#[instrument(err)]
+#[cfg_attr(feature = "tracing", instrument(err))]
 pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
     use rayon::{iter::Either, prelude::*};
     let (failed, unsatisfied): (Vec<_>, Vec<_>) = intent
@@ -154,7 +155,6 @@ pub fn exec_ops(ops: &[Op], access: Access) -> ConstraintResult<Stack> {
 }
 
 /// Execute the operations of a constraint and return the resulting stack.
-#[instrument(err)]
 pub fn exec<OA>(mut op_access: OA, access: Access) -> ConstraintResult<Stack>
 where
     OA: OpAccess<Op = Op> + core::fmt::Debug,
