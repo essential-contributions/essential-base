@@ -184,7 +184,7 @@ pub enum IntentConstraintsError {
 /// The utility score of a solution.
 pub type Utility = f64;
 
-/// [`calculate_utility`] error.
+/// `calculate_utility` error.
 #[derive(Debug, Error)]
 pub enum UtilityError {
     /// The range specified by the intent's directive is invalid.
@@ -365,31 +365,6 @@ pub fn check_partial_solutions(
     Ok(())
 }
 
-/// Validate the solution data decision variables against those expected by their associated intent.
-///
-/// This function assumes that `Solution` and `Intent` have already been
-/// independently validated, and may `panic!` otherwise.
-///
-/// Upon error, returns the index of the failed data alongside the error.
-pub fn check_decision_variable_lengths(
-    solution: &Solution,
-    get_intent: impl Fn(&IntentAddress) -> Arc<Intent>,
-) -> Result<(), (u16, InvalidDecisionVariablesLength)> {
-    for (ix, data) in solution.data.iter().enumerate() {
-        let intent = get_intent(&data.intent_to_solve);
-        // Ensure the numbers match.
-        if data.decision_variables.len() != intent.slots.decision_variables as usize {
-            let err = InvalidDecisionVariablesLength {
-                data: data.decision_variables.len(),
-                intent: intent.slots.decision_variables,
-            };
-            let ix = u16::try_from(ix).expect("solution data length already validated");
-            return Err((ix, err));
-        }
-    }
-    Ok(())
-}
-
 /// Checks all of a solution's `SolutionData` against its associated intents.
 ///
 /// For each of the solution's `data` elements, a single task is spawned that
@@ -487,6 +462,31 @@ where
     }
 
     Ok((utility, total_gas))
+}
+
+/// Validate the solution data decision variables against those expected by their associated intent.
+///
+/// This function assumes that `Solution` and `Intent` have already been
+/// independently validated, and may `panic!` otherwise.
+///
+/// Upon error, returns the index of the failed data alongside the error.
+pub fn check_decision_variable_lengths(
+    solution: &Solution,
+    get_intent: impl Fn(&IntentAddress) -> Arc<Intent>,
+) -> Result<(), (u16, InvalidDecisionVariablesLength)> {
+    for (ix, data) in solution.data.iter().enumerate() {
+        let intent = get_intent(&data.intent_to_solve);
+        // Ensure the numbers match.
+        if data.decision_variables.len() != intent.slots.decision_variables as usize {
+            let err = InvalidDecisionVariablesLength {
+                data: data.decision_variables.len(),
+                intent: intent.slots.decision_variables,
+            };
+            let ix = u16::try_from(ix).expect("solution data length already validated");
+            return Err((ix, err));
+        }
+    }
+    Ok(())
 }
 
 /// Checks a solution against a single intent using the solution data at the given index.
