@@ -111,6 +111,12 @@ pub enum CryptoError {
     /// Failed to verify a ED25519 signature.
     #[error("failed to verify ed25519 signature: {0}")]
     Ed25519(#[from] ed25519_dalek::ed25519::Error),
+    /// Failed to recover a SECP256k1 public key.
+    #[error("failed to recover secp256k1 public key: {0}")]
+    Secp256k1(#[from] secp256k1::Error),
+    /// Failed to parse SECP256k1 recovery id
+    #[error("failed to parse secp256k1 recovery id")]
+    Secp256k1RecoveryId,
 }
 
 /// Shorthand for a `Result` where the error type is a `StackError`.

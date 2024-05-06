@@ -41,6 +41,51 @@ pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
     Ok(())
 }
 
+pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
+    use secp256k1::{
+        ecdsa::{RecoverableSignature, RecoveryId},
+        Message, Secp256k1,
+    };
+
+    // Pop the stack.
+    let recover_bit = stack.pop()?;
+    let signature_words = stack.pop8()?;
+    let message_hash = stack.pop4()?;
+
+    // Parse the recovery ID.
+    let recovery_id: i32 = recover_bit
+        .try_into()
+        .map_err(|_| CryptoError::Secp256k1RecoveryId)?;
+    let recovery_id = RecoveryId::from_i32(recovery_id).map_err(CryptoError::Secp256k1)?;
+
+    // Parse the signature
+    let signature_bytes = u8_64_from_word_8(signature_words);
+    let recoverable_signature = RecoverableSignature::from_compact(&signature_bytes, recovery_id)
+        .map_err(CryptoError::Secp256k1)?;
+
+    // Parse the message hash.
+    let message_hash = u8_32_from_word_4(message_hash);
+    let message = Message::from_digest(message_hash);
+
+    // Recover the public key.
+    let secp = Secp256k1::new();
+    let public_key = secp
+        .recover_ecdsa(&message, &recoverable_signature)
+        .map_err(CryptoError::Secp256k1)?;
+
+    // Serialize the public key.
+    // Note the public key is 33 bytes long.
+    let [public_key @ .., end] = public_key.serialize();
+    let public_key_word = word_4_from_u8_32(public_key);
+    let end_word = Word::from(end);
+
+    // Push the public key.
+    stack.extend(public_key_word)?;
+    stack.push(end_word)?;
+
+    Ok(())
+}
+
 fn bytes_from_words(words: impl IntoIterator<Item = Word>) -> impl Iterator<Item = u8> {
     words.into_iter().flat_map(bytes_from_word)
 }
