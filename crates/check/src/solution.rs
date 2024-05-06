@@ -110,7 +110,7 @@ pub enum IntentError<E> {
     // TODO: Should we be skipping these errors, and document that intents must be
     // validated prior to `solution::check_intent`?
     #[error("the intent itself is invalid: {0}")]
-    InvalidIntent(#[from] crate::intent::IntentError),
+    InvalidIntent(#[from] crate::intent::InvalidIntent),
     /// Failed to parse ops from bytecode during bytecode mapping.
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
