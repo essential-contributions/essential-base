@@ -207,6 +207,7 @@ pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> OpResult<()> {
     match op {
         asm::Crypto::Sha256 => crypto::sha256(stack),
         asm::Crypto::VerifyEd25519 => crypto::verify_ed25519(stack),
+        asm::Crypto::RecoverSecp256k1 => crypto::recover_secp256k1(stack),
     }
 }
 
