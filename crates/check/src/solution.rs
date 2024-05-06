@@ -23,32 +23,32 @@ use tokio::task::JoinSet;
 
 /// [`check_signed`] error.
 #[derive(Debug, Error)]
-pub enum SignedSolutionError {
+pub enum InvalidSignedSolution {
     /// Invalid signature.
     #[error("failed to validate solution signature")]
-    InvalidSignature(#[from] secp256k1::Error),
+    Signature(#[from] secp256k1::Error),
     /// Invalid solution.
     #[error("invalid solution: {0}")]
-    Solution(#[from] SolutionError),
+    Solution(#[from] InvalidSolution),
 }
 
 /// [`check`] error.
 #[derive(Debug, Error)]
-pub enum SolutionError {
+pub enum InvalidSolution {
     /// Invalid solution data.
     #[error("invalid solution data: {0}")]
-    Data(#[from] SolutionDataError),
+    Data(#[from] InvalidSolutionData),
     /// State mutations validation failed.
     #[error("state mutations validation failed: {0}")]
-    StateMutations(#[from] StateMutationsError),
+    StateMutations(#[from] InvalidStateMutations),
     /// Partial solutions validation failed.
     #[error("partial solutions validation failed: {0}")]
-    PartialSolutions(#[from] PartialSolutionsError),
+    PartialSolutions(#[from] InvalidPartialSolutions),
 }
 
 /// [`check_data`] error.
 #[derive(Debug, Error)]
-pub enum SolutionDataError {
+pub enum InvalidSolutionData {
     /// There must be at least one solution data.
     #[error("must be at least one solution data")]
     Empty,
@@ -62,7 +62,7 @@ pub enum SolutionDataError {
 
 /// [`check_state_mutations`] error.
 #[derive(Debug, Error)]
-pub enum StateMutationsError {
+pub enum InvalidStateMutations {
     /// The number of state mutations exceeds the limit.
     #[error("the number of state mutations ({0}) exceeds the limit ({MAX_STATE_MUTATIONS})")]
     TooMany(usize),
@@ -73,7 +73,7 @@ pub enum StateMutationsError {
 
 /// [`check_partial_solutions`] error.
 #[derive(Debug, Error)]
-pub enum PartialSolutionsError {
+pub enum InvalidPartialSolutions {
     /// The number of partial solutions exceeded the limit.
     #[error("the number of partial solutions ({0}) exceeds the limit ({MAX_PARTIAL_SOLUTIONS})")]
     TooMany(usize),
@@ -198,7 +198,7 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 /// without reference to its associated intents or partial solutions.
 ///
 /// This includes solution data, state mutations and associated partial solutions.
-pub fn check_signed(solution: &Signed<Solution>) -> Result<(), SignedSolutionError> {
+pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
     sign::verify(solution)?;
     check(&solution.data)?;
     Ok(())
@@ -208,7 +208,7 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), SignedSolutionErr
 /// its associated intents or partial solutions.
 ///
 /// This includes solution data, state mutations and associated partial solutions.
-pub fn check(solution: &Solution) -> Result<(), SolutionError> {
+pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
     check_partial_solutions(&solution.partial_solutions)?;
@@ -216,20 +216,20 @@ pub fn check(solution: &Solution) -> Result<(), SolutionError> {
 }
 
 /// Validate the solution's slice of [`SolutionData`].
-pub fn check_data(data: &[SolutionData]) -> Result<(), SolutionDataError> {
+pub fn check_data(data: &[SolutionData]) -> Result<(), InvalidSolutionData> {
     // Validate solution data.
     // Ensure that at solution has at least one solution data.
     if data.is_empty() {
-        return Err(SolutionDataError::Empty);
+        return Err(InvalidSolutionData::Empty);
     }
     // Ensure that solution data length is below limit length.
     if data.len() > MAX_SOLUTION_DATA {
-        return Err(SolutionDataError::TooMany(data.len()));
+        return Err(InvalidSolutionData::TooMany(data.len()));
     }
     // Ensure that decision variables of each solution data are below limit length.
     for (ix, data) in data.iter().enumerate() {
         if data.decision_variables.len() > MAX_DECISION_VARIABLES as usize {
-            return Err(SolutionDataError::TooManyDecisionVariables(
+            return Err(InvalidSolutionData::TooManyDecisionVariables(
                 ix,
                 data.decision_variables.len(),
             ));
@@ -239,16 +239,18 @@ pub fn check_data(data: &[SolutionData]) -> Result<(), SolutionDataError> {
 }
 
 /// Validate the solution's state mutations.
-pub fn check_state_mutations(solution: &Solution) -> Result<(), StateMutationsError> {
+pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMutations> {
     // Validate state mutations.
     // Ensure that solution state mutations length is below limit length.
     if solution.state_mutations.len() > MAX_STATE_MUTATIONS {
-        return Err(StateMutationsError::TooMany(solution.state_mutations.len()));
+        return Err(InvalidStateMutations::TooMany(
+            solution.state_mutations.len(),
+        ));
     }
     // Ensure that all state mutations with a pathway points to some solution data.
     for state_mut in &solution.state_mutations {
         if solution.data.len() <= usize::from(state_mut.pathway) {
-            return Err(StateMutationsError::PathwayOutOfRangeOfSolutionData(
+            return Err(InvalidStateMutations::PathwayOutOfRangeOfSolutionData(
                 state_mut.pathway,
             ));
         }
@@ -259,15 +261,15 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), StateMutationsEr
 /// Validate the solution's associated partial solutions.
 pub fn check_partial_solutions(
     partial_solutions: &[Signed<ContentAddress>],
-) -> Result<(), PartialSolutionsError> {
+) -> Result<(), InvalidPartialSolutions> {
     // Validate partial solutions.
     // Ensure that solution partial solutions length is below limit length.
     if partial_solutions.len() > MAX_PARTIAL_SOLUTIONS {
-        return Err(PartialSolutionsError::TooMany(partial_solutions.len()));
+        return Err(InvalidPartialSolutions::TooMany(partial_solutions.len()));
     }
     // Verify signatures of all partial solutions.
     for (ix, signed) in partial_solutions.iter().enumerate() {
-        sign::verify(signed).map_err(|e| PartialSolutionsError::InvalidSignature(ix, e))?;
+        sign::verify(signed).map_err(|e| InvalidPartialSolutions::InvalidSignature(ix, e))?;
     }
     Ok(())
 }
