@@ -272,7 +272,9 @@ dependencies = [
  "essential-sign",
  "essential-state-read-vm",
  "essential-types",
+ "rand",
  "rayon",
+ "secp256k1",
  "thiserror",
  "tokio",
 ]
