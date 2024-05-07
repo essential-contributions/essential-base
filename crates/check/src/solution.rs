@@ -543,7 +543,8 @@ where
     // Initialize pre and post slots. These will contain all state slots for all state reads.
     let mut pre_slots: Vec<Option<Word>> = vec![None; intent_state_len];
     let mut post_slots: Vec<Option<Word>> = vec![None; intent_state_len];
-    let solution_access = SolutionAccess::new(&solution, solution_data_index);
+    let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+    let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
 
     // Read pre and post states.
     for (state_read_index, state_read) in intent.state_read.iter().enumerate() {
@@ -738,7 +739,9 @@ async fn check_intent_constraints_parallel(
         // Spawn this sync code onto a rayon thread.
         // This is a non-blocking operation.
         rayon::spawn(move || {
-            let solution_access = SolutionAccess::new(&solution, solution_data_index);
+            let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+            let solution_access =
+                SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
             let access = Access {
                 solution: solution_access,
                 state_slots: StateSlots {
@@ -816,7 +819,8 @@ async fn calculate_utility(
     // Spawn this sync code onto a rayon thread.
     let (tx, rx) = tokio::sync::oneshot::channel();
     rayon::spawn(move || {
-        let solution_access = SolutionAccess::new(&solution, solution_data_index);
+        let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+        let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
         let access = Access {
             solution: solution_access,
             state_slots: StateSlots {
