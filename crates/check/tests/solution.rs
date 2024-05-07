@@ -291,10 +291,15 @@ async fn check_intent_42_with_solution() {
     };
 
     // Run the check, and ensure util and gas aren't 0.
-    let (util, gas) =
-        solution::check_intents(&pre_state, &post_state, Arc::new(solution), get_intent)
-            .await
-            .unwrap();
+    let (util, gas) = solution::check_intents(
+        &pre_state,
+        &post_state,
+        Arc::new(solution),
+        get_intent,
+        Arc::new(solution::CheckIntentConfig::default()),
+    )
+    .await
+    .unwrap();
 
     // Util should be 1 - only one solved intent.
     assert_eq!(util, 1.0);

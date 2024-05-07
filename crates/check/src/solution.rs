@@ -23,6 +23,18 @@ use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
 
+/// Configuration options passed to [`check_intent`].
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub struct CheckIntentConfig {
+    /// Whether or not to wait and collect all failures after a single state
+    /// read or constraint fails.
+    ///
+    /// Potentially useful for debugging or testing tools.
+    ///
+    /// Default: `false`
+    pub collect_all_failures: bool,
+}
+
 /// [`check_signed`] error.
 #[derive(Debug, Error)]
 pub enum InvalidSignedSolution {
@@ -386,6 +398,7 @@ pub async fn check_intents<SA, SB>(
     post_state: &SB,
     solution: Arc<Solution>,
     get_intent: impl Fn(&IntentAddress) -> Arc<Intent>,
+    config: Arc<CheckIntentConfig>,
 ) -> Result<(Utility, Gas), IntentsError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
@@ -410,6 +423,7 @@ where
         let solution = solution.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
+        let config = config.clone();
         set.spawn(async move {
             let pre_state = pre_state;
             let post_state = post_state;
@@ -419,6 +433,7 @@ where
                 solution,
                 intent,
                 solution_data_index,
+                &config,
             )
             .await;
             (solution_data_index, res)
@@ -437,9 +452,11 @@ where
             Ok(ok) => ok,
             Err(e) => {
                 failed.push((solution_data_ix, e));
-                // TODO: Add configuration option to `continue` instead and
-                // collect all failures.
-                return Err(IntentErrors(failed).into());
+                if config.collect_all_failures {
+                    continue;
+                } else {
+                    return Err(IntentErrors(failed).into());
+                }
             }
         };
         utility += u;
@@ -508,6 +525,7 @@ pub async fn check_intent<SA, SB>(
     solution: Arc<Solution>,
     intent: Arc<Intent>,
     solution_data_index: SolutionDataIndex,
+    config: &CheckIntentConfig,
 ) -> Result<(Utility, Gas), IntentError<SA::Error>>
 where
     SA: StateRead + Sync,
@@ -587,6 +605,7 @@ where
         intent.clone(),
         Arc::from(pre_slots.into_boxed_slice()),
         Arc::from(post_slots.into_boxed_slice()),
+        config,
     )
     .await?;
 
@@ -671,6 +690,7 @@ pub async fn check_intent_constraints(
     intent: Arc<Intent>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
+    config: &CheckIntentConfig,
 ) -> Result<Utility, IntentConstraintsError> {
     check_intent_constraints_parallel(
         solution.clone(),
@@ -678,6 +698,7 @@ pub async fn check_intent_constraints(
         intent.clone(),
         pre_slots.clone(),
         post_slots.clone(),
+        config,
     )
     .await?;
     let util = calculate_utility(
@@ -698,6 +719,7 @@ async fn check_intent_constraints_parallel(
     intent: Arc<Intent>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
+    config: &CheckIntentConfig,
 ) -> Result<(), IntentConstraintsError> {
     let mut handles = Vec::with_capacity(intent.constraints.len());
 
@@ -751,7 +773,12 @@ async fn check_intent_constraints_parallel(
         let (ix, res): (usize, Result<bool, _>) = handle.await?;
         match res {
             // If the constraint failed, add it to the failed list.
-            Err(err) => failed.push((ix, err)),
+            Err(err) => {
+                failed.push((ix, err));
+                if !config.collect_all_failures {
+                    break;
+                }
+            }
             // If the constraint was unsatisfied, add it to the unsatisfied list.
             Ok(b) if !b => unsatisfied.push(ix),
             // Otherwise, the constraint was satisfied.
