@@ -437,7 +437,9 @@ where
             Ok(ok) => ok,
             Err(e) => {
                 failed.push((solution_data_ix, e));
-                continue;
+                // TODO: Add configuration option to `continue` instead and
+                // collect all failures.
+                return Err(IntentErrors(failed).into());
             }
         };
         utility += u;
