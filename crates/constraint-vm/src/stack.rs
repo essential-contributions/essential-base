@@ -300,12 +300,12 @@ mod tests {
             Stack::Push(3).into(),
             Stack::Push(4).into(),
             Stack::Push(5).into(),
-            Stack::Push(6).into(),
-            Stack::Push(2).into(),
+            Stack::Push(42).into(),
+            Stack::Push(2).into(), // Index `2` should be swapped with the `42` value.
             Stack::SwapIndex.into(),
         ];
         let stack = exec_ops(ops, *test_access()).unwrap();
-        assert_eq!(&stack[..], &[3, 6, 5, 4]);
+        assert_eq!(&stack[..], &[3, 42, 5, 4]);
     }
 
     #[test]
@@ -313,7 +313,7 @@ mod tests {
         let ops = &[
             Stack::Push(3).into(),
             Stack::Push(4).into(),
-            Stack::Push(2).into(),
+            Stack::Push(2).into(), // Index `2` is out of range.
             Stack::SwapIndex.into(),
         ];
         match eval_ops(ops, *test_access()) {
