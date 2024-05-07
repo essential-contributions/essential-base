@@ -48,6 +48,21 @@ impl Stack {
         Ok(())
     }
 
+    /// The SwapIndex op implementation.
+    pub(crate) fn swap_index(&mut self) -> StackResult<()> {
+        let rev_ix_w = self.pop()?;
+        let top_ix = self
+            .len()
+            .checked_sub(1)
+            .ok_or(StackError::IndexOutOfBounds)?;
+        let rev_ix = usize::try_from(rev_ix_w).map_err(|_| StackError::IndexOutOfBounds)?;
+        let ix = top_ix
+            .checked_sub(rev_ix)
+            .ok_or(StackError::IndexOutOfBounds)?;
+        self.0.swap(ix, top_ix);
+        Ok(())
+    }
+
     /// A wrapper around `Vec::pop`, producing an error in the case that the stack is empty.
     pub fn pop(&mut self) -> StackResult<Word> {
         self.0.pop().ok_or(StackError::Empty)
@@ -275,6 +290,34 @@ mod tests {
         let ops = &[Stack::Push(0).into(), Stack::DupFrom.into()];
         match eval_ops(ops, *test_access()) {
             Err(ConstraintError::Op(1, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            _ => panic!("expected index out-of-bounds stack error"),
+        }
+    }
+
+    #[test]
+    fn swap_index() {
+        let ops = &[
+            Stack::Push(3).into(),
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(6).into(),
+            Stack::Push(2).into(),
+            Stack::SwapIndex.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[3, 6, 5, 4]);
+    }
+
+    #[test]
+    fn swap_index_oob() {
+        let ops = &[
+            Stack::Push(3).into(),
+            Stack::Push(4).into(),
+            Stack::Push(2).into(),
+            Stack::SwapIndex.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
     }
