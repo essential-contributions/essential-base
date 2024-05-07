@@ -157,10 +157,10 @@ pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 }
 
 // A simple intent that expects the value of previously unset state slot with index 0 to be 42.
-pub fn test_intent_42() -> Intent {
+pub fn test_intent_42(decision_variables: u32) -> Intent {
     Intent {
         slots: Slots {
-            decision_variables: 0,
+            decision_variables,
             state: vec![StateSlot {
                 index: 0,
                 amount: 1,
@@ -216,7 +216,7 @@ pub fn test_intent_42_solution_pair(
     keypair_seed: [u8; 32],
 ) -> (Signed<Vec<Intent>>, Solution) {
     // Create the test intent, ensure its decision_variables match, and sign.
-    let mut intent = test_intent_42();
+    let mut intent = test_intent_42(decision_variables);
     intent.slots.decision_variables = decision_variables;
     let (sk, _pk) = random_keypair(keypair_seed);
     let intents = essential_sign::sign(vec![intent], sk);
