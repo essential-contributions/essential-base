@@ -212,6 +212,14 @@ pub(crate) fn this_set_address(data: &SolutionData, stack: &mut Stack) -> OpResu
     Ok(())
 }
 
+/// `Access::ThisPathway` implementation.
+pub(crate) fn this_pathway(index: usize, stack: &mut Stack) -> OpResult<()> {
+    let index: Word = index
+        .try_into()
+        .map_err(|_| AccessError::SolutionDataOutOfBounds)?;
+    Ok(stack.push(index)?)
+}
+
 /// Resolve the decision variable by traversing any necessary transient data.
 ///
 /// Errors if the solution data or decision var indices are out of bounds
