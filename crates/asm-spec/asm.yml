@@ -42,6 +42,18 @@ StateRead:
               stack_in: [a, b]
               stack_out: [b, a]
 
+            SwapIndex:
+              opcode: 0x06
+              description: |
+                Swap the top word on the stack with the word at the given stack depth index.
+
+                `0` is the index of the element at the top of the stack.
+              panics: 
+                - Index is out of range.
+              stack_in: [a, b, c, d, index]
+              stack_out: [a, d, c, b]
+
+
         Pred:
           description: Operations for computing predicates.
           group:
