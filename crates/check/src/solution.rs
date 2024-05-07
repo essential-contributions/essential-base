@@ -117,11 +117,6 @@ pub struct IntentErrors<E>(pub Vec<(SolutionDataIndex, IntentError<E>)>);
 /// [`check_intent`] error.
 #[derive(Debug, Error)]
 pub enum IntentError<E> {
-    /// The intent itself was invalid.
-    // TODO: Should we be skipping these errors, and document that intents must be
-    // validated prior to `solution::check_intent`?
-    #[error("the intent itself is invalid: {0}")]
-    InvalidIntent(#[from] crate::intent::InvalidIntent),
     /// The number of decision variables provided by the solution data differs
     /// from the number expected by the intent.
     #[error("{0}")]
