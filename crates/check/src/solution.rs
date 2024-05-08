@@ -14,7 +14,8 @@ use crate::{
         intent::{Directive, Intent},
         slots::{self, StateSlot},
         solution::{
-            DecisionVariable, DecisionVariableIndex, Solution, SolutionData, SolutionDataIndex,
+            DecisionVariable, DecisionVariableIndex, PartialSolution, Solution, SolutionData,
+            SolutionDataIndex,
         },
         ContentAddress, IntentAddress, Key, Signed, Word,
     },
@@ -57,7 +58,7 @@ pub enum InvalidSolution {
     StateMutations(#[from] InvalidStateMutations),
     /// Partial solutions validation failed.
     #[error("partial solutions validation failed: {0}")]
-    PartialSolutions(#[from] InvalidPartialSolutions),
+    PartialSolutions(#[from] InvalidPartialSolutionAddrs),
 }
 
 /// [`check_data`] error.
@@ -94,9 +95,9 @@ pub enum InvalidStateMutations {
     MultipleMutationsForSlot(IntentAddress, Key),
 }
 
-/// [`check_partial_solutions`] error.
+/// [`check_partial_solution_addrs`] error.
 #[derive(Debug, Error)]
-pub enum InvalidPartialSolutions {
+pub enum InvalidPartialSolutionAddrs {
     /// The number of partial solutions exceeded the limit.
     #[error("the number of partial solutions ({0}) exceeds the limit ({MAX_PARTIAL_SOLUTIONS})")]
     TooMany(usize),
@@ -244,7 +245,7 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolu
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
-    check_partial_solutions(&solution.partial_solutions)?;
+    check_partial_solution_addrs(&solution.partial_solutions)?;
     Ok(())
 }
 
@@ -357,18 +358,83 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
 }
 
 /// Validate the solution's associated partial solutions.
-pub fn check_partial_solutions(
+pub fn check_partial_solution_addrs(
     partial_solutions: &[Signed<ContentAddress>],
-) -> Result<(), InvalidPartialSolutions> {
+) -> Result<(), InvalidPartialSolutionAddrs> {
     // Validate partial solutions.
     // Ensure that solution partial solutions length is below limit length.
     if partial_solutions.len() > MAX_PARTIAL_SOLUTIONS {
-        return Err(InvalidPartialSolutions::TooMany(partial_solutions.len()));
+        return Err(InvalidPartialSolutionAddrs::TooMany(
+            partial_solutions.len(),
+        ));
     }
     // Verify signatures of all partial solutions.
     for (ix, signed) in partial_solutions.iter().enumerate() {
-        sign::verify(signed).map_err(|e| InvalidPartialSolutions::Signature(ix, e))?;
+        sign::verify(signed).map_err(|e| InvalidPartialSolutionAddrs::Signature(ix, e))?;
     }
+    Ok(())
+}
+
+/// [`check_with_partial_solutions`] error.
+#[derive(Debug, Error)]
+pub enum PartialSolutionsError {}
+
+/// Validate [`PartialSolution`]s retrieved from storage against an assoicated [`Solution`].
+///
+/// `get_partial_solutions` must return immediately and never fail. All
+/// necessary `PartialSolution`s are assumed to have been ready from storage prior.
+pub fn check_partial_solutions(
+    solution: &Solution,
+    get_partial_solution: impl Fn(ContentAddress) -> Arc<PartialSolution>,
+) -> Result<(), PartialSolutionsError> {
+    let data: HashMap<_, _> = solution
+        .data
+        .iter()
+        .map(|d| (&d.intent_to_solve, d))
+        .collect();
+    let state_mutations: HashSet<_> = solution.state_mutations.iter().collect();
+
+    // Validate partial solution data.
+
+    for PartialSolution {
+        data: partial_data,
+        state_mutations: partial_state_mutations,
+    } in partial_solutions.iter().map(|(_, ps)| ps.as_ref())
+    {
+        for pd in partial_data.iter() {
+            // Ensure that intent solved by partial solution matches the one is in solution data.
+            let partial_solution_data = data.get(&pd.intent_to_solve);
+            ensure!(
+                partial_solution_data.is_some(),
+                "Partial solution intent to solve mismatch with solution data"
+            );
+            let partial_solution_data = partial_solution_data.unwrap();
+            let dec_vars: HashMap<usize, DecisionVariable> = partial_solution_data
+                .decision_variables
+                .iter()
+                .enumerate()
+                .map(|(i, dv)| (i, dv.clone()))
+                .collect();
+            // Ensure that decision variables in partial solution data match the ones in solution data.
+            ensure!(
+                pd.decision_variables
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, dv)| dv.as_ref().map(|dv| (i, dv)))
+                    .all(|(i, dv)| dec_vars.get(&i).map_or(false, |data_dv| data_dv == dv)),
+                "Partial solution decision variables mismatch with solution data"
+            );
+
+            // Ensure that state mutations in partial solution data match the ones in solution data.
+            ensure!(
+                partial_state_mutations
+                    .iter()
+                    .all(|mutation| state_mutations.contains(mutation)),
+                "Partial solution state mutations mismatch with solution data"
+            );
+        }
+    }
+
     Ok(())
 }
 
