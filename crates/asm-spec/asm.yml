@@ -58,7 +58,7 @@ StateRead:
               description: | 
                 Conditionally keep one of the top two elements on the stack.
                 
-                If condition is `false`, the top element is kept.
+                If condition is `true`, the top element is kept.
               stack_in: [a, b, cond]
               stack_out: [b]
 
