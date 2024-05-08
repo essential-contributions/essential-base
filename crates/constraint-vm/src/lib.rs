@@ -239,6 +239,7 @@ pub fn step_op_stack(op: asm::Stack, stack: &mut Stack) -> OpResult<()> {
         asm::Stack::Pop => stack.pop().map(|_| ()).map_err(From::from),
         asm::Stack::Swap => stack.pop2_push2(|a, b| Ok([b, a])),
         asm::Stack::SwapIndex => stack.swap_index().map_err(From::from),
+        asm::Stack::Select => stack.select().map_err(From::from),
     }
 }
 

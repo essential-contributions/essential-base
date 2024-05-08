@@ -63,6 +63,13 @@ impl Stack {
         Ok(())
     }
 
+    /// The Select op implementation.
+    pub(crate) fn select(&mut self) -> StackResult<()> {
+        self.pop()
+            .and_then(|cond_w| self.pop2_push1(|w0, w1| Ok(if cond_w == 0 { w1 } else { w0 })))?;
+        Ok(())
+    }
+
     /// A wrapper around `Vec::pop`, producing an error in the case that the stack is empty.
     pub fn pop(&mut self) -> StackResult<Word> {
         self.0.pop().ok_or(StackError::Empty)
@@ -320,5 +327,17 @@ mod tests {
             Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
+    }
+
+    #[test]
+    fn select() {
+        let ops = &[
+            Stack::Push(3).into(),
+            Stack::Push(4).into(),
+            Stack::Push(0).into(),
+            Stack::Select.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[4]);
     }
 }
