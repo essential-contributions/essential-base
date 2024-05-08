@@ -57,6 +57,7 @@ mod bytecode;
 mod crypto;
 pub mod error;
 mod op_access;
+mod pred;
 mod stack;
 
 /// Check whether the constraints of a single intent are met for the given
@@ -173,7 +174,7 @@ pub fn step_op(access: Access, op: Op, stack: &mut Stack) -> OpResult<()> {
         Op::Access(op) => step_op_access(access, op, stack),
         Op::Alu(op) => step_op_alu(op, stack),
         Op::Crypto(op) => step_op_crypto(op, stack),
-        Op::Pred(op) => step_op_pred(op, stack),
+        Op::Pred(op) => step_op_pred(op, access, stack),
         Op::Stack(op) => step_op_stack(op, stack),
     }
 }
@@ -216,10 +217,12 @@ pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> OpResult<()> {
 }
 
 /// Step forward constraint checking by the given predicate operation.
-pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
+pub fn step_op_pred(op: asm::Pred, access: Access, stack: &mut Stack) -> OpResult<()> {
     match op {
         asm::Pred::Eq => stack.pop2_push1(|a, b| Ok((a == b).into())),
-        asm::Pred::Eq4 => stack.pop8_push1(|ws| Ok((ws[0..4] == ws[4..8]).into())),
+        asm::Pred::EqRange => pred::eq_range(stack),
+        asm::Pred::EqRangeDecVar => pred::eq_range_dec_var(access, stack),
+        asm::Pred::EqRangeState => pred::eq_range_state(access, stack),
         asm::Pred::Gt => stack.pop2_push1(|a, b| Ok((a > b).into())),
         asm::Pred::Lt => stack.pop2_push1(|a, b| Ok((a < b).into())),
         asm::Pred::Gte => stack.pop2_push1(|a, b| Ok((a >= b).into())),
@@ -318,38 +321,6 @@ mod pred_tests {
             Stack::Push(42).into(),
             Stack::Push(42).into(),
             Pred::Eq.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_eq4_false() {
-        let ops = &[
-            Stack::Push(1).into(),
-            Stack::Push(2).into(),
-            Stack::Push(3).into(),
-            Stack::Push(4).into(),
-            Stack::Push(0).into(),
-            Stack::Push(0).into(),
-            Stack::Push(0).into(),
-            Stack::Push(0).into(),
-            Pred::Eq4.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_eq4_true() {
-        let ops = &[
-            Stack::Push(1).into(),
-            Stack::Push(2).into(),
-            Stack::Push(3).into(),
-            Stack::Push(4).into(),
-            Stack::Push(1).into(),
-            Stack::Push(2).into(),
-            Stack::Push(3).into(),
-            Stack::Push(4).into(),
-            Pred::Eq4.into(),
         ];
         assert!(eval_ops(ops, *test_access()).unwrap());
     }

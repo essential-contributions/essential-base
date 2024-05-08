@@ -1,5 +1,7 @@
 //! Stack operation and related stack manipulation implementations.
 
+use std::slice::SliceIndex;
+
 use crate::{asm::Word, error::StackError, StackResult};
 
 /// The VM's `Stack`, i.e. a `Vec` of `Word`s updated during each step of execution.
@@ -183,6 +185,16 @@ impl Stack {
         let out = f(&self[ix..])?;
         self.0.truncate(ix);
         Ok(out)
+    }
+
+    /// Returns a reference to an element or subslice of the stack if it exists.
+    ///
+    /// This is equivalent to `Vec::get`.
+    pub fn get<I>(&self, index: I) -> Option<&<I as SliceIndex<[Word]>>::Output>
+    where
+        I: SliceIndex<[Word]>,
+    {
+        self.0.get(index)
     }
 }
 
