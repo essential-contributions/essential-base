@@ -55,75 +55,51 @@ StateRead:
               opcode: 0x11
               description: |
                 Check equality of two ranges on the stack.
-                
-                This op only pops the arguments off the stack and does not pop the ranges.
-                The `start_a` and `start_b` are indices where the top of the stack is 0.
-              stack_in: [start_a, start_b, len]
-              stack_out: ["start_a..start_a + len == start_b..start_b + len"]
-            
-            EqRangeDecVar:
-              opcode: 0x12
-              description: |
-                Check equality of a range on the stack with a range of decision variables.
-                
-                This op only pops the arguments off the stack and does not pop the range.
-                `start_stack` is an index where the top of the stack is 0.
-                `start_dec_var` is an index where the first decision variables is 0.
-              stack_in: [start_stack, start_dec_var, len]
-              stack_out: ["start_stack..start_stack + len == start_dec_var..start_dec_var + len"]
-            
-            EqRangeState:
-              opcode: 0x13
-              description: |
-                Check equality of a range on the stack with a range of state slots.
-                
-                This op only pops the arguments off the stack and does not pop the range.
-                `start_stack` is an index where the top of the stack is 0.
-                `start_state` is an index where the first slot is 0.
-                `delta` is whether to check pre or post state.
 
-                If any state is None then it is considered equal to 0.
-              stack_in: [start_stack, start_state, delta, len]
-              stack_out: ["start_stack..start_stack + len == start_state..start_state + len"]
-
+                The ranges must be of equal length.
+                The ranges must be stacked sequentially.
+                Here `N` is `len -1`.
+              stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len]
+              stack_out: ["(top-(2*len))..(top - len) == (top - len)..top"]
+            
             Gt:
-              opcode: 0x14
+              opcode: 0x12
               description: Check if left-hand side is greater than right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs > rhs"]
 
             Lt:
-              opcode: 0x15
+              opcode: 0x13
               description: Check if left-hand side is less than right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs < rhs"]
 
             Gte:
-              opcode: 0x16
+              opcode: 0x14
               description: Check if left-hand side is greater than or equal to right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs >= rhs"]
 
             Lte:
-              opcode: 0x17
+              opcode: 0x15
               description: Check if left-hand side is less than or equal to right-hand side.
               stack_in: [lhs, rhs]
               stack_out: ["lhs <= rhs"]
 
             And:
-              opcode: 0x18
+              opcode: 0x16
               description: Logical AND of two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs && rhs"]
 
             Or:
-              opcode: 0x19
+              opcode: 0x17
               description: Logical OR of two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs || rhs"]
 
             Not:
-              opcode: 0x1A
+              opcode: 0x18
               description: Logical NOT of a word.
               stack_in: [a]
               stack_out: ["!a"]

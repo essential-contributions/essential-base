@@ -174,7 +174,7 @@ pub fn step_op(access: Access, op: Op, stack: &mut Stack) -> OpResult<()> {
         Op::Access(op) => step_op_access(access, op, stack),
         Op::Alu(op) => step_op_alu(op, stack),
         Op::Crypto(op) => step_op_crypto(op, stack),
-        Op::Pred(op) => step_op_pred(op, access, stack),
+        Op::Pred(op) => step_op_pred(op, stack),
         Op::Stack(op) => step_op_stack(op, stack),
     }
 }
@@ -217,12 +217,10 @@ pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> OpResult<()> {
 }
 
 /// Step forward constraint checking by the given predicate operation.
-pub fn step_op_pred(op: asm::Pred, access: Access, stack: &mut Stack) -> OpResult<()> {
+pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
     match op {
         asm::Pred::Eq => stack.pop2_push1(|a, b| Ok((a == b).into())),
         asm::Pred::EqRange => pred::eq_range(stack),
-        asm::Pred::EqRangeDecVar => pred::eq_range_dec_var(access, stack),
-        asm::Pred::EqRangeState => pred::eq_range_state(access, stack),
         asm::Pred::Gt => stack.pop2_push1(|a, b| Ok((a > b).into())),
         asm::Pred::Lt => stack.pop2_push1(|a, b| Ok((a < b).into())),
         asm::Pred::Gte => stack.pop2_push1(|a, b| Ok((a >= b).into())),
