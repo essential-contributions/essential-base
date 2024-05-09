@@ -134,6 +134,13 @@ pub enum StackError {
     /// The stack size exceeded the size limit.
     #[error("the {}-word stack size limit was exceeded", crate::Stack::SIZE_LIMIT)]
     Overflow,
+    /// The condition for Select is not `0` (false) or `1` (true).
+    #[error(
+        "invalid condition\n  \
+        expected: [0] (false) or [1] (true)\n  \
+        found:    {0}"
+    )]
+    InvalidCondition(Word),
 }
 
 impl fmt::Display for ConstraintErrors {

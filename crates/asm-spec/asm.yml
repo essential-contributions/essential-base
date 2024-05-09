@@ -52,7 +52,15 @@ StateRead:
                 - Index is out of range.
               stack_in: [a, b, c, d, index]
               stack_out: [a, d, c, b]
-
+              
+            Select:
+              opcode: 0x07
+              description: | 
+                Conditionally keep one of the top two elements on the stack.
+                
+                If condition is `true`, the top element is kept.
+              stack_in: [a, b, cond]
+              stack_out: [b]
 
         Pred:
           description: Operations for computing predicates.

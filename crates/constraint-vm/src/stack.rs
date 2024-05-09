@@ -1,6 +1,7 @@
 //! Stack operation and related stack manipulation implementations.
 
 use crate::{asm::Word, error::StackError, StackResult};
+use essential_types::convert::bool_from_word;
 
 /// The VM's `Stack`, i.e. a `Vec` of `Word`s updated during each step of execution.
 ///
@@ -60,6 +61,22 @@ impl Stack {
             .checked_sub(rev_ix)
             .ok_or(StackError::IndexOutOfBounds)?;
         self.0.swap(ix, top_ix);
+        Ok(())
+    }
+
+    /// The Select op implementation.
+    pub(crate) fn select(&mut self) -> StackResult<()> {
+        self.pop().and_then(|cond_w| {
+            self.pop2_push1(|w0, w1| {
+                Ok(
+                    if bool_from_word(cond_w).ok_or(StackError::InvalidCondition(cond_w))? {
+                        w1
+                    } else {
+                        w0
+                    },
+                )
+            })
+        })?;
         Ok(())
     }
 
@@ -320,5 +337,17 @@ mod tests {
             Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
+    }
+
+    #[test]
+    fn select() {
+        let ops = &[
+            Stack::Push(3).into(),
+            Stack::Push(4).into(),
+            Stack::Push(1).into(),
+            Stack::Select.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[4]);
     }
 }
