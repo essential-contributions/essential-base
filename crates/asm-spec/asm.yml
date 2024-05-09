@@ -63,12 +63,17 @@ StateRead:
               stack_in: [lhs, rhs]
               stack_out: ["lhs == rhs"]
 
-            Eq4:
+            EqRange:
               opcode: 0x11
-              description: Check equality of two lists of four words.
-              stack_in: [la, lb, lc, ld, ra, rb, rc, rd]
-              stack_out: ["la == ra && lb == rb && lc == rc && ld == rd"]
+              description: |
+                Check equality of two ranges on the stack.
 
+                The ranges must be of equal length.
+                The ranges must be stacked sequentially.
+                Here `N` is `len -1`.
+              stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len]
+              stack_out: ["(top-(2*len))..(top - len) == (top - len)..top"]
+            
             Gt:
               opcode: 0x12
               description: Check if left-hand side is greater than right-hand side.

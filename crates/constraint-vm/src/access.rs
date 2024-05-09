@@ -225,7 +225,7 @@ pub(crate) fn this_pathway(index: usize, stack: &mut Stack) -> OpResult<()> {
 /// Errors if the solution data or decision var indices are out of bounds
 /// (whether provided directly or via a transient decision var) or if a cycle
 /// occurs between transient decision variables.
-fn resolve_decision_var(
+pub(crate) fn resolve_decision_var(
     data: &[SolutionData],
     mut data_ix: usize,
     mut var_ix: usize,
@@ -262,7 +262,7 @@ fn state_slot(slots: StateSlots, slot: Word, delta: Word) -> OpResult<&Option<Wo
     Ok(slot)
 }
 
-fn state_slot_range(
+pub(crate) fn state_slot_range(
     slots: StateSlots,
     slot: Word,
     len: Word,
