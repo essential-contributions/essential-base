@@ -17,6 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - command: build --target wasm32-unknown-unknown --locked --all-features --all
           - command: check --locked --all
           - command: clippy --locked --all -- -D warnings
           - command: fmt --all -- --check
