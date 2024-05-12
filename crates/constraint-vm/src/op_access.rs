@@ -12,7 +12,7 @@ pub trait OpAccess {
     /// The operation type being accessed.
     type Op;
     /// Any error that might occur during access.
-    type Error: std::error::Error;
+    type Error: core::fmt::Debug + core::fmt::Display;
     /// Access the operation at the given index.
     ///
     /// Mutable access to self is required in case operations are lazily parsed.

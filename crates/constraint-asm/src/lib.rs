@@ -34,7 +34,7 @@ mod op {
     /// Operation types that may be parsed from a bytecode representation.
     pub trait TryFromBytes: Sized {
         /// Represents any error that might occur while parsing an op from bytes.
-        type Error: std::error::Error;
+        type Error: core::fmt::Debug + core::fmt::Display;
         /// Parse a single operation from the given iterator yielding bytes.
         ///
         /// Returns `None` in the case that the given iterator is empty.
@@ -61,7 +61,7 @@ pub mod opcode {
         /// The operation associated with the opcode.
         type Op;
         /// Any error that might occur while parsing.
-        type Error;
+        type Error: core::fmt::Debug + core::fmt::Display;
         /// Attempt to parse the operation associated with the opcode from the given bytes.
         ///
         /// Only consumes the bytes necessary to construct any associated data.
