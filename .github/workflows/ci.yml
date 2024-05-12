@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - command: check --locked --all
-          - command: clippy --locked --all -- -D warnings
+          - command: clippy --locked --all --tests -- -D warnings
           - command: fmt --all -- --check
           - command: test --locked --all
           - command: test --no-default-features --locked --all

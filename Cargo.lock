@@ -258,6 +258,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "essential-check"
+version = "0.1.0"
+dependencies = [
+ "essential-constraint-vm",
+ "essential-hash",
+ "essential-sign",
+ "essential-state-read-vm",
+ "essential-types",
+ "rand",
+ "rayon",
+ "secp256k1",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "essential-constraint-asm"
 version = "0.1.0"
 dependencies = [

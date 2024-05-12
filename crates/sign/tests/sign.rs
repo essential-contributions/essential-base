@@ -63,6 +63,6 @@ fn verify_signature() {
     let signed = sign(data, sk);
     let mut signed_corrupted = signed.clone();
     signed_corrupted.signature = Signature([0u8; 64], 0);
-    assert!(essential_sign::verify(&signed));
-    assert!(!essential_sign::verify(&signed_corrupted));
+    assert!(essential_sign::verify(&signed).is_ok());
+    assert!(essential_sign::verify(&signed_corrupted).is_err());
 }

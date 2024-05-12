@@ -9,6 +9,7 @@ edition = "2021"
 ed25519-dalek = "2.1.0"
 essential-asm-gen = { path = "crates/asm-gen" }
 essential-asm-spec = { path = "crates/asm-spec" }
+essential-check = { path = "crates/check" }
 essential-constraint-asm = { path = "crates/constraint-asm" }
 essential-constraint-vm = { path = "crates/constraint-vm" }
 essential-hash = { path = "crates/hash" }
@@ -32,4 +33,4 @@ sha2 = "0.10.8"
 syn = { version = "2", features = ["extra-traits", "full", "printing"] }
 tempfile = "3.9.0"
 thiserror = "1"
-tokio = { version = "1.36", default-features = false, features = ["macros", "test-util"] } # Used for `state-read-vm` tests.
+tokio = { version = "1.36", default-features = false, features = ["macros", "test-util"] }
