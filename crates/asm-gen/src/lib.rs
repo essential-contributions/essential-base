@@ -9,7 +9,7 @@ use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{punctuated::Punctuated, token::Comma};
 
-const WORD_SIZE: usize = std::mem::size_of::<essential_types::Word>();
+const WORD_SIZE: usize = core::mem::size_of::<essential_types::Word>();
 
 /// Document the required bytecode arguments to the operation.
 fn bytecode_arg_docs(num_arg_bytes: u8) -> String {

@@ -2,6 +2,7 @@
 //!
 //! # Op Table
 #![doc = essential_asm_gen::gen_constraint_ops_docs_table!()]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
@@ -93,8 +94,10 @@ pub mod opcode {
         }
     }
 
+    #[cfg(feature = "std")]
     impl std::error::Error for InvalidOpcodeError {}
 
+    #[cfg(feature = "std")]
     impl std::error::Error for NotEnoughBytesError {}
 
     essential_asm_gen::gen_constraint_opcode_decls!();
@@ -120,6 +123,7 @@ impl fmt::Display for FromBytesError {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for FromBytesError {}
 
 impl From<InvalidOpcodeError> for FromBytesError {

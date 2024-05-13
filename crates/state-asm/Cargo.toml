@@ -7,3 +7,10 @@ version = "0.1.0"
 essential-asm-gen.workspace = true
 essential-constraint-asm.workspace = true
 serde.workspace = true
+
+[features]
+default = ["std"]
+std = []
+
+[package.metadata.docs.rs]
+all-features = true
