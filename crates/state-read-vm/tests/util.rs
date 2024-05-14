@@ -7,7 +7,7 @@ use essential_state_read_vm::{
     Access, SolutionAccess, StateRead, StateSlots,
 };
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     future::{self, Ready},
 };
 use thiserror::Error;
@@ -22,15 +22,34 @@ pub const TEST_SOLUTION_DATA: SolutionData = SolutionData {
     intent_to_solve: TEST_INTENT_ADDR,
     decision_variables: vec![],
 };
-pub const TEST_SOLUTION_ACCESS: SolutionAccess = SolutionAccess {
-    data: &[TEST_SOLUTION_DATA],
-    index: 0,
-    mut_keys_len: 0,
-};
-pub const TEST_ACCESS: Access = Access {
-    solution: TEST_SOLUTION_ACCESS,
-    state_slots: StateSlots::EMPTY,
-};
+
+pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
+    static INSTANCE: once_cell::sync::OnceCell<HashSet<&[Word]>> = once_cell::sync::OnceCell::new();
+    INSTANCE.get_or_init(|| HashSet::with_capacity(0))
+}
+
+pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
+    static INSTANCE: once_cell::sync::OnceCell<[SolutionData; 1]> =
+        once_cell::sync::OnceCell::new();
+    INSTANCE.get_or_init(|| [TEST_SOLUTION_DATA])
+}
+
+pub(crate) fn test_solution_access() -> &'static SolutionAccess<'static> {
+    static INSTANCE: once_cell::sync::OnceCell<SolutionAccess> = once_cell::sync::OnceCell::new();
+    INSTANCE.get_or_init(|| SolutionAccess {
+        data: test_solution_data_arr(),
+        index: 0,
+        mutable_keys: test_empty_keys(),
+    })
+}
+
+pub(crate) fn test_access() -> &'static Access<'static> {
+    static INSTANCE: once_cell::sync::OnceCell<Access> = once_cell::sync::OnceCell::new();
+    INSTANCE.get_or_init(|| Access {
+        solution: *test_solution_access(),
+        state_slots: StateSlots::EMPTY,
+    })
+}
 
 // A test `StateRead` implementation represented using a map.
 #[derive(Clone)]

@@ -14,7 +14,7 @@ use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Word};
 /// Access to state required by the state read VM.
 pub trait StateRead {
     /// An error type describing any cases that might occur during state reading.
-    type Error: std::error::Error;
+    type Error: core::fmt::Debug + core::fmt::Display;
     /// The future type returned from the `word_range` method.
     ///
     /// ## Unpin

@@ -2,6 +2,7 @@
 
 mod util;
 
+use constraint::mut_keys_set;
 use essential_state_read_vm::{
     asm::{self, Op},
     constraint,
@@ -24,7 +25,7 @@ async fn no_yield() {
     let spent = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             op_gas_cost,
             GasLimit::UNLIMITED,
@@ -50,7 +51,13 @@ async fn yield_per_op() {
     let op_gas_cost = |_op: &_| GasLimit::DEFAULT_PER_YIELD;
 
     let state = State::EMPTY;
-    let mut future = vm.exec_ops(ops, TEST_ACCESS, &state, &op_gas_cost, GasLimit::UNLIMITED);
+    let mut future = vm.exec_ops(
+        ops,
+        *test_access(),
+        &state,
+        &op_gas_cost,
+        GasLimit::UNLIMITED,
+    );
 
     // Test that we yield once per op before reaching `Halt`.
     let mut yield_count = 0;
@@ -86,7 +93,7 @@ async fn continue_execution() {
     let spent = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             op_gas_cost,
             GasLimit::UNLIMITED,
@@ -107,7 +114,7 @@ async fn continue_execution() {
     let spent = vm
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &op_gas_cost,
             GasLimit::UNLIMITED,
@@ -135,7 +142,7 @@ async fn exec_method_behaviours_match() {
     let spent_ops = vm_ops
         .exec_ops(
             ops,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -149,7 +156,7 @@ async fn exec_method_behaviours_match() {
     let spent_bc = vm_bc
         .exec_bytecode(
             &mapped,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -165,7 +172,7 @@ async fn exec_method_behaviours_match() {
     let spent_bc_iter = vm_bc_iter
         .exec_bytecode_iter(
             bc_iter,
-            TEST_ACCESS,
+            *test_access(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -202,15 +209,16 @@ async fn read_pre_post_state_and_check_constraints() {
                 value: Some(41),
             }],
         }],
-        partial_solutions: vec![],
     };
 
     // The index of the solution data associated with the intent we're solving.
     let intent_index = 0;
 
+    let mutable_keys = mut_keys_set(&solution, intent_index);
+
     // Construct access to the necessary solution data for the VM.
     let mut access = Access {
-        solution: SolutionAccess::new(&solution, intent_index),
+        solution: SolutionAccess::new(&solution, intent_index, &mutable_keys),
         // Haven't calculated these yet.
         state_slots: StateSlots::EMPTY,
     };

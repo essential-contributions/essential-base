@@ -1,12 +1,17 @@
 //! Access operation implementations.
 
-use crate::{error::AccessError, types::convert::bool_from_word, OpResult, Stack};
+use std::collections::HashSet;
+
+use crate::{error::AccessError, repeat::Repeat, types::convert::bool_from_word, OpResult, Stack};
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
     solution::{DecisionVariable, Solution, SolutionData, SolutionDataIndex},
     Key,
 };
+
+#[cfg(test)]
+mod tests;
 
 /// All necessary solution data and state access required to check an individual intent.
 #[derive(Clone, Copy, Debug)]
@@ -28,11 +33,8 @@ pub struct SolutionAccess<'a> {
     /// Checking is performed for one intent at a time. This index refers to
     /// the checked intent's associated solution data within `data`.
     pub index: usize,
-    /// The number of unique state key locations proposed for mutation for the intent.
-    ///
-    /// This is determined ahead of execution by inspecting the solution and
-    /// counting the total number of state mutations proposed for this intent instance.
-    pub mut_keys_len: Word,
+    /// The keys being proposed for mutation for the intent.
+    pub mutable_keys: &'a HashSet<&'a [Word]>,
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -51,16 +53,17 @@ impl<'a> SolutionAccess<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
     /// the intent at the given index within the given solution.
     ///
-    /// This constructor assumes that the given solution does not contain
-    /// multiple mutations to the same key. If it does, `mut_keys_len` will
-    /// be greater than the actual number of unique mutable keys.
-    pub fn new(solution: &'a Solution, intent_index: SolutionDataIndex) -> Self {
-        let mut_keys_len = Word::try_from(mut_keys(solution, intent_index).count())
-            .expect("mut keys count would overflow `Word`");
+    /// This constructor assumes that the given mutable keys set is correct
+    /// for this solution. It is not checked by this function for performance.
+    pub fn new(
+        solution: &'a Solution,
+        intent_index: SolutionDataIndex,
+        mutable_keys: &'a HashSet<&[Word]>,
+    ) -> Self {
         Self {
             data: &solution.data,
             index: intent_index.into(),
-            mut_keys_len,
+            mutable_keys,
         }
     }
 
@@ -101,6 +104,23 @@ pub fn mut_keys(
         .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| &m.key))
 }
 
+/// Get the mutable keys as slices
+pub fn mut_keys_slices(
+    solution: &Solution,
+    intent_index: SolutionDataIndex,
+) -> impl Iterator<Item = &[Word]> {
+    solution
+        .state_mutations
+        .iter()
+        .filter(move |state_mutation| state_mutation.pathway == intent_index)
+        .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| m.key.as_ref()))
+}
+
+/// Get the set of mutable keys for this intent.
+pub fn mut_keys_set(solution: &Solution, intent_index: SolutionDataIndex) -> HashSet<&[Word]> {
+    mut_keys_slices(solution, intent_index).collect()
+}
+
 /// `Access::DecisionVar` implementation.
 pub(crate) fn decision_var(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
     stack.pop1_push1(|slot| {
@@ -123,7 +143,21 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
 
 /// `Access::MutKeysLen` implementation.
 pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    stack.push(solution.mut_keys_len)?;
+    stack.push(
+        solution
+            .mutable_keys
+            .len()
+            .try_into()
+            .map_err(|_| AccessError::SolutionDataOutOfBounds)?,
+    )?;
+    Ok(())
+}
+
+pub(crate) fn mut_keys_contains(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
+    let found = stack.pop_len_words::<_, bool, crate::error::OpError>(|words| {
+        Ok(solution.mutable_keys.contains(words))
+    })?;
+    stack.push(Word::from(found))?;
     Ok(())
 }
 
@@ -181,12 +215,25 @@ pub(crate) fn this_set_address(data: &SolutionData, stack: &mut Stack) -> OpResu
     Ok(())
 }
 
+/// `Access::ThisPathway` implementation.
+pub(crate) fn this_pathway(index: usize, stack: &mut Stack) -> OpResult<()> {
+    let index: Word = index
+        .try_into()
+        .map_err(|_| AccessError::SolutionDataOutOfBounds)?;
+    Ok(stack.push(index)?)
+}
+
+pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()> {
+    let counter = repeat.counter()?;
+    Ok(stack.push(counter)?)
+}
+
 /// Resolve the decision variable by traversing any necessary transient data.
 ///
 /// Errors if the solution data or decision var indices are out of bounds
 /// (whether provided directly or via a transient decision var) or if a cycle
 /// occurs between transient decision variables.
-fn resolve_decision_var(
+pub(crate) fn resolve_decision_var(
     data: &[SolutionData],
     mut data_ix: usize,
     mut var_ix: usize,
@@ -223,7 +270,7 @@ fn state_slot(slots: StateSlots, slot: Word, delta: Word) -> OpResult<&Option<Wo
     Ok(slot)
 }
 
-fn state_slot_range(
+pub(crate) fn state_slot_range(
     slots: StateSlots,
     slot: Word,
     len: Word,
@@ -250,536 +297,5 @@ fn state_slots_from_delta(slots: StateSlots, delta: bool) -> &StateSlotSlice {
         slots.post
     } else {
         slots.pre
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        asm,
-        error::{AccessError, ConstraintError, OpError},
-        eval_ops, exec_ops,
-        test_util::*,
-    };
-    use essential_types::{
-        solution::{DecisionVariableIndex, Mutation, Solution, StateMutation},
-        ContentAddress, IntentAddress,
-    };
-
-    #[test]
-    fn decision_var_inline() {
-        let access = Access {
-            solution: SolutionAccess {
-                data: &[SolutionData {
-                    intent_to_solve: TEST_INTENT_ADDR,
-                    decision_variables: vec![DecisionVariable::Inline(42)],
-                }],
-                index: 0,
-                mut_keys_len: 0,
-            },
-            state_slots: StateSlots::EMPTY,
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Access::DecisionVar.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[42]);
-    }
-
-    #[test]
-    fn decision_var_transient() {
-        // Test resolution of transient decision vars over the following path:
-        // - Solution 1, Var 2 (start)
-        // - Solution 0, Var 3
-        // - Solution 2, Var 1
-        let access = Access {
-            solution: SolutionAccess {
-                data: &[
-                    SolutionData {
-                        intent_to_solve: TEST_INTENT_ADDR,
-                        decision_variables: vec![
-                            DecisionVariable::Inline(0),
-                            DecisionVariable::Inline(1),
-                            DecisionVariable::Inline(2),
-                            DecisionVariable::Transient(DecisionVariableIndex {
-                                solution_data_index: 2,
-                                variable_index: 1,
-                            }),
-                        ],
-                    },
-                    SolutionData {
-                        intent_to_solve: TEST_INTENT_ADDR,
-                        decision_variables: vec![
-                            DecisionVariable::Inline(0),
-                            DecisionVariable::Inline(1),
-                            DecisionVariable::Transient(DecisionVariableIndex {
-                                solution_data_index: 0,
-                                variable_index: 3,
-                            }),
-                            DecisionVariable::Inline(3),
-                        ],
-                    },
-                    SolutionData {
-                        intent_to_solve: TEST_INTENT_ADDR,
-                        decision_variables: vec![
-                            DecisionVariable::Inline(0),
-                            DecisionVariable::Inline(42),
-                        ],
-                    },
-                ],
-                // Solution data for intent being solved is at index 1.
-                index: 1,
-                mut_keys_len: 0,
-            },
-            state_slots: StateSlots::EMPTY,
-        };
-        let ops = &[
-            asm::Stack::Push(2).into(), // Slot index.
-            asm::Access::DecisionVar.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[42]);
-    }
-
-    #[test]
-    fn decision_var_range() {
-        let access = Access {
-            solution: SolutionAccess {
-                data: &[SolutionData {
-                    intent_to_solve: TEST_INTENT_ADDR,
-                    decision_variables: vec![
-                        DecisionVariable::Inline(7),
-                        DecisionVariable::Inline(8),
-                        DecisionVariable::Inline(9),
-                    ],
-                }],
-                index: 0,
-                mut_keys_len: 0,
-            },
-            state_slots: StateSlots::EMPTY,
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(3).into(), // Range length.
-            asm::Access::DecisionVarRange.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[7, 8, 9]);
-    }
-
-    #[test]
-    fn decision_var_range_transient() {
-        let access = Access {
-            solution: SolutionAccess {
-                data: &[
-                    SolutionData {
-                        intent_to_solve: TEST_INTENT_ADDR,
-                        decision_variables: vec![
-                            DecisionVariable::Transient(DecisionVariableIndex {
-                                solution_data_index: 1,
-                                variable_index: 2,
-                            }),
-                            DecisionVariable::Transient(DecisionVariableIndex {
-                                solution_data_index: 1,
-                                variable_index: 1,
-                            }),
-                            DecisionVariable::Transient(DecisionVariableIndex {
-                                solution_data_index: 1,
-                                variable_index: 0,
-                            }),
-                        ],
-                    },
-                    SolutionData {
-                        intent_to_solve: TEST_INTENT_ADDR,
-                        decision_variables: vec![
-                            DecisionVariable::Inline(7),
-                            DecisionVariable::Inline(8),
-                            DecisionVariable::Inline(9),
-                        ],
-                    },
-                ],
-                index: 0,
-                mut_keys_len: 0,
-            },
-            state_slots: StateSlots::EMPTY,
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(3).into(), // Range length.
-            asm::Access::DecisionVarRange.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[9, 8, 7]);
-    }
-
-    #[test]
-    fn decision_var_transient_cycle() {
-        let access = Access {
-            solution: SolutionAccess {
-                data: &[
-                    SolutionData {
-                        intent_to_solve: TEST_INTENT_ADDR,
-                        decision_variables: vec![DecisionVariable::Transient(
-                            DecisionVariableIndex {
-                                solution_data_index: 1,
-                                variable_index: 0,
-                            },
-                        )],
-                    },
-                    SolutionData {
-                        intent_to_solve: TEST_INTENT_ADDR,
-                        decision_variables: vec![DecisionVariable::Transient(
-                            DecisionVariableIndex {
-                                solution_data_index: 0,
-                                variable_index: 0,
-                            },
-                        )],
-                    },
-                ],
-                index: 0,
-                mut_keys_len: 0,
-            },
-            state_slots: StateSlots::EMPTY,
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Access::DecisionVar.into(),
-        ];
-        let res = exec_ops(ops, access);
-        match res {
-            Err(ConstraintError::Op(
-                _,
-                OpError::Access(AccessError::TransientDecisionVariableCycle),
-            )) => (),
-            _ => panic!("expected transient decision variable cycle error, got {res:?}"),
-        }
-    }
-
-    #[test]
-    fn decision_var_slot_oob() {
-        let access = Access {
-            solution: SolutionAccess {
-                data: &[SolutionData {
-                    intent_to_solve: TEST_INTENT_ADDR,
-                    decision_variables: vec![DecisionVariable::Inline(42)],
-                }],
-                index: 0,
-                mut_keys_len: 0,
-            },
-            state_slots: StateSlots::EMPTY,
-        };
-        let ops = &[
-            asm::Stack::Push(1).into(), // Slot index.
-            asm::Access::DecisionVar.into(),
-        ];
-        let res = exec_ops(ops, access);
-        match res {
-            Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {}
-            _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
-        }
-    }
-
-    #[test]
-    fn mut_keys_len() {
-        // The intent that we're checking.
-        let intent_addr = TEST_INTENT_ADDR;
-
-        // An example solution with some state mutations proposed for the intent
-        // at index `1`.
-        let solution = Solution {
-            data: vec![
-                // Solution data for some other intent.
-                SolutionData {
-                    intent_to_solve: IntentAddress {
-                        set: ContentAddress([0x13; 32]),
-                        intent: ContentAddress([0x31; 32]),
-                    },
-                    decision_variables: vec![],
-                },
-                // Solution data for the intent we're checking.
-                SolutionData {
-                    intent_to_solve: intent_addr.clone(),
-                    decision_variables: vec![],
-                },
-            ],
-            // All state mutations, 3 of which point to the intent we're solving.
-            state_mutations: vec![
-                StateMutation {
-                    pathway: 0,
-                    mutations: vec![Mutation {
-                        key: [0, 0, 0, 1],
-                        value: Some(1),
-                    }],
-                },
-                StateMutation {
-                    pathway: 1,
-                    mutations: vec![
-                        Mutation {
-                            key: [1, 1, 1, 1],
-                            value: Some(6),
-                        },
-                        Mutation {
-                            key: [1, 1, 1, 2],
-                            value: Some(7),
-                        },
-                    ],
-                },
-                StateMutation {
-                    pathway: 1,
-                    mutations: vec![Mutation {
-                        key: [2, 2, 2, 1],
-                        value: Some(42),
-                    }],
-                },
-            ],
-            partial_solutions: vec![],
-        };
-
-        // The intent we're solving is the second intent, i.e. index `1`.
-        let intent_index = 1;
-
-        // Construct access to the parts of the solution that we need for checking.
-        let access = Access {
-            solution: SolutionAccess::new(&solution, intent_index),
-            state_slots: StateSlots::EMPTY,
-        };
-
-        // Check that there are actually 3 mutations.
-        let expected_mut_keys_len = 3;
-        assert_eq!(access.solution.mut_keys_len, expected_mut_keys_len);
-
-        // We're only going to execute the `MutKeysLen` op to check the expected value.
-        let ops = &[asm::Access::MutKeysLen.into()];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[expected_mut_keys_len]);
-    }
-
-    #[test]
-    fn state_pre_mutation() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(0), Some(42)],
-                post: &[Some(0), Some(0)],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(1).into(), // Slot index.
-            asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-            asm::Access::State.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[42]);
-    }
-
-    #[test]
-    fn state_post_mutation() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(0), Some(0)],
-                post: &[Some(42), Some(0)],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-            asm::Access::State.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[42]);
-    }
-
-    #[test]
-    fn state_pre_mutation_oob() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(0), Some(42)],
-                post: &[Some(0), Some(0)],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(2).into(), // Slot index (out-of-bounds).
-            asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-            asm::Access::State.into(),
-        ];
-        let res = exec_ops(ops, access);
-        match res {
-            Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotOutOfBounds))) => (),
-            _ => panic!("expected state slot out-of-bounds error, got {res:?}"),
-        }
-    }
-
-    #[test]
-    fn invalid_state_slot_delta() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(0), Some(42)],
-                post: &[Some(0), Some(0)],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(1).into(), // Slot index.
-            asm::Stack::Push(2).into(), // Delta (invalid).
-            asm::Access::State.into(),
-        ];
-        let res = exec_ops(ops, access);
-        match res {
-            Err(ConstraintError::Op(_, OpError::Access(AccessError::InvalidStateSlotDelta(2)))) => {
-            }
-            _ => panic!("expected invalid state slot delta error, got {res:?}"),
-        }
-    }
-
-    #[test]
-    fn state_slot_was_none() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[None],
-                post: &[None],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(0).into(), // Delta.
-            asm::Access::State.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[0]);
-    }
-
-    #[test]
-    fn state_range_pre_mutation() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(10), Some(20), Some(30)],
-                post: &[Some(0), Some(0), Some(0)],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(3).into(), // Range length.
-            asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-            asm::Access::StateRange.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[10, 20, 30]);
-    }
-
-    #[test]
-    fn state_range_post_mutation() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(0), Some(0), Some(0)],
-                post: &[Some(0), Some(40), Some(50)],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(1).into(), // Slot index.
-            asm::Stack::Push(2).into(), // Range length.
-            asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-            asm::Access::StateRange.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        assert_eq!(&stack[..], &[40, 50]);
-    }
-
-    #[test]
-    fn state_is_some_pre_mutation_false() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(0), None],
-                post: &[Some(0), Some(0)],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(1).into(), // Slot index.
-            asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-            asm::Access::StateIsSome.into(),
-        ];
-        // Expect false for `None`.
-        assert!(!eval_ops(ops, access).unwrap());
-    }
-
-    #[test]
-    fn state_is_some_post_mutation_true() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[None, None],
-                post: &[Some(42), None],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-            asm::Access::StateIsSome.into(),
-        ];
-        // Expect true for `Some(42)`.
-        assert!(eval_ops(ops, access).unwrap());
-    }
-
-    #[test]
-    fn state_is_some_range_pre_mutation() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[Some(10), None, Some(30)],
-                post: &[None, None, None],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(3).into(), // Range length.
-            asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-            asm::Access::StateIsSomeRange.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        // Expect true, false, true for `Some(10), None, Some(30)`.
-        assert_eq!(&stack[..], &[1, 0, 1]);
-    }
-
-    #[test]
-    fn state_is_some_range_post_mutation() {
-        let access = Access {
-            solution: TEST_SOLUTION_ACCESS,
-            state_slots: StateSlots {
-                pre: &[None, None, None],
-                post: &[None, Some(40), None],
-            },
-        };
-        let ops = &[
-            asm::Stack::Push(0).into(), // Slot index.
-            asm::Stack::Push(3).into(), // Range length.
-            asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-            asm::Access::StateIsSomeRange.into(),
-        ];
-        let stack = exec_ops(ops, access).unwrap();
-        // Expect false, true, false for `None, Some(40), None`.
-        assert_eq!(&stack[..], &[0, 1, 0]);
-    }
-
-    #[test]
-    fn this_address() {
-        let ops = &[asm::Access::ThisAddress.into()];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
-        let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.intent.0);
-        assert_eq!(&stack[..], expected_words);
-    }
-
-    #[test]
-    fn this_set_address() {
-        let ops = &[asm::Access::ThisSetAddress.into()];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
-        let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.set.0);
-        assert_eq!(&stack[..], expected_words);
     }
 }

@@ -9,6 +9,7 @@
 
 use essential_hash::hash;
 use essential_types::{Signature, Signed};
+pub use secp256k1;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, PublicKey, Secp256k1, SecretKey,
@@ -28,20 +29,16 @@ pub fn sign<T: Serialize>(data: T, sk: SecretKey) -> Signed<T> {
 }
 
 /// Verify signature against data.
-pub fn verify<T: Serialize>(signed: &Signed<T>) -> bool {
+pub fn verify<T: Serialize>(signed: &Signed<T>) -> Result<(), secp256k1::Error> {
     let secp = Secp256k1::new();
     let hashed_data = hash(&signed.data);
     let message = Message::from_digest(hashed_data);
-    if let Ok(pk) = recover_from_message(message, &signed.signature) {
-        secp.verify_ecdsa(
-            &message,
-            &secp256k1::ecdsa::Signature::from_compact(&signed.signature.0).unwrap(),
-            &pk,
-        )
-        .is_ok()
-    } else {
-        false
-    }
+    let pk = recover_from_message(message, &signed.signature)?;
+    secp.verify_ecdsa(
+        &message,
+        &secp256k1::ecdsa::Signature::from_compact(&signed.signature.0).unwrap(),
+        &pk,
+    )
 }
 
 /// Recover public key from `Signed.data` and `Signed.signature`

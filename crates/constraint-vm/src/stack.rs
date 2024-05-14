@@ -1,6 +1,7 @@
 //! Stack operation and related stack manipulation implementations.
 
 use crate::{asm::Word, error::StackError, StackResult};
+use essential_types::convert::bool_from_word;
 
 /// The VM's `Stack`, i.e. a `Vec` of `Word`s updated during each step of execution.
 ///
@@ -45,6 +46,37 @@ impl Stack {
             .ok_or(StackError::IndexOutOfBounds)?;
         let w = *self.get(ix).ok_or(StackError::IndexOutOfBounds)?;
         self.push(w)?;
+        Ok(())
+    }
+
+    /// The SwapIndex op implementation.
+    pub(crate) fn swap_index(&mut self) -> StackResult<()> {
+        let rev_ix_w = self.pop()?;
+        let top_ix = self
+            .len()
+            .checked_sub(1)
+            .ok_or(StackError::IndexOutOfBounds)?;
+        let rev_ix = usize::try_from(rev_ix_w).map_err(|_| StackError::IndexOutOfBounds)?;
+        let ix = top_ix
+            .checked_sub(rev_ix)
+            .ok_or(StackError::IndexOutOfBounds)?;
+        self.0.swap(ix, top_ix);
+        Ok(())
+    }
+
+    /// The Select op implementation.
+    pub(crate) fn select(&mut self) -> StackResult<()> {
+        self.pop().and_then(|cond_w| {
+            self.pop2_push1(|w0, w1| {
+                Ok(
+                    if bool_from_word(cond_w).ok_or(StackError::InvalidCondition(cond_w))? {
+                        w1
+                    } else {
+                        w0
+                    },
+                )
+            })
+        })?;
         Ok(())
     }
 
@@ -224,7 +256,7 @@ mod tests {
             Stack::Push(3).into(), // Index `3` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, *test_access()).unwrap();
         assert_eq!(&stack[..], &[42, 2, 1, 0, 42]);
     }
 
@@ -238,14 +270,14 @@ mod tests {
             Stack::Push(0).into(), // Index `0` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, *test_access()).unwrap();
         assert_eq!(&stack[..], &[3, 2, 1, 42, 42]);
     }
 
     #[test]
     fn push1() {
         let ops = &[Stack::Push(42).into()];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, *test_access()).unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -257,14 +289,14 @@ mod tests {
             Stack::Pop.into(),
             Stack::Push(3).into(),
         ];
-        let stack = exec_ops(ops, TEST_ACCESS).unwrap();
+        let stack = exec_ops(ops, *test_access()).unwrap();
         assert_eq!(&stack[..], &[1, 3]);
     }
 
     #[test]
     fn pop_empty() {
         let ops = &[Stack::Pop.into()];
-        match eval_ops(ops, TEST_ACCESS) {
+        match eval_ops(ops, *test_access()) {
             Err(ConstraintError::Op(0, OpError::Stack(StackError::Empty))) => (),
             _ => panic!("expected empty stack error"),
         }
@@ -273,9 +305,49 @@ mod tests {
     #[test]
     fn index_oob() {
         let ops = &[Stack::Push(0).into(), Stack::DupFrom.into()];
-        match eval_ops(ops, TEST_ACCESS) {
+        match eval_ops(ops, *test_access()) {
             Err(ConstraintError::Op(1, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
+    }
+
+    #[test]
+    fn swap_index() {
+        let ops = &[
+            Stack::Push(3).into(),
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(42).into(),
+            Stack::Push(2).into(), // Index `2` should be swapped with the `42` value.
+            Stack::SwapIndex.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[3, 42, 5, 4]);
+    }
+
+    #[test]
+    fn swap_index_oob() {
+        let ops = &[
+            Stack::Push(3).into(),
+            Stack::Push(4).into(),
+            Stack::Push(2).into(), // Index `2` is out of range.
+            Stack::SwapIndex.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            _ => panic!("expected index out-of-bounds stack error"),
+        }
+    }
+
+    #[test]
+    fn select() {
+        let ops = &[
+            Stack::Push(3).into(),
+            Stack::Push(4).into(),
+            Stack::Push(1).into(),
+            Stack::Select.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[4]);
     }
 }
