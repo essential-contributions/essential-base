@@ -6,7 +6,6 @@ use crate::{
     OpGasCost, OpKind, StateRead, Vm,
 };
 use core::{
-    fmt::Debug,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -141,7 +140,7 @@ where
 impl<'a, S, OA, OG> Future for ExecFuture<'a, S, OA, OG>
 where
     S: StateRead,
-    OA: OpAccess<Op = Op> + Unpin + Debug,
+    OA: OpAccess<Op = Op> + Unpin,
     OG: OpGasCost,
     OA::Error: Into<OpError<S::Error>>,
 {
@@ -205,9 +204,7 @@ where
                 .ok_or_else(|| out_of_gas(&self.gas, op_gas))
                 .map_err(|err| StateReadError::Op(vm.pc, err.into()))
             {
-                Err(err) => {
-                    return Poll::Ready(Err(err));
-                }
+                Err(err) => return Poll::Ready(Err(err)),
                 Ok(next_spent) => next_spent,
             };
 

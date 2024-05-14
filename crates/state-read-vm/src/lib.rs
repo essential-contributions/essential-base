@@ -186,7 +186,7 @@ impl Vm {
     ) -> Result<Gas, StateReadError<S::Error>>
     where
         S: StateRead,
-        B: core::ops::Deref<Target = [u8]> + core::fmt::Debug,
+        B: core::ops::Deref<Target = [u8]>,
     {
         self.exec(access, state_read, bytecode_mapped, op_gas_cost, gas_limit)
             .await
@@ -216,7 +216,7 @@ impl Vm {
     where
         S: StateRead,
         I: IntoIterator<Item = u8>,
-        I::IntoIter: Unpin + core::fmt::Debug,
+        I::IntoIter: Unpin,
     {
         let bytecode_lazy = BytecodeMappedLazy::new(bytecode_iter);
         self.exec(access, state_read, bytecode_lazy, op_gas_cost, gas_limit)
@@ -245,7 +245,7 @@ impl Vm {
     ) -> Result<Gas, StateReadError<S::Error>>
     where
         S: StateRead,
-        OA: OpAccess<Op = Op> + Unpin + core::fmt::Debug,
+        OA: OpAccess<Op = Op> + Unpin,
         OA::Error: Into<OpError<S::Error>>,
     {
         let f = future::exec(self, access, state_read, op_access, op_gas_cost, gas_limit);
