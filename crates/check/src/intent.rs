@@ -140,13 +140,21 @@ pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), InvalidSign
             Ok(()) => Ok(()),
             Err(err) => {
                 #[cfg(feature = "tracing")]
-                tracing::info!("invalid intent set: {}", err);
+                tracing::info!(
+                    "invalid intent set with hash 0x{}: {}",
+                    hex::encode(essential_hash::hash(&intents.data)),
+                    err
+                );
                 Err(err.into())
             }
         },
         Err(err) => {
             #[cfg(feature = "tracing")]
-            tracing::info!("invalid signature of intent set: {}", err);
+            tracing::info!(
+                "error verifying signature of intent set with hash 0x{}: {}",
+                hex::encode(essential_hash::hash(&intents.data)),
+                err
+            );
             Err(err.into())
         }
     }

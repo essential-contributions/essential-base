@@ -226,7 +226,11 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolu
         }
         Err(err) => {
             #[cfg(feature = "tracing")]
-            tracing::info!("{}", err);
+            tracing::info!(
+                "error verifying signature of solution with hash 0x{}: {}",
+                hex::encode(essential_hash::hash(&solution.data)),
+                err
+            );
             Err(err.into())
         }
     }
@@ -243,13 +247,21 @@ pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
             Ok(()) => Ok(()),
             Err(err) => {
                 #[cfg(feature = "tracing")]
-                tracing::info!("{}", err);
+                tracing::info!(
+                    "invalid state mutations for solution with hash 0x{}: {}",
+                    hex::encode(essential_hash::hash(&solution.data)),
+                    err
+                );
                 Err(err.into())
             }
         },
         Err(err) => {
             #[cfg(feature = "tracing")]
-            tracing::info!("{}", err);
+            tracing::info!(
+                "invalid data for solution with hash 0x{}: {}",
+                hex::encode(essential_hash::hash(&solution.data)),
+                err
+            );
             Err(err.into())
         }
     }

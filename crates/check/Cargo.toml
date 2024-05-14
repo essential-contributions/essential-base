@@ -6,9 +6,11 @@ edition.workspace = true
 
 [dependencies]
 essential-constraint-vm = { workspace = true }
+essential-hash = { workspace = true, optional = true }
 essential-sign = { workspace = true }
 essential-state-read-vm = { workspace = true }
 essential-types = { workspace = true }
+hex = { workspace = true, optional = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -21,4 +23,4 @@ rand = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand-std"] }
 
 [features]
-tracing = ["dep:tracing", "dep:tracing-futures"]
+tracing = ["dep:essential-hash", "dep:hex", "dep:tracing", "dep:tracing-futures"]
