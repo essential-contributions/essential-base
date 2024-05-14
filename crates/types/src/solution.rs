@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ContentAddress, IntentAddress, Key, Signed, Word};
+use crate::{IntentAddress, Key, Word};
 
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
@@ -19,18 +19,6 @@ pub struct Solution {
     pub data: Vec<SolutionData>,
     /// The state mutations being proposed.
     pub state_mutations: Vec<StateMutation>,
-    /// Hashes of partial solutions that are required to be a subset of this solution.
-    pub partial_solutions: Vec<Signed<ContentAddress>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A partial solution to intents.
-pub struct PartialSolution {
-    /// The partial input data for each intent.
-    pub data: Vec<PartialSolutionData>,
-    /// The state mutations being proposed.
-    pub state_mutations: Vec<StateMutation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -41,16 +29,6 @@ pub struct SolutionData {
     pub intent_to_solve: IntentAddress,
     /// The decision variables for the intent.
     pub decision_variables: Vec<DecisionVariable>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// The partial data the solver is required to provide to solve an intent.
-pub struct PartialSolutionData {
-    /// Which intent this input data is for.
-    pub intent_to_solve: IntentAddress,
-    /// The partial decision variables for the intent.
-    pub decision_variables: Vec<Option<DecisionVariable>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
