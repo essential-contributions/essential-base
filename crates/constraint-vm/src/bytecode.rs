@@ -41,7 +41,6 @@ pub struct BytecodeMappedSlice<'a, Op> {
 
 /// A type wrapper around `BytecodeMapped` that lazily constructs the map from
 /// the given bytecode as operations are accessed.
-#[derive(Debug)]
 pub struct BytecodeMappedLazy<Op, I> {
     /// The `BytecodeMapped` instance that is lazily constructed.
     pub(crate) mapped: BytecodeMapped<Op>,
