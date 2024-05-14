@@ -61,6 +61,27 @@ StateRead:
                 If condition is `true`, the top element is kept.
               stack_in: [a, b, cond]
               stack_out: [b]
+            
+            Repeat:
+              opcode: 0x08
+              description: |
+                Repeat a section of code the number of times.
+                Takes a boolean to either count from 0 up or from the number of repeats down to 0.
+              stack_in: [num_repeats, count_up_bool]
+
+            RepeatEnd:
+              opcode: 0x09
+              description: |
+                Increment or decrements the top counter on the repeat stack.
+                If the counter is counting up and `counter == limit - 1`
+                then this pops the counter and continues with the program.
+                If the counter is counting down and the counter is 0 
+                then this pops the counter and continues with the program.
+                If it is `< limit - 1` or `> 0` respectively then the program jumps to 
+                the last Repeat
+              panics:
+                  - If there is no counter on the repeat stack.
+                  - If there is no repeat registered to return to.
 
         Pred:
           description: Operations for computing predicates.
@@ -242,7 +263,7 @@ StateRead:
                 len: range
 
             MutKeysLen:
-              opcode: 0x37
+              opcode: 0x36
               description: |
                 Get the number of mutable keys being proposed for mutation.
 
@@ -250,7 +271,7 @@ StateRead:
               stack_out: [word]
             
             MutKeysContains:
-              opcode: 0x38
+              opcode: 0x37
               description: |
                 Check if the mutable keys being proposed contain the given key.
 
@@ -259,7 +280,7 @@ StateRead:
               stack_out: [bool]
 
             ThisAddress:
-              opcode: 0x39
+              opcode: 0x38
               description: |
                 Get the content hash of this intent.
 
@@ -267,7 +288,7 @@ StateRead:
               stack_out: [key]
 
             ThisSetAddress:
-              opcode: 0x3A
+              opcode: 0x39
               description: |
                 Get the content hash of the set of intents that this intent belongs to.
 
@@ -275,12 +296,17 @@ StateRead:
               stack_out: [key]
             
             ThisPathway:
-              opcode: 0x3B
+              opcode: 0x3A
               description: |
                 Get the pathway of this intent.
 
                 This operation returns the index of the solution data currently being used to check this intent.
               stack_out: [in]
+
+            RepeatCounter:
+              opcode: 0x3B
+              description: Access the top repeat counters current value.
+              stack_out: [counter_value]
 
         Crypto:
           description: Operations providing cryptographic functionality.
@@ -305,21 +331,66 @@ StateRead:
                 If the signature is invalid, the operation will return all zeros.
               stack_in: [hash_0, hash_1, hash_2, hash_3, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, sig_w7, sig_8]
               stack_out: [pub_key_w0, pub_key_w1, pub_key_w2, pub_key_w3, pub_key_4]
+        
+        TotalControlFlow:
+          description: Control flow operations that keep the program total.
+          group:
+            HaltIf:
+              opcode: 0x50
+              description: Halt the program if the value is true.
+              stack_in: [value]
+                
+            JumpForwardIf:
+              opcode: 0x51
+              description: Jump forward the given number of instructions if the value is true.
+              panics:
+                - The jump is out of bounds.
+                - The jump is negative.
+              stack_in: [n_instruction, condition]
+
+        Temporary:
+          description: Operations for temporary memory.
+          group:
+            Alloc:
+              opcode: 0x60
+              description: |
+                Allocate new memory to the end of the temporary memory.
+                Sets new memory to 0.
+                Returns the index to the start of the new block of memory.
+              panics:
+                - Max memory size reached.
+              stack_in: [size]
+              stack_out: [index]
+
+            Load: 
+              opcode: 0x61
+              description: Load the value at the index of temporary memory onto the stack.
+              panics:
+                - Index is out of bounds.
+              stack_in: [index]
+              stack_out: [value]
+            
+            Store: 
+              opcode: 0x62
+              description: Store the value at the index of temporary memory.
+              panics:
+                - Index is out of bounds.
+              stack_in: [index, value]
 
     ControlFlow:
       description: Operations for controlling the flow of the program.
       group:
         Halt:
-          opcode: 0x50
+          opcode: 0x70
           description: End the execution of the program and return the keys and memory.
 
         Jump:
-          opcode: 0x51
+          opcode: 0x71
           description: Jump to the given address.
           stack_in: [address]
 
         JumpIf:
-          opcode: 0x52
+          opcode: 0x72
           description: Jump to the given address if the value is true.
           stack_in: [address, value]
 
@@ -327,17 +398,17 @@ StateRead:
       description: Operations for controlling memory.
       group:
         Alloc:
-          opcode: 0x60
+          opcode: 0x80
           description: Allocate new memory to the end of the memory.
           stack_in: [size]
 
         Free:
-          opcode: 0x61
+          opcode: 0x81
           description: Free the given size of memory from the end of the memory.
           stack_in: [size]
 
         Truncate:
-          opcode: 0x62
+          opcode: 0x82
           description: |
             Truncate the memory to the given size.
 
@@ -345,7 +416,7 @@ StateRead:
           stack_in: [size]
 
         Load:
-          opcode: 0x63
+          opcode: 0x83
           description: |
             Load the index of memory onto the stack.
 
@@ -356,41 +427,41 @@ StateRead:
           stack_out: [value]
 
         Store:
-          opcode: 0x64
+          opcode: 0x84
           description: Store the value at the index of memory.
           panics:
             - Index is out of bounds.
           stack_in: [index, value]
 
         Push:
-          opcode: 0x65
+          opcode: 0x85
           description: Push the value onto the end of the memory.
           panics:
             - Not enough memory allocated.
           stack_in: [value]
 
         PushNone:
-          opcode: 0x66
+          opcode: 0x86
           description: Push a None value onto the end of the memory.
           panics:
             - Not enough memory allocated.
 
         Clear:
-          opcode: 0x67
+          opcode: 0x87
           description: Set the value at the index of memory to None.
           panics:
             - Index is out of bounds.
           stack_in: [index]
 
         ClearRange:
-          opcode: 0x68
+          opcode: 0x88
           description: Set a range of memory to None.
           panics:
             - The range is out of bounds.
           stack_in: [index, amount]
 
         IsSome:
-          opcode: 0x69
+          opcode: 0x89
           description: Check if the value at the index of memory is Some.
           panics:
             - Index out of bounds.
@@ -398,17 +469,17 @@ StateRead:
           stack_out: [bool]
 
         Capacity:
-          opcode: 0x6A
+          opcode: 0x8A
           description: Get the current capacity of the memory.
           stack_out: [capacity]
 
         Length:
-          opcode: 0x6B
+          opcode: 0x8B
           description: Get the current length of the memory.
           stack_out: [length]
 
     WordRange:
-      opcode: 0x70
+      opcode: 0x90
       description: |
         Read a range of words from state starting at the key.
 
@@ -421,7 +492,7 @@ StateRead:
       stack_out: [mem_addr]
 
     WordRangeExtern:
-      opcode: 0x71
+      opcode: 0x91
       description: |
         Read a range of words from external state starting at the key.
 

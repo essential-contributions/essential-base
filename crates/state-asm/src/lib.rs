@@ -16,7 +16,8 @@ pub use opcode::{InvalidOpcodeError, NotEnoughBytesError, StateRead as Opcode};
 /// Typed representation of an operation its associated data.
 mod op {
     pub use essential_constraint_asm::{
-        Access, Alu, Constraint, Crypto, Pred, Stack, ToBytes, ToOpcode, TryFromBytes,
+        Access, Alu, Constraint, Crypto, Pred, Stack, Temporary, ToBytes, ToOpcode,
+        TotalControlFlow, TryFromBytes,
     };
     essential_asm_gen::gen_state_read_op_decls!();
     essential_asm_gen::gen_state_read_op_impls!();

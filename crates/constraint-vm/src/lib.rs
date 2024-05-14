@@ -47,18 +47,27 @@ use essential_constraint_asm::Op;
 pub use essential_types as types;
 use essential_types::{convert::bool_from_word, ConstraintBytecode};
 #[doc(inline)]
+pub use memory::Memory;
+#[doc(inline)]
 pub use op_access::OpAccess;
 #[doc(inline)]
+pub use repeat::Repeat;
+#[doc(inline)]
 pub use stack::Stack;
+#[doc(inline)]
+pub use total_control_flow::ProgramControlFlow;
 
 mod access;
 mod alu;
 mod bytecode;
 mod crypto;
 pub mod error;
+mod memory;
 mod op_access;
 mod pred;
+mod repeat;
 mod stack;
+mod total_control_flow;
 
 /// Check whether the constraints of a single intent are met for the given
 /// solution data and state slot mutations. All constraints are checked in
@@ -160,27 +169,48 @@ where
 {
     let mut pc = 0;
     let mut stack = Stack::default();
+    let mut memory = Memory::new();
+    let mut repeat = Repeat::new();
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
-        step_op(access, op, &mut stack).map_err(|err| ConstraintError::Op(pc, err))?;
-        pc += 1;
+        let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
+            .map_err(|err| ConstraintError::Op(pc, err))?;
+        match update {
+            Some(ProgramControlFlow::Pc(new_pc)) => pc = new_pc,
+            Some(ProgramControlFlow::Halt) => break,
+            None => pc += 1,
+        }
     }
     Ok(stack)
 }
 
 /// Step forward constraint checking by the given operation.
-pub fn step_op(access: Access, op: Op, stack: &mut Stack) -> OpResult<()> {
+pub fn step_op(
+    access: Access,
+    op: Op,
+    stack: &mut Stack,
+    memory: &mut Memory,
+    pc: usize,
+    repeat: &mut Repeat,
+) -> OpResult<Option<ProgramControlFlow>> {
     match op {
-        Op::Access(op) => step_op_access(access, op, stack),
-        Op::Alu(op) => step_op_alu(op, stack),
-        Op::Crypto(op) => step_op_crypto(op, stack),
-        Op::Pred(op) => step_op_pred(op, stack),
-        Op::Stack(op) => step_op_stack(op, stack),
+        Op::Access(op) => step_op_access(access, op, stack, repeat).map(|_| None),
+        Op::Alu(op) => step_op_alu(op, stack).map(|_| None),
+        Op::Crypto(op) => step_op_crypto(op, stack).map(|_| None),
+        Op::Pred(op) => step_op_pred(op, stack).map(|_| None),
+        Op::Stack(op) => step_op_stack(op, pc, stack, repeat),
+        Op::TotalControlFlow(op) => step_on_total_control_flow(op, stack, pc),
+        Op::Temporary(op) => step_on_temporary(op, stack, memory).map(|_| None),
     }
 }
 
 /// Step forward constraint checking by the given access operation.
-pub fn step_op_access(access: Access, op: asm::Access, stack: &mut Stack) -> OpResult<()> {
+pub fn step_op_access(
+    access: Access,
+    op: asm::Access,
+    stack: &mut Stack,
+    repeat: &mut Repeat,
+) -> OpResult<()> {
     match op {
         asm::Access::DecisionVar => access::decision_var(access.solution, stack),
         asm::Access::DecisionVarRange => access::decision_var_range(access.solution, stack),
@@ -193,6 +223,7 @@ pub fn step_op_access(access: Access, op: asm::Access, stack: &mut Stack) -> OpR
         asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
         asm::Access::ThisSetAddress => access::this_set_address(access.solution.this_data(), stack),
         asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
+        asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
     }
 }
 
@@ -232,8 +263,16 @@ pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
 }
 
 /// Step forward constraint checking by the given stack operation.
-pub fn step_op_stack(op: asm::Stack, stack: &mut Stack) -> OpResult<()> {
-    match op {
+pub fn step_op_stack(
+    op: asm::Stack,
+    pc: usize,
+    stack: &mut Stack,
+    repeat: &mut Repeat,
+) -> OpResult<Option<ProgramControlFlow>> {
+    if let asm::Stack::RepeatEnd = op {
+        return Ok(repeat.repeat()?.map(ProgramControlFlow::Pc));
+    }
+    let r = match op {
         asm::Stack::Dup => stack.pop1_push2(|w| Ok([w, w])),
         asm::Stack::DupFrom => stack.dup_from().map_err(From::from),
         asm::Stack::Push(word) => stack.push(word).map_err(From::from),
@@ -241,6 +280,42 @@ pub fn step_op_stack(op: asm::Stack, stack: &mut Stack) -> OpResult<()> {
         asm::Stack::Swap => stack.pop2_push2(|a, b| Ok([b, a])),
         asm::Stack::SwapIndex => stack.swap_index().map_err(From::from),
         asm::Stack::Select => stack.select().map_err(From::from),
+        asm::Stack::Repeat => repeat::repeat(pc, stack, repeat),
+        asm::Stack::RepeatEnd => unreachable!(),
+    };
+    r.map(|_| None)
+}
+
+/// Step forward constraint checking by the given total control flow operation.
+pub fn step_on_total_control_flow(
+    op: asm::TotalControlFlow,
+    stack: &mut Stack,
+    pc: usize,
+) -> OpResult<Option<ProgramControlFlow>> {
+    match op {
+        asm::TotalControlFlow::JumpForwardIf => total_control_flow::jump_forward_if(stack, pc),
+        asm::TotalControlFlow::HaltIf => total_control_flow::halt_if(stack),
+    }
+}
+
+/// Step forward constraint checking by the given temporary operation.
+pub fn step_on_temporary(
+    op: asm::Temporary,
+    stack: &mut Stack,
+    memory: &mut Memory,
+) -> OpResult<()> {
+    match op {
+        asm::Temporary::Alloc => {
+            let w = stack.pop()?;
+            let len = memory.len()?;
+            memory.alloc(w)?;
+            Ok(stack.push(len)?)
+        }
+        asm::Temporary::Store => {
+            let [addr, w] = stack.pop2()?;
+            memory.store(addr, w)
+        }
+        asm::Temporary::Load => stack.pop1_push1(|addr| memory.load(addr)),
     }
 }
 
