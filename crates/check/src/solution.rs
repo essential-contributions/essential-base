@@ -16,7 +16,7 @@ use crate::{
         solution::{
             DecisionVariable, DecisionVariableIndex, Solution, SolutionData, SolutionDataIndex,
         },
-        ContentAddress, IntentAddress, Key, Signed, Word,
+        IntentAddress, Key, Signed, Word,
     },
 };
 use std::{collections::HashSet, fmt, sync::Arc};
@@ -55,9 +55,6 @@ pub enum InvalidSolution {
     /// State mutations validation failed.
     #[error("state mutations validation failed: {0}")]
     StateMutations(#[from] InvalidStateMutations),
-    /// Partial solutions validation failed.
-    #[error("partial solutions validation failed: {0}")]
-    PartialSolutions(#[from] InvalidPartialSolutions),
 }
 
 /// [`check_data`] error.
@@ -92,17 +89,6 @@ pub enum InvalidStateMutations {
     /// Discovered multiple mutations to the same slot.
     #[error("attempt to apply multiple mutations to the same slot: {0:?} {1:?}")]
     MultipleMutationsForSlot(IntentAddress, Key),
-}
-
-/// [`check_partial_solutions`] error.
-#[derive(Debug, Error)]
-pub enum InvalidPartialSolutions {
-    /// The number of partial solutions exceeded the limit.
-    #[error("the number of partial solutions ({0}) exceeds the limit ({MAX_PARTIAL_SOLUTIONS})")]
-    TooMany(usize),
-    /// Failed to validate the signature of the partial solution at the given index.
-    #[error("failed to validate the signature of the partial solution at index {0}: {1}")]
-    Signature(usize, secp256k1::Error),
 }
 
 /// [`check_intents`] error.
@@ -214,8 +200,6 @@ pub const MAX_DECISION_VARIABLES: u32 = 100;
 pub const MAX_SOLUTION_DATA: usize = 100;
 /// Maximum number of state mutations of a solution.
 pub const MAX_STATE_MUTATIONS: usize = 1000;
-/// Maximum number of partial solutions of a solution.
-pub const MAX_PARTIAL_SOLUTIONS: usize = 20;
 
 impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -228,9 +212,9 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 }
 
 /// Validate a [`Signed<Solution>`][Signed], to the extent it can be validated
-/// without reference to its associated intents or partial solutions.
+/// without reference to its associated intents.
 ///
-/// This includes solution data, state mutations and associated partial solutions.
+/// This includes solution data and state mutations.
 pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
     sign::verify(solution)?;
     check(&solution.data)?;
@@ -238,13 +222,12 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolu
 }
 
 /// Validate a solution, to the extent it can be validated without reference to
-/// its associated intents or partial solutions.
+/// its associated intents.
 ///
-/// This includes solution data, state mutations and associated partial solutions.
+/// This includes solution data and state mutations.
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
-    check_partial_solutions(&solution.partial_solutions)?;
     Ok(())
 }
 
@@ -353,22 +336,6 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
         }
     }
 
-    Ok(())
-}
-
-/// Validate the solution's associated partial solutions.
-pub fn check_partial_solutions(
-    partial_solutions: &[Signed<ContentAddress>],
-) -> Result<(), InvalidPartialSolutions> {
-    // Validate partial solutions.
-    // Ensure that solution partial solutions length is below limit length.
-    if partial_solutions.len() > MAX_PARTIAL_SOLUTIONS {
-        return Err(InvalidPartialSolutions::TooMany(partial_solutions.len()));
-    }
-    // Verify signatures of all partial solutions.
-    for (ix, signed) in partial_solutions.iter().enumerate() {
-        sign::verify(signed).map_err(|e| InvalidPartialSolutions::Signature(ix, e))?;
-    }
     Ok(())
 }
 

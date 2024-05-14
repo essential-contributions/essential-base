@@ -128,7 +128,6 @@ pub fn empty_solution() -> Solution {
     Solution {
         data: Default::default(),
         state_mutations: Default::default(),
-        partial_solutions: Default::default(),
     }
 }
 
@@ -242,7 +241,6 @@ pub fn test_intent_42_solution_pair(
             intent_to_solve: intent_addr,
             decision_variables,
         }],
-        partial_solutions: vec![],
         state_mutations: vec![StateMutation {
             pathway: 0,
             mutations: vec![Mutation {

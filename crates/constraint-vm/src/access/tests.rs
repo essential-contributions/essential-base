@@ -273,7 +273,6 @@ fn mut_keys_len() {
                 }],
             },
         ],
-        partial_solutions: vec![],
     };
 
     // The intent we're solving is the second intent, i.e. index `1`.

@@ -44,7 +44,6 @@ fn check_signed_solution() {
         mutations: Default::default(),
     }];
     let (sk, _pk) = random_keypair([0xFA; 32]);
-    solution.partial_solutions = vec![sign(ContentAddress([0xFF; 32]), sk)];
     let solution = sign(solution, sk);
     solution::check_signed(&solution).unwrap();
 }
@@ -184,7 +183,6 @@ fn state_mutation_pathways_must_have_associated_solution_data() {
             mutations: Default::default(),
         }],
         data: vec![test_solution_data()],
-        ..empty_solution()
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
@@ -199,7 +197,6 @@ fn too_many_state_mutations() {
     let solution = Solution {
         data: vec![test_solution_data()],
         state_mutations: vec![test_state_mutation(); solution::MAX_STATE_MUTATIONS + 1],
-        ..empty_solution()
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
@@ -222,49 +219,11 @@ fn multiple_mutations_for_slot() {
                 2
             ],
         }],
-        ..empty_solution()
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
         solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::MultipleMutationsForSlot(addr, key))
             if addr == test_intent_addr() && key == [0; 4]
-    ));
-}
-
-#[test]
-fn too_many_partial_solutions() {
-    let (sk, _pk) = random_keypair([0; 32]);
-    let solution = Solution {
-        data: vec![test_solution_data()],
-        partial_solutions: vec![
-            sign(ContentAddress([0; 32]), sk);
-            solution::MAX_PARTIAL_SOLUTIONS + 1
-        ],
-        ..empty_solution()
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::PartialSolutions(solution::InvalidPartialSolutions::TooMany(n))
-            if n == solution::MAX_PARTIAL_SOLUTIONS + 1
-    ));
-}
-
-#[test]
-fn invalid_partial_solution_signature() {
-    let (sk, _pk) = random_keypair([0; 32]);
-    let mut signed = sign(ContentAddress([0; 32]), sk);
-    signed.signature.0 = [0; 64];
-    let solution = Solution {
-        data: vec![test_solution_data()],
-        partial_solutions: vec![signed],
-        ..empty_solution()
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::PartialSolutions(solution::InvalidPartialSolutions::Signature(
-            0,
-            _
-        ))
     ));
 }
 

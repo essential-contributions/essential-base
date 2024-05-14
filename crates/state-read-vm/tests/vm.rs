@@ -209,7 +209,6 @@ async fn read_pre_post_state_and_check_constraints() {
                 value: Some(41),
             }],
         }],
-        partial_solutions: vec![],
     };
 
     // The index of the solution data associated with the intent we're solving.

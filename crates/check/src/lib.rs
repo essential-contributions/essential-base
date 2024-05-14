@@ -21,7 +21,6 @@
 //! - [`solution::check`] validates an unsigned solution.
 //! - [`solution::check_data`] validates a solution's data slice.
 //! - [`solution::check_state_mutations`] validates a solution's state mutation slice.
-//! - [`solution::check_partial_solutions`] validates a solution's signed partial solutions.
 //!
 //! ## Solution + Intent Validation
 //!
