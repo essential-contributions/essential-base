@@ -237,12 +237,6 @@ impl core::ops::Deref for Stack {
     }
 }
 
-impl core::ops::DerefMut for Stack {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{

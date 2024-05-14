@@ -306,6 +306,10 @@ pub fn step_on_temporary(
     memory: &mut Memory,
 ) -> OpResult<()> {
     match op {
+        asm::Temporary::Alloc => {
+            let w = stack.pop()?;
+            memory.alloc(w)
+        }
         asm::Temporary::Store => {
             let [addr, w] = stack.pop2()?;
             memory.store(addr, w)

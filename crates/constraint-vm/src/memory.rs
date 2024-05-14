@@ -15,6 +15,16 @@ impl Memory {
         Self::default()
     }
 
+    /// Allocate more memory to the end of this memory.
+    pub fn alloc(&mut self, size: Word) -> OpResult<()> {
+        let size = usize::try_from(size).map_err(|_| TemporaryError::Overflow)?;
+        if self.0.len() + size > Self::SIZE_LIMIT {
+            return Err(TemporaryError::Overflow.into());
+        }
+        self.0.reserve(size);
+        Ok(())
+    }
+
     /// Store a word at the given address.
     pub fn store(&mut self, address: Word, value: Word) -> OpResult<()> {
         let index = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
@@ -33,7 +43,7 @@ impl Memory {
 
     /// Push a word onto the memory.
     pub fn push(&mut self, value: Word) -> OpResult<()> {
-        if self.0.len() >= Self::SIZE_LIMIT {
+        if self.0.len() >= self.0.capacity() {
             return Err(TemporaryError::Overflow.into());
         }
         self.0.push(value);

@@ -356,8 +356,15 @@ StateRead:
         Temporary:
           description: Operations for temporary memory.
           group:
-            Load: 
+            Alloc:
               opcode: 0x60
+              description: Allocate new memory to the end of the temporary memory.
+              panics:
+                - Max memory size reached.
+              stack_in: [size]
+
+            Load: 
+              opcode: 0x61
               description: Load the value at the index of temporary memory onto the stack.
               panics:
                 - Index is out of bounds.
@@ -365,21 +372,21 @@ StateRead:
               stack_out: [value]
             
             Store: 
-              opcode: 0x61
+              opcode: 0x62
               description: Store the value at the index of temporary memory.
               panics:
                 - Index is out of bounds.
               stack_in: [index, value]
             
             Push: 
-              opcode: 0x62
+              opcode: 0x63
               description: Push the value onto the end of the temporary memory.
               panics:
                 - Not enough memory allocated.
               stack_in: [value]
 
             Pop: 
-              opcode: 0x63
+              opcode: 0x64
               description: Pop the value from the end of the temporary memory.
               panics:
                 - If memory is empty.
