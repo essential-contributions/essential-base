@@ -194,11 +194,11 @@ pub fn step_op(
     repeat: &mut Repeat,
 ) -> OpResult<Option<UpdateProgram>> {
     match op {
-        Op::Access(op) => step_op_access(access, op, stack, pc, repeat).map(|_| None),
+        Op::Access(op) => step_op_access(access, op, stack, repeat).map(|_| None),
         Op::Alu(op) => step_op_alu(op, stack).map(|_| None),
         Op::Crypto(op) => step_op_crypto(op, stack).map(|_| None),
         Op::Pred(op) => step_op_pred(op, stack).map(|_| None),
-        Op::Stack(op) => step_op_stack(op, stack, repeat),
+        Op::Stack(op) => step_op_stack(op, pc, stack, repeat),
         Op::TotalControlFlow(op) => step_on_total_control_flow(op, stack, pc),
         Op::Temporary(op) => step_on_temporary(op, stack, memory).map(|_| None),
     }
@@ -209,7 +209,6 @@ pub fn step_op_access(
     access: Access,
     op: asm::Access,
     stack: &mut Stack,
-    pc: &usize,
     repeat: &mut Repeat,
 ) -> OpResult<()> {
     match op {
@@ -224,8 +223,6 @@ pub fn step_op_access(
         asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
         asm::Access::ThisSetAddress => access::this_set_address(access.solution.this_data(), stack),
         asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
-        asm::Access::RepeatDecVar => access::repeat_dec_var(access.solution, stack, pc, repeat),
-        asm::Access::RepeatStateSlot => access::repeat_state(access.state_slots, stack, pc, repeat),
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
     }
 }
@@ -268,6 +265,7 @@ pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
 /// Step forward constraint checking by the given stack operation.
 pub fn step_op_stack(
     op: asm::Stack,
+    pc: &usize,
     stack: &mut Stack,
     repeat: &mut Repeat,
 ) -> OpResult<Option<UpdateProgram>> {
@@ -282,6 +280,7 @@ pub fn step_op_stack(
         asm::Stack::Swap => stack.pop2_push2(|a, b| Ok([b, a])),
         asm::Stack::SwapIndex => stack.swap_index().map_err(From::from),
         asm::Stack::Select => stack.select().map_err(From::from),
+        asm::Stack::Repeat => repeat::repeat(pc, stack, repeat),
         asm::Stack::RepeatEnd => unreachable!(),
     };
     r.map(|_| None)
@@ -308,18 +307,15 @@ pub fn step_on_temporary(
     match op {
         asm::Temporary::Alloc => {
             let w = stack.pop()?;
-            memory.alloc(w)
+            let len = memory.len()?;
+            memory.alloc(w)?;
+            Ok(stack.push(len)?)
         }
         asm::Temporary::Store => {
             let [addr, w] = stack.pop2()?;
             memory.store(addr, w)
         }
         asm::Temporary::Load => stack.pop1_push1(|addr| memory.load(addr)),
-        asm::Temporary::Push => {
-            let w = stack.pop()?;
-            memory.push(w)
-        }
-        asm::Temporary::Pop => memory.pop(),
     }
 }
 

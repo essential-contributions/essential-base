@@ -18,10 +18,15 @@ impl Memory {
     /// Allocate more memory to the end of this memory.
     pub fn alloc(&mut self, size: Word) -> OpResult<()> {
         let size = usize::try_from(size).map_err(|_| TemporaryError::Overflow)?;
-        if self.0.len() + size > Self::SIZE_LIMIT {
+        let new_size = self
+            .0
+            .len()
+            .checked_add(size)
+            .ok_or(TemporaryError::Overflow)?;
+        if new_size > Self::SIZE_LIMIT {
             return Err(TemporaryError::Overflow.into());
         }
-        self.0.reserve(size);
+        self.0.resize(new_size, 0);
         Ok(())
     }
 
@@ -41,22 +46,17 @@ impl Memory {
         Ok(*self.0.get(index).ok_or(TemporaryError::IndexOutOfBounds)?)
     }
 
-    /// Push a word onto the memory.
-    pub fn push(&mut self, value: Word) -> OpResult<()> {
-        if self.0.len() >= self.0.capacity() {
-            return Err(TemporaryError::Overflow.into());
-        }
-        self.0.push(value);
-        Ok(())
+    /// Current len of the memory.
+    pub fn len(&self) -> OpResult<Word> {
+        Ok(self
+            .0
+            .len()
+            .try_into()
+            .map_err(|_| TemporaryError::Overflow)?)
     }
 
-    /// Pop a word from the memory.
-    pub fn pop(&mut self) -> OpResult<()> {
-        let i = self.0.pop();
-        if i.is_none() {
-            Err(TemporaryError::Empty.into())
-        } else {
-            Ok(())
-        }
+    /// Is the memory empty?
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }

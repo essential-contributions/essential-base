@@ -1,6 +1,9 @@
-use essential_types::Word;
+use essential_types::{convert::bool_from_word, Word};
 
-use crate::error::{RepeatError, RepeatResult};
+use crate::{
+    error::{RepeatError, RepeatResult, StackError},
+    OpResult, Stack,
+};
 
 #[cfg(test)]
 mod tests;
@@ -14,7 +17,27 @@ pub struct Repeat {
 #[derive(Debug, PartialEq)]
 struct Slot {
     pub counter: Word,
+    pub limit: Direction,
     pub repeat_index: usize,
+}
+
+#[derive(Debug, PartialEq)]
+enum Direction {
+    Up(Word),
+    Down,
+}
+
+/// `Stack::Repeat` implementation.
+pub(crate) fn repeat(pc: &usize, stack: &mut Stack, repeat: &mut Repeat) -> OpResult<()> {
+    let [num_repeats, count_up] = stack.pop2()?;
+    let count_up = bool_from_word(count_up).ok_or(RepeatError::InvalidCountDirection)?;
+    let pc = pc.checked_add(1).ok_or(StackError::IndexOutOfBounds)?;
+    if count_up {
+        repeat.repeat_to(pc, num_repeats)?;
+    } else {
+        repeat.repeat_from(pc, num_repeats)?;
+    }
+    Ok(())
 }
 
 impl Repeat {
@@ -24,12 +47,28 @@ impl Repeat {
     }
 
     /// Add a new repeat location and counter to the stack.
+    /// Counts down to 0.
     pub fn repeat_from(&mut self, location: usize, amount: Word) -> RepeatResult<()> {
         if self.stack.len() >= super::Stack::SIZE_LIMIT {
             return Err(RepeatError::Overflow);
         }
         self.stack.push(Slot {
             counter: amount,
+            limit: Direction::Down,
+            repeat_index: location,
+        });
+        Ok(())
+    }
+
+    /// Add a new repeat location and counter to the stack.
+    /// Counts up from 0 to limit - 1.
+    pub fn repeat_to(&mut self, location: usize, limit: Word) -> RepeatResult<()> {
+        if self.stack.len() >= super::Stack::SIZE_LIMIT {
+            return Err(RepeatError::Overflow);
+        }
+        self.stack.push(Slot {
+            counter: 0,
+            limit: Direction::Up(limit),
             repeat_index: location,
         });
         Ok(())
@@ -45,6 +84,7 @@ impl Repeat {
             .ok_or(RepeatError::NoCounter)
     }
 
+    // TODO: Update this comment.
     /// If there is a counter on the stack and the counter
     /// has greater then 1 repeat left then this will decrement
     /// the counter and return the index to repeat to.
@@ -58,17 +98,26 @@ impl Repeat {
     /// Note that because the code has run once before the
     /// `RepeatEnd` is hit then we stop at 1.
     pub fn repeat(&mut self) -> RepeatResult<Option<usize>> {
-        let counter = self.counter().map_err(|_| RepeatError::Empty)?;
-        if counter <= 1 {
-            self.stack.pop();
-            Ok(None)
-        } else {
-            let slot = self
-                .stack
-                .last_mut()
-                .expect("Safe because of counter check");
-            slot.counter -= 1;
-            Ok(Some(slot.repeat_index))
+        let slot = self.stack.last_mut().ok_or(RepeatError::Empty)?;
+        match slot.limit {
+            Direction::Up(limit) => {
+                if slot.counter >= limit.saturating_sub(1) {
+                    self.stack.pop();
+                    Ok(None)
+                } else {
+                    slot.counter += 1;
+                    Ok(Some(slot.repeat_index))
+                }
+            }
+            Direction::Down => {
+                if slot.counter <= 1 {
+                    self.stack.pop();
+                    Ok(None)
+                } else {
+                    slot.counter -= 1;
+                    Ok(Some(slot.repeat_index))
+                }
+            }
         }
     }
 }

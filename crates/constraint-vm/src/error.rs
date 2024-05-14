@@ -164,6 +164,9 @@ pub enum RepeatError {
     /// Repeat counter called when stack is empty
     #[error("attempted to access repeat counter with empty stack")]
     NoCounter,
+    /// Repeat counter called with an invalid count direction
+    #[error("The count direction must be 0 or 1")]
+    InvalidCountDirection,
     /// The repeat stack size exceeded the size limit.
     #[error("the {}-word stack size limit was exceeded", crate::Stack::SIZE_LIMIT)]
     Overflow,

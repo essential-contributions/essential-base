@@ -521,33 +521,3 @@ fn this_set_address() {
     let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.set.0);
     assert_eq!(&stack[..], expected_words);
 }
-
-#[test]
-fn test_repeat_dec_var() {
-    let solution = SolutionAccess {
-        data: &[SolutionData {
-            intent_to_solve: TEST_INTENT_ADDR,
-            decision_variables: vec![DecisionVariable::Inline(3)],
-        }],
-        index: 0,
-        mutable_keys: test_empty_keys(),
-    };
-    let mut stack = Stack::default();
-    let mut repeat = Repeat::new();
-    let pc = 0;
-
-    stack.push(0).unwrap();
-
-    repeat_dec_var(solution, &mut stack, &pc, &mut repeat).unwrap();
-
-    assert_eq!(repeat.counter().unwrap(), 3);
-
-    stack.push(1).unwrap();
-
-    repeat_dec_var(solution, &mut stack, &pc, &mut repeat).unwrap_err();
-
-    stack.push(0).unwrap();
-    let pc = usize::MAX;
-
-    repeat_dec_var(solution, &mut stack, &pc, &mut repeat).unwrap_err();
-}

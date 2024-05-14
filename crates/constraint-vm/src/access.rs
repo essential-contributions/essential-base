@@ -2,12 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::{
-    error::{AccessError, StackError},
-    repeat::Repeat,
-    types::convert::bool_from_word,
-    OpResult, Stack,
-};
+use crate::{error::AccessError, repeat::Repeat, types::convert::bool_from_word, OpResult, Stack};
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
@@ -226,33 +221,6 @@ pub(crate) fn this_pathway(index: usize, stack: &mut Stack) -> OpResult<()> {
         .try_into()
         .map_err(|_| AccessError::SolutionDataOutOfBounds)?;
     Ok(stack.push(index)?)
-}
-
-/// `Access::RepeatDecVar` implementation.
-pub(crate) fn repeat_dec_var(
-    solution: SolutionAccess,
-    stack: &mut Stack,
-    pc: &usize,
-    repeat: &mut Repeat,
-) -> OpResult<()> {
-    let slot = stack.pop()?;
-    let ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-    let w = resolve_decision_var(solution.data, solution.index, ix)?;
-    let pc = pc.checked_add(1).ok_or(StackError::IndexOutOfBounds)?;
-    Ok(repeat.repeat_from(pc, w)?)
-}
-
-pub(crate) fn repeat_state(
-    slots: StateSlots,
-    stack: &mut Stack,
-    pc: &usize,
-    repeat: &mut Repeat,
-) -> OpResult<()> {
-    let [slot, delta] = stack.pop2()?;
-    let slot = state_slot(slots, slot, delta)?;
-    let word = slot.unwrap_or_default();
-    let pc = pc.checked_add(1).ok_or(StackError::IndexOutOfBounds)?;
-    Ok(repeat.repeat_from(pc, word)?)
 }
 
 pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()> {

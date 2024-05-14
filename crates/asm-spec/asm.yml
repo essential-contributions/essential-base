@@ -62,13 +62,22 @@ StateRead:
               stack_in: [a, b, cond]
               stack_out: [b]
             
-            RepeatEnd:
+            Repeat:
               opcode: 0x08
               description: |
-                Decrements the top counter on the repeat stack.
-                If the counter is 0 then this pops the counter
-                and continues with the program. 
-                If it is > 0 then the program jumps to 
+                Repeat a section of code the number of times.
+                Takes a boolean to either count from 0 up or from the number of repeats down to 0.
+              stack_in: [num_repeats, count_up_bool]
+
+            RepeatEnd:
+              opcode: 0x09
+              description: |
+                Increment or decrements the top counter on the repeat stack.
+                If the counter is counting up and `counter == limit - 1`
+                then this pops the counter and continues with the program.
+                If the counter is counting down and the counter is 0 
+                then this pops the counter and continues with the program.
+                If it is `< limit - 1` or `> 0` respectively then the program jumps to 
                 the last Repeat
               panics:
                   - If there is no counter on the repeat stack.
@@ -294,22 +303,8 @@ StateRead:
                 This operation returns the index of the solution data currently being used to check this intent.
               stack_out: [in]
 
-            RepeatDecVar:
-              opcode: 0x3B
-              description: Repeat a section of code the number of times set by a decision variable.
-              panics: 
-                - If the slot is out of range.
-              stack_in: [dec_var_slot]
-
-            RepeatStateSlot:
-              opcode: 0x3C
-              description: Repeat a section of code the number of times set by a state slot.
-              panics: 
-                - If the slot is out of range.
-              stack_in: [state_slot, delta]
-
             RepeatCounter:
-              opcode: 0x3D
+              opcode: 0x3B
               description: Access the top repeat counters current value.
               stack_out: [counter_value]
 
@@ -358,10 +353,14 @@ StateRead:
           group:
             Alloc:
               opcode: 0x60
-              description: Allocate new memory to the end of the temporary memory.
+              description: |
+                Allocate new memory to the end of the temporary memory.
+                Sets new memory to 0.
+                Returns the index to the start of the new block of memory.
               panics:
                 - Max memory size reached.
               stack_in: [size]
+              stack_out: [index]
 
             Load: 
               opcode: 0x61
@@ -377,19 +376,6 @@ StateRead:
               panics:
                 - Index is out of bounds.
               stack_in: [index, value]
-            
-            Push: 
-              opcode: 0x63
-              description: Push the value onto the end of the temporary memory.
-              panics:
-                - Not enough memory allocated.
-              stack_in: [value]
-
-            Pop: 
-              opcode: 0x64
-              description: Pop the value from the end of the temporary memory.
-              panics:
-                - If memory is empty.
 
     ControlFlow:
       description: Operations for controlling the flow of the program.
