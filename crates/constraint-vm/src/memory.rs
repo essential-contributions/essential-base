@@ -2,6 +2,9 @@ use essential_types::Word;
 
 use crate::{error::TemporaryError, OpResult};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Default, Debug, PartialEq)]
 /// Memory for temporary storage of words.
 pub struct Memory(Vec<Word>);
