@@ -78,6 +78,9 @@ pub enum OpError {
     /// An error occurred while parsing an operation from bytes.
     #[error("bytecode error: {0}")]
     FromBytes(#[from] asm::FromBytesError),
+    /// Pc counter overflowed.
+    #[error("PC counter overflowed")]
+    PcOverflow,
 }
 
 /// Access operation error.
@@ -181,6 +184,9 @@ pub enum TotalControlFlowError {
     /// Attempted to jump forward if with an invalid condition
     #[error("jump forward if requires a boolean condition")]
     InvalidJumpForwardIfCondition,
+    /// Attempted to jump forward if to the same location
+    #[error("jump forward if requires to jump at least one instruction")]
+    JumpedToSelf,
     /// Attempted to halt if with an invalid condition
     #[error("halt if requires a boolean condition")]
     InvalidHaltIfCondition,

@@ -55,7 +55,7 @@ pub use repeat::Repeat;
 #[doc(inline)]
 pub use stack::Stack;
 #[doc(inline)]
-pub use total_control_flow::UpdateProgram;
+pub use total_control_flow::ProgramControlFlow;
 
 mod access;
 mod alu;
@@ -173,11 +173,11 @@ where
     let mut repeat = Repeat::new();
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
-        let update = step_op(access, op, &mut stack, &mut memory, &pc, &mut repeat)
+        let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
             .map_err(|err| ConstraintError::Op(pc, err))?;
         match update {
-            Some(UpdateProgram::Pc(new_pc)) => pc = new_pc,
-            Some(UpdateProgram::Halt) => break,
+            Some(ProgramControlFlow::Pc(new_pc)) => pc = new_pc,
+            Some(ProgramControlFlow::Halt) => break,
             None => pc += 1,
         }
     }
@@ -190,9 +190,9 @@ pub fn step_op(
     op: Op,
     stack: &mut Stack,
     memory: &mut Memory,
-    pc: &usize,
+    pc: usize,
     repeat: &mut Repeat,
-) -> OpResult<Option<UpdateProgram>> {
+) -> OpResult<Option<ProgramControlFlow>> {
     match op {
         Op::Access(op) => step_op_access(access, op, stack, repeat).map(|_| None),
         Op::Alu(op) => step_op_alu(op, stack).map(|_| None),
@@ -265,12 +265,12 @@ pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
 /// Step forward constraint checking by the given stack operation.
 pub fn step_op_stack(
     op: asm::Stack,
-    pc: &usize,
+    pc: usize,
     stack: &mut Stack,
     repeat: &mut Repeat,
-) -> OpResult<Option<UpdateProgram>> {
+) -> OpResult<Option<ProgramControlFlow>> {
     if let asm::Stack::RepeatEnd = op {
-        return Ok(repeat.repeat()?.map(UpdateProgram::Pc));
+        return Ok(repeat.repeat()?.map(ProgramControlFlow::Pc));
     }
     let r = match op {
         asm::Stack::Dup => stack.pop1_push2(|w| Ok([w, w])),
@@ -290,8 +290,8 @@ pub fn step_op_stack(
 pub fn step_on_total_control_flow(
     op: asm::TotalControlFlow,
     stack: &mut Stack,
-    pc: &usize,
-) -> OpResult<Option<UpdateProgram>> {
+    pc: usize,
+) -> OpResult<Option<ProgramControlFlow>> {
     match op {
         asm::TotalControlFlow::JumpForwardIf => total_control_flow::jump_forward_if(stack, pc),
         asm::TotalControlFlow::HaltIf => total_control_flow::halt_if(stack),

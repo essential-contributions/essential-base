@@ -28,7 +28,7 @@
 //! [`ExecFuture`] docs for further details on the implementation.
 #![deny(missing_docs, unsafe_code)]
 
-use constraint::{Repeat, UpdateProgram};
+use constraint::{ProgramControlFlow, Repeat};
 use error::{MemoryError, OpError, OpSyncError, StateReadError};
 #[doc(inline)]
 pub use error::{MemoryResult, OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
@@ -292,9 +292,9 @@ pub(crate) fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncRes
                 temp_memory,
                 ..
             } = vm;
-            match constraint::step_op(access, op, stack, temp_memory, pc, repeat)? {
-                Some(UpdateProgram::Pc(pc)) => return Ok(Some(pc)),
-                Some(UpdateProgram::Halt) => return Ok(None),
+            match constraint::step_op(access, op, stack, temp_memory, *pc, repeat)? {
+                Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
+                Some(ProgramControlFlow::Halt) => return Ok(None),
                 None => (),
             }
         }

@@ -28,7 +28,7 @@ enum Direction {
 }
 
 /// `Stack::Repeat` implementation.
-pub(crate) fn repeat(pc: &usize, stack: &mut Stack, repeat: &mut Repeat) -> OpResult<()> {
+pub(crate) fn repeat(pc: usize, stack: &mut Stack, repeat: &mut Repeat) -> OpResult<()> {
     let [num_repeats, count_up] = stack.pop2()?;
     let count_up = bool_from_word(count_up).ok_or(RepeatError::InvalidCountDirection)?;
     let pc = pc.checked_add(1).ok_or(StackError::IndexOutOfBounds)?;
