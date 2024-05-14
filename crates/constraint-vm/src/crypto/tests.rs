@@ -1,5 +1,3 @@
-use essential_types::convert::u8_32_from_word_4;
-
 use crate::{
     asm::{Crypto, Op, Stack, Word},
     crypto::{bytes_from_words, recover_secp256k1},
@@ -11,6 +9,7 @@ use crate::{
         Hash,
     },
 };
+use essential_types::convert::u8_32_from_word_4;
 
 fn exec_ops_sha256(ops: &[Op]) -> Hash {
     let stack = exec_ops(ops, *test_access()).unwrap();

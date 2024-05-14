@@ -22,6 +22,8 @@ use crate::{
 use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
+#[cfg(feature = "tracing")]
+use tracing_futures::Instrument;
 
 /// Configuration options passed to [`check_intent`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
@@ -123,7 +125,7 @@ pub enum IntentError<E> {
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
     /// Failed to read state.
-    #[error("state read executino error: {0}")]
+    #[error("state read execution error: {0}")]
     StateRead(#[from] StateReadError<E>),
     /// Failed to write state slots to temporary slice.
     #[error("failed to write state slots to temporary slice: {0}")]
@@ -215,20 +217,42 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 /// without reference to its associated intents.
 ///
 /// This includes solution data and state mutations.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
-    sign::verify(solution)?;
-    check(&solution.data)?;
-    Ok(())
+    match sign::verify(solution) {
+        Ok(()) => {
+            check(&solution.data)?;
+            Ok(())
+        }
+        Err(err) => {
+            #[cfg(feature = "tracing")]
+            tracing::info!("{}", err);
+            Err(err.into())
+        }
+    }
 }
 
 /// Validate a solution, to the extent it can be validated without reference to
 /// its associated intents.
 ///
 /// This includes solution data and state mutations.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
-    check_data(&solution.data)?;
-    check_state_mutations(solution)?;
-    Ok(())
+    match check_data(&solution.data) {
+        Ok(()) => match check_state_mutations(solution) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                #[cfg(feature = "tracing")]
+                tracing::info!("{}", err);
+                Err(err.into())
+            }
+        },
+        Err(err) => {
+            #[cfg(feature = "tracing")]
+            tracing::info!("{}", err);
+            Err(err.into())
+        }
+    }
 }
 
 /// Validate the solution's slice of [`SolutionData`].
@@ -360,6 +384,7 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
 ///   intents are assumed to have been read from storage and validated ahead of time.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub async fn check_intents<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
@@ -391,7 +416,8 @@ where
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         let config = config.clone();
-        set.spawn(async move {
+
+        let future = async move {
             let pre_state = pre_state;
             let post_state = post_state;
             let res = check_intent(
@@ -404,7 +430,11 @@ where
             )
             .await;
             (solution_data_index, res)
-        });
+        };
+        #[cfg(feature = "tracing")]
+        set.spawn(future.instrument(tracing::info_span!("check_intent")));
+        #[cfg(not(feature = "tracing"))]
+        set.spawn(future);
     }
 
     // Calculate total utility and gas used.
@@ -660,15 +690,20 @@ pub async fn check_intent_constraints(
     post_slots: Arc<StateSlotSlice>,
     config: &CheckIntentConfig,
 ) -> Result<Utility, IntentConstraintsError> {
-    check_intent_constraints_parallel(
+    let future = check_intent_constraints_parallel(
         solution.clone(),
         solution_data_index,
         intent.clone(),
         pre_slots.clone(),
         post_slots.clone(),
         config,
-    )
-    .await?;
+    );
+    #[cfg(feature = "tracing")]
+    future
+        .instrument(tracing::info_span!("check_constraints"))
+        .await?;
+    #[cfg(not(feature = "tracing"))]
+    future.await?;
     let util = calculate_utility(
         solution,
         solution_data_index,

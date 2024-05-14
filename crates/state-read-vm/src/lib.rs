@@ -45,6 +45,8 @@ use essential_types::{ContentAddress, Word};
 pub use future::ExecFuture;
 pub use memory::Memory;
 pub use state_read::StateRead;
+#[cfg(feature = "tracing")]
+use tracing_futures::Instrument;
 
 mod ctrl_flow;
 pub mod error;
@@ -246,7 +248,11 @@ impl Vm {
         OA: OpAccess<Op = Op> + Unpin + core::fmt::Debug,
         OA::Error: Into<OpError<S::Error>>,
     {
-        future::exec(self, access, state_read, op_access, op_gas_cost, gas_limit).await
+        let f = future::exec(self, access, state_read, op_access, op_gas_cost, gas_limit);
+        #[cfg(feature = "tracing")]
+        return f.instrument(tracing::trace_span!("exec")).await;
+        #[cfg(not(feature = "tracing"))]
+        return f.await;
     }
 
     /// Consumes the `Vm` and returns the read state slots.

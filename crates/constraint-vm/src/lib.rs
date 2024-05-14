@@ -56,8 +56,6 @@ pub use repeat::Repeat;
 pub use stack::Stack;
 #[doc(inline)]
 pub use total_control_flow::ProgramControlFlow;
-#[cfg(feature = "tracing")]
-use tracing::instrument;
 
 mod access;
 mod alu;
@@ -80,7 +78,7 @@ mod total_control_flow;
 /// [`CheckError`][error::CheckError] type.
 ///
 /// The intent is considered to be satisfied if this function returns `Ok(())`.
-#[cfg_attr(feature = "tracing", instrument(err))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
     use rayon::{iter::Either, prelude::*};
     let (failed, unsatisfied): (Vec<_>, Vec<_>) = intent
@@ -167,6 +165,7 @@ pub fn exec_ops(ops: &[Op], access: Access) -> ConstraintResult<Stack> {
 }
 
 /// Execute the operations of a constraint and return the resulting stack.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn exec<OA>(mut op_access: OA, access: Access) -> ConstraintResult<Stack>
 where
     OA: OpAccess<Op = Op> + core::fmt::Debug,
@@ -178,6 +177,10 @@ where
     let mut repeat = Repeat::new();
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!("{:?}. pc: {}. next_op: {:?}", stack, pc, op);
+
         let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
             .map_err(|err| ConstraintError::Op(pc, err))?;
         match update {

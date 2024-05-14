@@ -133,15 +133,29 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Validate a signed set of intents.
 ///
 /// Verifies the signature and then validates the intent set.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), InvalidSignedSet> {
-    verify(intents)?;
-    check_set(&intents.data)?;
-    Ok(())
+    match verify(intents) {
+        Ok(()) => match check_set(&intents.data) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                #[cfg(feature = "tracing")]
+                tracing::info!("invalid intent set: {}", err);
+                Err(err.into())
+            }
+        },
+        Err(err) => {
+            #[cfg(feature = "tracing")]
+            tracing::info!("invalid signature of intent set: {}", err);
+            Err(err.into())
+        }
+    }
 }
 
 /// Validate a set of intents.
 ///
 /// Checks the size of the set and then validates each intent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_set(intents: &[Intent]) -> Result<(), InvalidSet> {
     if intents.len() > MAX_INTENTS {
         return Err(InvalidSet::TooManyIntents(intents.len()));
@@ -155,6 +169,7 @@ pub fn check_set(intents: &[Intent]) -> Result<(), InvalidSet> {
 /// Validate a single intent.
 ///
 /// Validates the slots, directive, state reads, and constraints.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check(intent: &Intent) -> Result<(), InvalidIntent> {
     check_slots(&intent.slots)?;
     check_directive(&intent.directive)?;
@@ -166,6 +181,7 @@ pub fn check(intent: &Intent) -> Result<(), InvalidIntent> {
 /// Validate an intent's slots.
 ///
 /// Checks the number of decision variables, state slots and the total state length in words.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_slots(slots: &Slots) -> Result<(), InvalidSlots> {
     if slots.decision_variables > MAX_DECISION_VARIABLES {
         return Err(InvalidSlots::TooManyDecisionVariables(
@@ -185,6 +201,7 @@ pub fn check_slots(slots: &Slots) -> Result<(), InvalidSlots> {
 }
 
 /// Validate an intent's directive.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_directive(directive: &Directive) -> Result<(), InvalidDirective> {
     if let Directive::Maximize(program) | Directive::Minimize(program) = directive {
         if program.len() > MAX_DIRECTIVE_SIZE {
@@ -195,6 +212,7 @@ pub fn check_directive(directive: &Directive) -> Result<(), InvalidDirective> {
 }
 
 /// Validate an intent's state read bytecode.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_state_reads(state_reads: &[StateReadBytecode]) -> Result<(), InvalidStateReads> {
     if state_reads.len() > MAX_STATE_READS {
         return Err(InvalidStateReads::TooMany(state_reads.len()));
@@ -206,6 +224,7 @@ pub fn check_state_reads(state_reads: &[StateReadBytecode]) -> Result<(), Invali
 }
 
 /// Validate a single state read bytecode slice.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_state_read(state_read: &[u8]) -> Result<(), InvalidStateRead> {
     if state_read.len() > MAX_STATE_READ_SIZE_IN_BYTES {
         return Err(InvalidStateRead::TooManyBytes(state_read.len()));
@@ -214,6 +233,7 @@ pub fn check_state_read(state_read: &[u8]) -> Result<(), InvalidStateRead> {
 }
 
 /// Validate an intent's constraint bytecode.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_constraints(constraints: &[ConstraintBytecode]) -> Result<(), InvalidConstraints> {
     if constraints.len() > MAX_CONSTRAINTS {
         return Err(InvalidConstraints::TooManyConstraints(constraints.len()));
@@ -225,6 +245,7 @@ pub fn check_constraints(constraints: &[ConstraintBytecode]) -> Result<(), Inval
 }
 
 /// Validate a single constraint bytecode slice.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_constraint(constraint: &[u8]) -> Result<(), InvalidConstraint> {
     if constraint.len() > MAX_CONSTRAINT_SIZE_IN_BYTES {
         return Err(InvalidConstraint::TooManyBytes(constraint.len()));
