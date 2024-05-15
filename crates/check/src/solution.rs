@@ -773,6 +773,7 @@ async fn check_intent_constraints_parallel(
             // Send errors are ignored as if the recv is gone there's no one to send to.
             let _ = tx.send((ix, res));
 
+            #[cfg(feature = "tracing")]
             drop(guard)
         })
     }
@@ -866,6 +867,7 @@ async fn calculate_utility(
         // Send errors are ignored as if the recv is dropped.
         let _ = tx.send(res);
 
+        #[cfg(feature = "tracing")]
         drop(guard)
     });
 
