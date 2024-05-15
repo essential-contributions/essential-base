@@ -25,7 +25,7 @@ use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
 #[cfg(feature = "tracing")]
-use tracing_futures::Instrument;
+use tracing::Instrument;
 
 /// Configuration options passed to [`check_intent`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
