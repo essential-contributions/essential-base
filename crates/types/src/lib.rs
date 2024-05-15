@@ -3,14 +3,13 @@
 //! # Common types for Essential Chain.
 
 use core::time::Duration;
-
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use solution::Solution;
 
-#[cfg(feature = "schema")]
-use schemars::JsonSchema;
-
 pub mod convert;
+pub mod fmt;
 pub mod intent;
 pub mod signature_ser;
 pub mod slots;

@@ -97,7 +97,7 @@ pub enum InvalidStateMutations {
 #[derive(Debug, Error)]
 pub enum IntentsError<E> {
     /// One or more solution data failed their associated intent checks.
-    #[error("one or more solution data failed their associated intent checks: {0}")]
+    #[error("{0}")]
     Failed(#[from] IntentErrors<E>),
     /// One or more tasks failed to join.
     #[error("one or more spawned tasks failed to join: {0}")]
