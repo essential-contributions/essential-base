@@ -78,21 +78,16 @@ mod total_control_flow;
 /// [`CheckError`][error::CheckError] type.
 ///
 /// The intent is considered to be satisfied if this function returns `Ok(())`.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
     use rayon::{iter::Either, prelude::*};
     let (failed, unsatisfied): (Vec<_>, Vec<_>) = intent
         .par_iter()
         .map(|bytecode| eval_bytecode_iter(bytecode.iter().copied(), access))
         .enumerate()
-        .filter_map(|(i, constraint_res)| {
-            #[cfg(feature = "tracing")]
-            tracing::trace!("{:?}", constraint_res);
-            match constraint_res {
-                Err(err) => Some(Either::Left((i, err))),
-                Ok(b) if !b => Some(Either::Right(i)),
-                _ => None,
-            }
+        .filter_map(|(i, constraint_res)| match constraint_res {
+            Err(err) => Some(Either::Left((i, err))),
+            Ok(b) if !b => Some(Either::Right(i)),
+            _ => None,
         })
         .partition_map(|either| either);
     if !failed.is_empty() {
@@ -183,8 +178,12 @@ where
         #[cfg(feature = "tracing")]
         tracing::trace!("pc: {}. {:?}", pc, op);
 
-        let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
-            .map_err(|err| ConstraintError::Op(pc, err))?;
+        let update =
+            step_op(access, op, &mut stack, &mut memory, pc, &mut repeat).map_err(|err| {
+                #[cfg(feature = "tracing")]
+                tracing::debug!("{}", err);
+                ConstraintError::Op(pc, err)
+            })?;
 
         #[cfg(feature = "tracing")]
         tracing::trace!("{:?}", stack);

@@ -235,6 +235,8 @@ where
                 Ok(opt) => opt,
                 Err(err) => {
                     let err = StateReadError::Op(vm.pc, err.into());
+                    #[cfg(feature = "tracing")]
+                    tracing::debug!("{}", err);
                     return Poll::Ready(Err(err));
                 }
             };
@@ -260,7 +262,10 @@ where
         }
 
         // Programs must complete with a `Halt` operation.
-        Poll::Ready(Err(StateReadError::PcOutOfRange(vm.pc)))
+        let err = StateReadError::PcOutOfRange(vm.pc);
+        #[cfg(feature = "tracing")]
+        tracing::debug!("{}", err);
+        Poll::Ready(Err(err))
     }
 }
 

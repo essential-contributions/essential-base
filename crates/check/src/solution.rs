@@ -697,20 +697,15 @@ pub async fn check_intent_constraints(
     post_slots: Arc<StateSlotSlice>,
     config: &CheckIntentConfig,
 ) -> Result<Utility, IntentConstraintsError> {
-    let future = check_intent_constraints_parallel(
+    check_intent_constraints_parallel(
         solution.clone(),
         solution_data_index,
         intent.clone(),
         pre_slots.clone(),
         post_slots.clone(),
         config,
-    );
-    #[cfg(feature = "tracing")]
-    future
-        .instrument(tracing::info_span!("check_constraints"))
-        .await?;
-    #[cfg(not(feature = "tracing"))]
-    future.await?;
+    )
+    .await?;
     let util = calculate_utility(
         solution,
         solution_data_index,
@@ -747,7 +742,12 @@ async fn check_intent_constraints_parallel(
 
         // Spawn this sync code onto a rayon thread.
         // This is a non-blocking operation.
-        rayon::spawn(move || {
+
+        #[cfg(feature = "tracing")]
+        let current_span = tracing::Span::current();
+
+        #[allow(clippy::let_unit_value)]
+        let check = {
             let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
             let solution_access =
                 SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
@@ -770,6 +770,15 @@ async fn check_intent_constraints_parallel(
             // Send the result back to the main thread.
             // Send errors are ignored as if the recv is gone there's no one to send to.
             let _ = tx.send((ix, res));
+        };
+
+        rayon::spawn(move || {
+            #[cfg(feature = "tracing")]
+            let span = tracing::trace_span!(parent: &current_span, "check", constraint = ix);
+            #[cfg(feature = "tracing")]
+            span.in_scope(|| check);
+            #[cfg(not(feature = "tracing"))]
+            check
         })
     }
 
@@ -826,8 +835,13 @@ async fn calculate_utility(
     }
 
     // Spawn this sync code onto a rayon thread.
+    #[cfg(feature = "tracing")]
+    let current_span = tracing::Span::current();
+
     let (tx, rx) = tokio::sync::oneshot::channel();
-    rayon::spawn(move || {
+
+    #[allow(clippy::let_unit_value)]
+    let calculate = {
         let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
         let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
         let access = Access {
@@ -854,6 +868,15 @@ async fn calculate_utility(
 
         // Send errors are ignored as if the recv is dropped.
         let _ = tx.send(res);
+    };
+
+    rayon::spawn(move || {
+        #[cfg(feature = "tracing")]
+        let span = tracing::trace_span!(parent: &current_span, "calculate_utility", data = solution_data_index);
+        #[cfg(feature = "tracing")]
+        span.in_scope(|| calculate);
+        #[cfg(not(feature = "tracing"))]
+        calculate
     });
 
     // Await the result of the utility calculation.
