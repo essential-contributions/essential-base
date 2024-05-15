@@ -135,21 +135,14 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Verifies the signature and then validates the intent set.
 #[cfg_attr(feature = "tracing", tracing::instrument())]
 pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), InvalidSignedSet> {
-    match verify(intents) {
-        Ok(()) => match check_set(&intents.data) {
-            Ok(()) => Ok(()),
-            Err(err) => {
-                #[cfg(feature = "tracing")]
-                tracing::debug!("{}", err);
-                Err(err.into())
-            }
-        },
-        Err(err) => {
-            #[cfg(feature = "tracing")]
-            tracing::debug!("{}", err);
-            Err(err.into())
-        }
+    let res = verify(intents)
+        .map_err(From::from)
+        .and_then(|_| check_set(&intents.data).map_err(From::from));
+    #[cfg(feature = "tracing")]
+    if let Err(ref err) = res {
+        tracing::debug!("{}", err);
     }
+    res
 }
 
 /// Validate a set of intents.

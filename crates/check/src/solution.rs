@@ -219,21 +219,18 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 /// This includes solution data and state mutations.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
-    match sign::verify(solution) {
-        Ok(()) => {
-            check(&solution.data)?;
-            Ok(())
-        }
-        Err(err) => {
-            #[cfg(feature = "tracing")]
-            tracing::debug!(
-                "error verifying signature of solution with hash {}: {}",
-                essential_hash::content_addr(&solution.data),
-                err
-            );
-            Err(err.into())
-        }
+    let res = sign::verify(solution);
+    #[cfg(feature = "tracing")]
+    if let Err(ref err) = res {
+        tracing::debug!(
+            "error verifying signature of solution with hash {}: {}",
+            essential_hash::content_addr(&solution.data),
+            err
+        );
     }
+    res?;
+    check(&solution.data)?;
+    Ok(())
 }
 
 /// Validate a solution, to the extent it can be validated without reference to
