@@ -246,7 +246,7 @@ pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
                 #[cfg(feature = "tracing")]
                 tracing::debug!(
                     "invalid state mutations for solution with hash {}: {}",
-                    essential_hash::content_addr(&solution.data),
+                    essential_hash::content_addr(&solution),
                     err
                 );
                 Err(err.into())
@@ -256,7 +256,7 @@ pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
             #[cfg(feature = "tracing")]
             tracing::debug!(
                 "invalid data for solution with hash {}: {}",
-                essential_hash::content_addr(&solution.data),
+                essential_hash::content_addr(&solution),
                 err
             );
             Err(err.into())
