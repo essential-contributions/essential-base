@@ -191,7 +191,7 @@ where
             };
 
             #[cfg(feature = "tracing")]
-            tracing::trace!("{:?}. pc: {}. next_op: {:?}", vm.stack, vm.pc, op);
+            tracing::trace!("pc: {}. {:?}", vm.pc, op);
 
             let op_gas = self.op_gas_cost.op_gas_cost(&op);
 
@@ -226,6 +226,9 @@ where
                     return Poll::Pending;
                 }
             };
+
+            #[cfg(feature = "tracing")]
+            tracing::trace!("{:?}", vm.stack);
 
             // Handle any errors.
             let opt_new_pc = match res {

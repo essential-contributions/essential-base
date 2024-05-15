@@ -181,10 +181,14 @@ where
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
 
         #[cfg(feature = "tracing")]
-        tracing::trace!("{:?}. pc: {}. next_op: {:?}", stack, pc, op);
+        tracing::trace!("pc: {}. {:?}", pc, op);
 
         let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
             .map_err(|err| ConstraintError::Op(pc, err))?;
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!("{:?}", stack);
+
         match update {
             Some(ProgramControlFlow::Pc(new_pc)) => pc = new_pc,
             Some(ProgramControlFlow::Halt) => break,
