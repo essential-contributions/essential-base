@@ -135,6 +135,7 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Verifies the signature and then validates the intent set.
 #[cfg_attr(feature = "tracing", tracing::instrument())]
 pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), InvalidSignedSet> {
+    #[allow(clippy::let_and_return)]
     let res = verify(intents)
         .map_err(From::from)
         .and_then(|_| check_set(&intents.data).map_err(From::from));
