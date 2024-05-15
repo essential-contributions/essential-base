@@ -19,6 +19,8 @@ use crate::{
         IntentAddress, Key, Signed, Word,
     },
 };
+#[cfg(feature = "tracing")]
+use essential_hash::hash;
 use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
@@ -217,16 +219,12 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 /// without reference to its associated intents.
 ///
 /// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data)))))]
 pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
     let res = sign::verify(solution);
     #[cfg(feature = "tracing")]
     if let Err(ref err) = res {
-        tracing::debug!(
-            "error verifying signature of solution with hash {}: {}",
-            essential_hash::content_addr(&solution.data),
-            err
-        );
+        tracing::debug!("error verifying signature: {}", err);
     }
     res?;
     check(&solution.data)?;
@@ -237,28 +235,20 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolu
 /// its associated intents.
 ///
 /// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data)))))]
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     match check_data(&solution.data) {
         Ok(()) => match check_state_mutations(solution) {
             Ok(()) => Ok(()),
             Err(err) => {
                 #[cfg(feature = "tracing")]
-                tracing::debug!(
-                    "invalid state mutations for solution with hash {}: {}",
-                    essential_hash::content_addr(&solution),
-                    err
-                );
+                tracing::debug!("invalid state mutations: {}", err);
                 Err(err.into())
             }
         },
         Err(err) => {
             #[cfg(feature = "tracing")]
-            tracing::debug!(
-                "invalid data for solution with hash {}: {}",
-                essential_hash::content_addr(&solution),
-                err
-            );
+            tracing::debug!("invalid data: {}", err);
             Err(err.into())
         }
     }
@@ -393,7 +383,6 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
 ///   intents are assumed to have been read from storage and validated ahead of time.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub async fn check_intents<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
@@ -414,9 +403,6 @@ where
         return Err(IntentErrors(failed).into());
     }
 
-    #[cfg(feature = "tracing")]
-    tracing::trace!("{:?}", &solution);
-
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
     for (solution_data_index, data) in solution.data.iter().enumerate() {
@@ -424,20 +410,12 @@ where
             .try_into()
             .expect("solution data index already validated");
         let intent = get_intent(&data.intent_to_solve);
-
-        #[cfg(feature = "tracing")]
-        tracing::trace!(
-            "solution_data_index: {}\n{:?}",
-            solution_data_index,
-            &intent
-        );
-
         let solution = solution.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         let config = config.clone();
 
-        let future = async move {
+        set.spawn(async move {
             let pre_state = pre_state;
             let post_state = post_state;
             let res = check_intent(
@@ -450,11 +428,7 @@ where
             )
             .await;
             (solution_data_index, res)
-        };
-        #[cfg(feature = "tracing")]
-        set.spawn(future.instrument(tracing::info_span!("check_intent")));
-        #[cfg(not(feature = "tracing"))]
-        set.spawn(future);
+        });
     }
 
     // Calculate total utility and gas used.
@@ -536,6 +510,7 @@ pub fn check_decision_variable_lengths(
 ///   to solve this intent.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&*solution)), data={solution_data_index})))]
 pub async fn check_intent<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
@@ -574,13 +549,7 @@ where
         let state_read_mapped = BytecodeMapped::try_from(&state_read[..])?;
 
         // Read pre state slots and write them to the pre_slots slice.
-        #[cfg(feature = "tracing")]
-        tracing::trace!(
-            "reading pre-slots for solution_data_index: {} state_read_index: {}",
-            solution_data_index,
-            state_read_index
-        );
-        let (gas, new_pre_slots) = read_state_slots(
+        let future = read_state_slots(
             &state_read_mapped,
             Access {
                 solution: solution_access,
@@ -590,8 +559,14 @@ where
                 },
             },
             pre_state,
-        )
-        .await?;
+        );
+        #[cfg(feature = "tracing")]
+        let (gas, new_pre_slots) = future
+            .instrument(tracing::info_span!("pre", state_read = state_read_index))
+            .await?;
+        #[cfg(not(feature = "tracing"))]
+        let (gas, new_pre_slots) = future.await?;
+
         total_gas += gas;
         write_state_slots(
             state_read_index,
@@ -601,13 +576,7 @@ where
         )?;
 
         // Read post state slots and write them to the post_slots slice.
-        #[cfg(feature = "tracing")]
-        tracing::trace!(
-            "reading post-slots for solution_data_index: {} state_read_index: {}",
-            solution_data_index,
-            state_read_index
-        );
-        let (gas, new_post_slots) = read_state_slots(
+        let future = read_state_slots(
             &state_read_mapped,
             Access {
                 solution: solution_access,
@@ -617,8 +586,14 @@ where
                 },
             },
             post_state,
-        )
-        .await?;
+        );
+        #[cfg(feature = "tracing")]
+        let (gas, new_post_slots) = future
+            .instrument(tracing::info_span!("post", state_read = state_read_index))
+            .await?;
+        #[cfg(not(feature = "tracing"))]
+        let (gas, new_post_slots) = future.await?;
+
         total_gas += gas;
         write_state_slots(
             state_read_index,
