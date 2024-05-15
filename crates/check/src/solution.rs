@@ -731,6 +731,8 @@ async fn check_intent_constraints_parallel(
     // Spawn each constraint onto a rayon thread and
     // check them in parallel.
     for ix in 0..intent.constraints.len() {
+        // Spawn this sync code onto a rayon thread.
+        // This is a non-blocking operation.
         let (tx, rx) = tokio::sync::oneshot::channel();
         handles.push(rx);
 
@@ -740,14 +742,14 @@ async fn check_intent_constraints_parallel(
         let post_slots = post_slots.clone();
         let intent = intent.clone();
 
-        // Spawn this sync code onto a rayon thread.
-        // This is a non-blocking operation.
-
         #[cfg(feature = "tracing")]
-        let current_span = tracing::Span::current();
+        let span =
+            tracing::trace_span!(parent: &tracing::Span::current(), "check", constraint = ix);
 
-        #[allow(clippy::let_unit_value)]
-        let check = {
+        rayon::spawn(move || {
+            #[cfg(feature = "tracing")]
+            let guard = span.enter();
+
             let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
             let solution_access =
                 SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
@@ -770,15 +772,8 @@ async fn check_intent_constraints_parallel(
             // Send the result back to the main thread.
             // Send errors are ignored as if the recv is gone there's no one to send to.
             let _ = tx.send((ix, res));
-        };
 
-        rayon::spawn(move || {
-            #[cfg(feature = "tracing")]
-            let span = tracing::trace_span!(parent: &current_span, "check", constraint = ix);
-            #[cfg(feature = "tracing")]
-            span.in_scope(|| check);
-            #[cfg(not(feature = "tracing"))]
-            check
+            drop(guard)
         })
     }
 
@@ -835,13 +830,15 @@ async fn calculate_utility(
     }
 
     // Spawn this sync code onto a rayon thread.
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
     #[cfg(feature = "tracing")]
     let current_span = tracing::Span::current();
 
-    let (tx, rx) = tokio::sync::oneshot::channel();
+    rayon::spawn(move || {
+        #[cfg(feature = "tracing")]
+        let guard = current_span.enter();
 
-    #[allow(clippy::let_unit_value)]
-    let calculate = {
         let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
         let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
         let access = Access {
@@ -868,15 +865,8 @@ async fn calculate_utility(
 
         // Send errors are ignored as if the recv is dropped.
         let _ = tx.send(res);
-    };
 
-    rayon::spawn(move || {
-        #[cfg(feature = "tracing")]
-        let span = tracing::trace_span!(parent: &current_span, "calculate_utility", data = solution_data_index);
-        #[cfg(feature = "tracing")]
-        span.in_scope(|| calculate);
-        #[cfg(not(feature = "tracing"))]
-        calculate
+        drop(guard)
     });
 
     // Await the result of the utility calculation.

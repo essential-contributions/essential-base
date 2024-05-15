@@ -162,7 +162,6 @@ pub fn exec_ops(ops: &[Op], access: Access) -> ConstraintResult<Stack> {
 }
 
 /// Execute the operations of a constraint and return the resulting stack.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub fn exec<OA>(mut op_access: OA, access: Access) -> ConstraintResult<Stack>
 where
     OA: OpAccess<Op = Op>,
