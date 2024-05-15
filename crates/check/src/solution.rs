@@ -21,6 +21,7 @@ use crate::{
 };
 #[cfg(feature = "tracing")]
 use essential_hash::hash;
+use sign::verify;
 use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
@@ -219,14 +220,9 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 /// without reference to its associated intents.
 ///
 /// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data)))))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data))), err))]
 pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
-    let res = sign::verify(solution);
-    #[cfg(feature = "tracing")]
-    if let Err(ref err) = res {
-        tracing::debug!("error verifying signature: {}", err);
-    }
-    res?;
+    verify(solution)?;
     check(&solution.data)?;
     Ok(())
 }
@@ -235,23 +231,11 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolu
 /// its associated intents.
 ///
 /// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data)))))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data))), err))]
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
-    match check_data(&solution.data) {
-        Ok(()) => match check_state_mutations(solution) {
-            Ok(()) => Ok(()),
-            Err(err) => {
-                #[cfg(feature = "tracing")]
-                tracing::debug!("invalid state mutations: {}", err);
-                Err(err.into())
-            }
-        },
-        Err(err) => {
-            #[cfg(feature = "tracing")]
-            tracing::debug!("invalid data: {}", err);
-            Err(err.into())
-        }
-    }
+    check_data(&solution.data)?;
+    check_state_mutations(solution)?;
+    Ok(())
 }
 
 /// Validate the solution's slice of [`SolutionData`].
@@ -510,7 +494,7 @@ pub fn check_decision_variable_lengths(
 ///   to solve this intent.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&*solution)), data={solution_data_index})))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = &hex::encode(hash(&*solution))[0..8], data={solution_data_index})))]
 pub async fn check_intent<SA, SB>(
     pre_state: &SA,
     post_state: &SB,

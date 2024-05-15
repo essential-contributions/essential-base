@@ -8,6 +8,7 @@ use crate::{
         ConstraintBytecode, Signed, StateReadBytecode,
     },
 };
+use essential_hash::hash;
 use thiserror::Error;
 
 /// [`check_signed_set`] error.
@@ -133,17 +134,11 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Validate a signed set of intents.
 ///
 /// Verifies the signature and then validates the intent set.
-#[cfg_attr(feature = "tracing", tracing::instrument())]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(addr = hex::encode(hash(&intents.data))), err))]
 pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), InvalidSignedSet> {
-    #[allow(clippy::let_and_return)]
-    let res = verify(intents)
-        .map_err(From::from)
-        .and_then(|_| check_set(&intents.data).map_err(From::from));
-    #[cfg(feature = "tracing")]
-    if let Err(ref err) = res {
-        tracing::debug!("{}", err);
-    }
-    res
+    verify(intents)?;
+    check_set(&intents.data)?;
+    Ok(())
 }
 
 /// Validate a set of intents.
