@@ -250,7 +250,13 @@ impl Vm {
     {
         let f = future::exec(self, access, state_read, op_access, op_gas_cost, gas_limit);
         #[cfg(feature = "tracing")]
-        return f.instrument(tracing::trace_span!("exec")).await;
+        return f
+            .instrument(tracing::trace_span!("exec"))
+            .await
+            .map_err(|err| {
+                tracing::debug!("state read failed: {}", err);
+                err
+            });
         #[cfg(not(feature = "tracing"))]
         return f.await;
     }

@@ -85,10 +85,14 @@ pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResul
         .par_iter()
         .map(|bytecode| eval_bytecode_iter(bytecode.iter().copied(), access))
         .enumerate()
-        .filter_map(|(i, constraint_res)| match constraint_res {
-            Err(err) => Some(Either::Left((i, err))),
-            Ok(b) if !b => Some(Either::Right(i)),
-            _ => None,
+        .filter_map(|(i, constraint_res)| {
+            #[cfg(feature = "tracing")]
+            tracing::trace!("{:?}", constraint_res);
+            match constraint_res {
+                Err(err) => Some(Either::Left((i, err))),
+                Ok(b) if !b => Some(Either::Right(i)),
+                _ => None,
+            }
         })
         .partition_map(|either| either);
     if !failed.is_empty() {

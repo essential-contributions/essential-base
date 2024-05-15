@@ -417,6 +417,9 @@ where
         return Err(IntentErrors(failed).into());
     }
 
+    #[cfg(feature = "tracing")]
+    tracing::trace!("{:?}", &solution);
+
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
     for (solution_data_index, data) in solution.data.iter().enumerate() {
@@ -424,6 +427,14 @@ where
             .try_into()
             .expect("solution data index already validated");
         let intent = get_intent(&data.intent_to_solve);
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!(
+            "solution_data_index: {}\n{:?}",
+            solution_data_index,
+            &intent
+        );
+
         let solution = solution.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
@@ -566,6 +577,12 @@ where
         let state_read_mapped = BytecodeMapped::try_from(&state_read[..])?;
 
         // Read pre state slots and write them to the pre_slots slice.
+        #[cfg(feature = "tracing")]
+        tracing::trace!(
+            "reading pre-slots for solution_data_index: {} state_read_index: {}",
+            solution_data_index,
+            state_read_index
+        );
         let (gas, new_pre_slots) = read_state_slots(
             &state_read_mapped,
             Access {
@@ -587,6 +604,12 @@ where
         )?;
 
         // Read post state slots and write them to the post_slots slice.
+        #[cfg(feature = "tracing")]
+        tracing::trace!(
+            "reading post-slots for solution_data_index: {} state_read_index: {}",
+            solution_data_index,
+            state_read_index
+        );
         let (gas, new_post_slots) = read_state_slots(
             &state_read_mapped,
             Access {
