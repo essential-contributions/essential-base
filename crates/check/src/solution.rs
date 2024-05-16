@@ -750,6 +750,7 @@ async fn check_intent_constraints_parallel(
         let post_slots = post_slots.clone();
         let intent = intent.clone();
 
+        // TODO: fix rayon span creation
         #[cfg(feature = "tracing")]
         let span = tracing::trace_span!(parent: &tracing::Span::current(), "constraint", ix = ix);
 
@@ -840,6 +841,7 @@ async fn calculate_utility(
     // Spawn this sync code onto a rayon thread.
     let (tx, rx) = tokio::sync::oneshot::channel();
 
+    // TODO: fix rayon span creation
     #[cfg(feature = "tracing")]
     let span = tracing::trace_span!(parent: &tracing::Span::current(), "utility");
 

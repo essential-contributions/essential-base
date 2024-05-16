@@ -193,7 +193,8 @@ where
             };
 
             #[cfg(feature = "tracing")]
-            tracing::trace!("pc: {}. {:?}", vm.pc, op);
+            // TODO: pass op to higher context in order to have tracing like constraint-vm
+            let _vm_op = format!("pc: {}. {:?}", vm.pc, op);
 
             let op_gas = self.op_gas_cost.op_gas_cost(&op);
 

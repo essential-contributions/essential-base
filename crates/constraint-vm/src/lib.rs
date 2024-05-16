@@ -175,13 +175,20 @@ where
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
 
         #[cfg(feature = "tracing")]
-        tracing::trace!("pc: {}. {:?}", pc, op);
+        let vm_op = format!("pc: {}. {:?}", pc, op);
 
-        let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
-            .map_err(|err| ConstraintError::Op(pc, err))?;
-
-        #[cfg(feature = "tracing")]
-        tracing::trace!("{:?}", stack);
+        let update = match step_op(access, op, &mut stack, &mut memory, pc, &mut repeat) {
+            Ok(update) => {
+                #[cfg(feature = "tracing")]
+                tracing::trace!("{:<25} {:?}", vm_op, stack);
+                update
+            }
+            Err(err) => {
+                #[cfg(feature = "tracing")]
+                tracing::trace!("{}", vm_op);
+                return Err(ConstraintError::Op(pc, err));
+            }
+        };
 
         match update {
             Some(ProgramControlFlow::Pc(new_pc)) => pc = new_pc,
