@@ -367,6 +367,7 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
 ///   intents are assumed to have been read from storage and validated ahead of time.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub async fn check_intents<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
@@ -386,6 +387,9 @@ where
         let failed = vec![(ix, IntentError::DecisionVariablesMismatch(err))];
         return Err(IntentErrors(failed).into());
     }
+
+    #[cfg(feature = "tracing")]
+    tracing::trace!("{}", essential_hash::content_addr(&*solution));
 
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
