@@ -177,12 +177,8 @@ where
         #[cfg(feature = "tracing")]
         tracing::trace!("pc: {}. {:?}", pc, op);
 
-        let update =
-            step_op(access, op, &mut stack, &mut memory, pc, &mut repeat).map_err(|err| {
-                #[cfg(feature = "tracing")]
-                tracing::debug!("{}", err);
-                ConstraintError::Op(pc, err)
-            })?;
+        let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
+            .map_err(|err| ConstraintError::Op(pc, err))?;
 
         #[cfg(feature = "tracing")]
         tracing::trace!("{:?}", stack);

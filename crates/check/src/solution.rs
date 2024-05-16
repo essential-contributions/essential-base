@@ -546,7 +546,7 @@ where
         );
         #[cfg(feature = "tracing")]
         let (gas, new_pre_slots) = future
-            .instrument(tracing::info_span!("pre", state_read = state_read_index))
+            .instrument(tracing::info_span!("pre", ix = state_read_index))
             .await?;
         #[cfg(not(feature = "tracing"))]
         let (gas, new_pre_slots) = future.await?;
@@ -573,7 +573,7 @@ where
         );
         #[cfg(feature = "tracing")]
         let (gas, new_post_slots) = future
-            .instrument(tracing::info_span!("post", state_read = state_read_index))
+            .instrument(tracing::info_span!("post", ix = state_read_index))
             .await?;
         #[cfg(not(feature = "tracing"))]
         let (gas, new_post_slots) = future.await?;
@@ -588,15 +588,19 @@ where
     }
 
     // Check constraints.
-    let utility = check_intent_constraints(
+    let future = check_intent_constraints(
         solution,
         solution_data_index,
         intent.clone(),
         Arc::from(pre_slots.into_boxed_slice()),
         Arc::from(post_slots.into_boxed_slice()),
         config,
-    )
-    .await?;
+    );
+
+    #[cfg(feature = "tracing")]
+    let utility = future.instrument(tracing::info_span!("check")).await?;
+    #[cfg(not(feature = "tracing"))]
+    let utility = future.await?;
 
     Ok((utility, total_gas))
 }
@@ -681,7 +685,7 @@ pub async fn check_intent_constraints(
     post_slots: Arc<StateSlotSlice>,
     config: &CheckIntentConfig,
 ) -> Result<Utility, IntentConstraintsError> {
-    check_intent_constraints_parallel(
+    match check_intent_constraints_parallel(
         solution.clone(),
         solution_data_index,
         intent.clone(),
@@ -689,16 +693,35 @@ pub async fn check_intent_constraints(
         post_slots.clone(),
         config,
     )
-    .await?;
-    let util = calculate_utility(
-        solution,
-        solution_data_index,
-        intent.clone(),
-        pre_slots,
-        post_slots,
-    )
-    .await?;
-    Ok(util)
+    .await
+    {
+        Ok(()) => {
+            tracing::trace!("constraint check complete");
+
+            match calculate_utility(
+                solution,
+                solution_data_index,
+                intent.clone(),
+                pre_slots,
+                post_slots,
+            )
+            .await
+            {
+                Ok(util) => {
+                    tracing::trace!("utility: {}", util);
+                    Ok(util)
+                }
+                Err(err) => {
+                    tracing::trace!("error calculating utility: {}", err);
+                    Err(err.into())
+                }
+            }
+        }
+        Err(err) => {
+            tracing::trace!("error checking constraints: {}", err);
+            Err(err.into())
+        }
+    }
 }
 
 /// Check intents in parallel without sleeping any threads.
@@ -727,8 +750,7 @@ async fn check_intent_constraints_parallel(
         let intent = intent.clone();
 
         #[cfg(feature = "tracing")]
-        let span =
-            tracing::trace_span!(parent: &tracing::Span::current(), "check", constraint = ix);
+        let span = tracing::trace_span!(parent: &tracing::Span::current(), "constraint", ix = ix);
 
         rayon::spawn(move || {
             #[cfg(feature = "tracing")]
@@ -818,11 +840,11 @@ async fn calculate_utility(
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     #[cfg(feature = "tracing")]
-    let current_span = tracing::Span::current();
+    let span = tracing::trace_span!(parent: &tracing::Span::current(), "utility");
 
     rayon::spawn(move || {
         #[cfg(feature = "tracing")]
-        let guard = current_span.enter();
+        let guard = span.enter();
 
         let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
         let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
