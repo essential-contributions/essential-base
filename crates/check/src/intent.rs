@@ -8,6 +8,7 @@ use crate::{
         ConstraintBytecode, Signed, StateReadBytecode,
     },
 };
+#[cfg(feature = "tracing")]
 use essential_hash::hash;
 use thiserror::Error;
 

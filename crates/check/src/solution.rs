@@ -588,19 +588,15 @@ where
     }
 
     // Check constraints.
-    let future = check_intent_constraints(
+    let utility = check_intent_constraints(
         solution,
         solution_data_index,
         intent.clone(),
         Arc::from(pre_slots.into_boxed_slice()),
         Arc::from(post_slots.into_boxed_slice()),
         config,
-    );
-
-    #[cfg(feature = "tracing")]
-    let utility = future.instrument(tracing::info_span!("check")).await?;
-    #[cfg(not(feature = "tracing"))]
-    let utility = future.await?;
+    )
+    .await?;
 
     Ok((utility, total_gas))
 }
@@ -677,6 +673,7 @@ fn write_state_slots(
 /// constraints of the given intent.
 ///
 /// Returns the utility of the solution for the given intent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, "check"))]
 pub async fn check_intent_constraints(
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
@@ -696,6 +693,7 @@ pub async fn check_intent_constraints(
     .await
     {
         Ok(()) => {
+            #[cfg(feature = "tracing")]
             tracing::trace!("constraint check complete");
 
             match calculate_utility(
@@ -708,18 +706,21 @@ pub async fn check_intent_constraints(
             .await
             {
                 Ok(util) => {
+                    #[cfg(feature = "tracing")]
                     tracing::trace!("utility: {}", util);
                     Ok(util)
                 }
                 Err(err) => {
+                    #[cfg(feature = "tracing")]
                     tracing::trace!("error calculating utility: {}", err);
                     Err(err.into())
                 }
             }
         }
         Err(err) => {
+            #[cfg(feature = "tracing")]
             tracing::trace!("error checking constraints: {}", err);
-            Err(err.into())
+            Err(err)
         }
     }
 }
