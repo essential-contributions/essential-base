@@ -163,12 +163,13 @@ where
                 let vm: &'a mut Vm = pending.future.into();
 
                 // Handle the op result.
+                #[cfg(feature = "tracing")]
+                trace_op_res(vm.pc, &mut self.op_access, &*vm, res.as_ref());
+
                 match res {
                     Ok(new_pc) => vm.pc = new_pc,
                     Err(err) => {
                         let err = StateReadError::Op(vm.pc, err.into());
-                        #[cfg(feature = "tracing")]
-                        tracing::debug!("{:?}. {}", vm.stack, err);
                         return Poll::Ready(Err(err));
                     }
                 };
@@ -191,10 +192,6 @@ where
                     return Poll::Ready(Err(err));
                 }
             };
-
-            #[cfg(feature = "tracing")]
-            // TODO: pass op to higher context in order to have tracing like constraint-vm
-            let _vm_op = format!("pc: {}. {:?}", vm.pc, op);
 
             let op_gas = self.op_gas_cost.op_gas_cost(&op);
 
@@ -231,7 +228,7 @@ where
             };
 
             #[cfg(feature = "tracing")]
-            tracing::trace!("{:?}", vm.stack);
+            trace_op_res(vm.pc, &mut self.op_access, &*vm, res.as_ref());
 
             // Handle any errors.
             let opt_new_pc = match res {
@@ -345,5 +342,33 @@ fn out_of_gas(exec: &GasExec, op_gas: Gas) -> OutOfGasError {
         spent: exec.spent,
         limit: exec.limit.total,
         op_gas,
+    }
+}
+
+/// Trace the operation at the given program counter.
+///
+/// In the success case, also emits the resulting stack.
+///
+/// In the error case, emits a debug log with the error.
+#[cfg(feature = "tracing")]
+fn trace_op_res<OA, T, E>(pc: usize, oa: &mut OA, vm: &Vm, op_res: Result<T, E>)
+where
+    OA: OpAccess,
+    OA::Op: core::fmt::Debug,
+    E: core::fmt::Display,
+{
+    let op = oa
+        .op_access(vm.pc)
+        .expect("must exist as retrieved previously")
+        .expect("must exist as retrieved previously");
+    let pc_op = format!("0x{pc:02X}: {op:?}");
+    match op_res {
+        Ok(_) => {
+            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", &vm.stack, &vm.memory)
+        }
+        Err(ref err) => {
+            tracing::trace!("{pc_op}");
+            tracing::debug!("{err}");
+        }
     }
 }
