@@ -29,9 +29,9 @@
 #![deny(missing_docs, unsafe_code)]
 
 use constraint::{ProgramControlFlow, Repeat};
-use error::{MemoryError, OpError, OpSyncError, StateReadError};
 #[doc(inline)]
 pub use error::{MemoryResult, OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
+use error::{OpError, OpSyncError, StateReadError, StateSlotsError};
 #[doc(inline)]
 pub use essential_constraint_vm::{
     self as constraint, Access, OpAccess, SolutionAccess, Stack, StateSlotSlice, StateSlots,
@@ -43,14 +43,14 @@ pub use essential_types as types;
 use essential_types::{ContentAddress, Word};
 #[doc(inline)]
 pub use future::ExecFuture;
-pub use memory::Memory;
 pub use state_read::StateRead;
+pub use state_slots_mut::StateSlotsMut;
 
 mod ctrl_flow;
 pub mod error;
 mod future;
-mod memory;
 mod state_read;
+mod state_slots_mut;
 
 /// The operation execution state of the State Read VM.
 #[derive(Debug, Default, PartialEq)]
@@ -64,7 +64,7 @@ pub struct Vm {
     /// The repeat stack.
     pub repeat: Repeat,
     /// The program memory, primarily used for collecting the state being read.
-    pub memory: Memory,
+    pub state_slots_mut: StateSlotsMut,
 }
 
 /// Unit used to measure gas.
@@ -102,17 +102,17 @@ pub(crate) enum OpSync {
     Constraint(asm::Constraint),
     /// Operations for controlling the flow of the program.
     ControlFlow(asm::ControlFlow),
-    /// Operations for controlling the flow of the program.
-    Memory(asm::Memory),
+    /// Operations for interacting with mutable state slots.
+    StateSlots(asm::StateSlots),
 }
 
 /// The set of operations that are performed asynchronously.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub(crate) enum OpAsync {
-    /// Read a range of words from state starting at the key.
-    StateReadWordRange,
-    /// Read a range of words from external state starting at the key.
-    StateReadWordRangeExt,
+    /// Read a range of values from state starting at the key.
+    StateReadKeyRange,
+    /// Read a range of values from external state starting at the key.
+    StateReadKeyRangeExt,
 }
 
 /// A mapping from an operation to its gas cost.
@@ -252,8 +252,8 @@ impl Vm {
     /// Consumes the `Vm` and returns the read state slots.
     ///
     /// The returned slots correspond directly with the current memory content.
-    pub fn into_state_slots(self) -> Vec<Option<Word>> {
-        self.memory.into()
+    pub fn into_state_slots(self) -> Vec<Vec<Word>> {
+        self.state_slots_mut.into()
     }
 }
 
@@ -262,9 +262,9 @@ impl From<Op> for OpKind {
         match op {
             Op::Constraint(op) => OpKind::Sync(OpSync::Constraint(op)),
             Op::ControlFlow(op) => OpKind::Sync(OpSync::ControlFlow(op)),
-            Op::Memory(op) => OpKind::Sync(OpSync::Memory(op)),
-            Op::WordRange => OpKind::Async(OpAsync::StateReadWordRange),
-            Op::WordRangeExtern => OpKind::Async(OpAsync::StateReadWordRangeExt),
+            Op::StateSlots(op) => OpKind::Sync(OpSync::StateSlots(op)),
+            Op::KeyRange => OpKind::Async(OpAsync::StateReadKeyRange),
+            Op::KeyRangeExtern => OpKind::Async(OpAsync::StateReadKeyRangeExt),
         }
     }
 }
@@ -299,7 +299,7 @@ pub(crate) fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncRes
             }
         }
         OpSync::ControlFlow(op) => return step_op_ctrl_flow(op, vm).map_err(From::from),
-        OpSync::Memory(op) => step_op_memory(op, &mut *vm)?,
+        OpSync::StateSlots(op) => step_op_state_slots(op, &mut *vm)?,
     }
     // Every operation besides control flow steps forward program counter by 1.
     let new_pc = vm.pc.checked_add(1).ok_or(OpSyncError::PcOverflow)?;
@@ -317,20 +317,17 @@ pub(crate) fn step_op_ctrl_flow(op: asm::ControlFlow, vm: &mut Vm) -> OpSyncResu
     }
 }
 
-/// Step forward state reading by the given memory operation.
-pub(crate) fn step_op_memory(op: asm::Memory, vm: &mut Vm) -> OpSyncResult<()> {
+/// Step forward state reading by the given state slot operation.
+pub(crate) fn step_op_state_slots(op: asm::StateSlots, vm: &mut Vm) -> OpSyncResult<()> {
     match op {
-        asm::Memory::Alloc => memory::alloc(vm),
-        asm::Memory::Capacity => memory::capacity(vm),
-        asm::Memory::Clear => memory::clear(vm),
-        asm::Memory::ClearRange => memory::clear_range(vm),
-        asm::Memory::Free => memory::free(vm),
-        asm::Memory::IsSome => memory::is_some(vm),
-        asm::Memory::Length => memory::length(vm),
-        asm::Memory::Load => memory::load(vm),
-        asm::Memory::Push => memory::push(vm),
-        asm::Memory::PushNone => memory::push_none(vm),
-        asm::Memory::Store => memory::store(vm),
-        asm::Memory::Truncate => memory::truncate(vm),
+        asm::StateSlots::AllocSlots => state_slots_mut::alloc_slots(vm),
+        asm::StateSlots::Clear => state_slots_mut::clear(vm),
+        asm::StateSlots::ClearRange => state_slots_mut::clear_range(vm),
+        asm::StateSlots::Length => state_slots_mut::length(vm),
+        asm::StateSlots::ValueLen => state_slots_mut::value_len(vm),
+        asm::StateSlots::Load => state_slots_mut::load(vm),
+        asm::StateSlots::Store => state_slots_mut::store(vm),
+        asm::StateSlots::LoadWord => state_slots_mut::load_word(vm),
+        asm::StateSlots::StoreWord => state_slots_mut::store_word(vm),
     }
 }

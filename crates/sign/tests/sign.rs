@@ -1,7 +1,6 @@
 use essential_sign::sign;
 use essential_types::{
     intent::{Directive, Intent},
-    slots::Slots,
     Signature,
 };
 use rand::SeedableRng;
@@ -9,10 +8,6 @@ use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 fn test_intent() -> Intent {
     Intent {
-        slots: Slots {
-            decision_variables: 1,
-            state: Default::default(),
-        },
         state_read: Default::default(),
         constraints: Default::default(),
         directive: Directive::Satisfy,
@@ -30,8 +25,8 @@ fn sign_intent() {
     let (sk, _pk) = random_keypair([0xcd; 32]);
     let signed = sign(test_intent(), sk);
     let expected_signature_hex = concat!(
-        "641965942f822f382fa5cad859c5906f2acaac4a611e7f8c66d6d1aecde79919",
-        "75aa2c9ae3b0d170c78c39acc49fecafca3c13e92c32c031af113eabdf973239"
+        "fc9db252cbb122b00de7ddf476f592a302687a9967741aec8910063befc41eb5",
+        "1c3d851128a95b3a161712f756c539ba867afc5fd0dd33ec5ef3f26ab3ee9eb2"
     );
     let hex = hex::encode(signed.signature.0);
     assert_eq!(expected_signature_hex, hex);
@@ -52,7 +47,7 @@ fn fail_to_recover() {
     let data = test_intent();
     let signed = sign(data, sk);
     let mut corrupted_signed = signed.clone();
-    corrupted_signed.signature.1 = (corrupted_signed.signature.1 + 1) % 4;
+    corrupted_signed.signature.1 = (corrupted_signed.signature.1 + 2) % 4;
     assert!(essential_sign::recover(corrupted_signed).is_err());
 }
 

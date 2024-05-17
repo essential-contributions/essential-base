@@ -213,8 +213,8 @@ fn multiple_mutations_for_slot() {
             pathway: 0,
             mutations: vec![
                 Mutation {
-                    key: [0; 4],
-                    value: Some(42),
+                    key: vec![0; 4],
+                    value: vec![42],
                 };
                 2
             ],
@@ -237,7 +237,8 @@ async fn check_intent_42_with_solution() {
     solution::check(&solution).unwrap();
 
     // Construct the pre state, then apply mutations to acquire post state.
-    let pre_state = State::EMPTY;
+    let mut pre_state = State::EMPTY;
+    pre_state.deploy_namespace(ContentAddress(essential_hash::hash(&intents.data)));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 
@@ -263,15 +264,4 @@ async fn check_intent_42_with_solution() {
     // Util should be 1 - only one solved intent.
     assert_eq!(util, 1.0);
     assert!(gas > 0);
-}
-
-#[test]
-fn decision_variables_length_mismatch() {
-    let (intents, mut solution) = util::test_intent_42_solution_pair(1, [0; 32]);
-    // Push a nonsense decision variable to trigger the error.
-    let extra_dec_var = solution.data[0].decision_variables[0].clone();
-    solution.data[0].decision_variables.push(extra_dec_var);
-    // There's only one intent to solve in this case.
-    let intent = Arc::new(intents.data[0].clone());
-    solution::check_decision_variable_lengths(&solution, |_| intent.clone()).unwrap_err();
 }

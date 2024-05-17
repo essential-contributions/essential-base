@@ -192,7 +192,7 @@ async fn read_pre_post_state_and_check_constraints() {
     // In the pre-state, we have [Some(40), None, Some(42)].
     let pre_state = State::new(vec![(
         intent_addr.set.clone(),
-        vec![([0, 0, 0, 0], 40), ([0, 0, 0, 2], 42)],
+        vec![(vec![0, 0, 0, 0], vec![40]), (vec![0, 0, 0, 2], vec![42])],
     )]);
 
     // The full solution that we're checking.
@@ -205,8 +205,8 @@ async fn read_pre_post_state_and_check_constraints() {
         state_mutations: vec![StateMutation {
             pathway: 0,
             mutations: vec![Mutation {
-                key: [0, 0, 0, 1],
-                value: Some(41),
+                key: vec![0, 0, 0, 1],
+                value: vec![41],
             }],
         }],
     };
@@ -226,13 +226,15 @@ async fn read_pre_post_state_and_check_constraints() {
     // A simple state read program that reads words directly to the slots.
     let ops = &[
         asm::Stack::Push(3).into(),
-        asm::Memory::Alloc.into(),
+        asm::StateSlots::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
         asm::Stack::Push(0).into(), // Key3
+        asm::Stack::Push(4).into(), // Key length
         asm::Stack::Push(3).into(), // Num words
-        asm::StateRead::WordRange,
+        asm::Stack::Push(0).into(), // Slot index
+        asm::StateRead::KeyRange,
         asm::ControlFlow::Halt.into(),
     ];
 
@@ -251,7 +253,7 @@ async fn read_pre_post_state_and_check_constraints() {
         let solution_data = &solution.data[usize::from(mutation.pathway)];
         let set_addr = &solution_data.intent_to_solve.set;
         for Mutation { key, value } in mutation.mutations.iter() {
-            post_state.set(set_addr.clone(), key, *value);
+            post_state.set(set_addr.clone(), key, value.clone());
         }
     }
 
@@ -265,8 +267,8 @@ async fn read_pre_post_state_and_check_constraints() {
     let post_state_slots = vm.into_state_slots();
 
     // State slots should have updated.
-    assert_eq!(&pre_state_slots[..], &[Some(40), None, Some(42)]);
-    assert_eq!(&post_state_slots[..], &[Some(40), Some(41), Some(42)]);
+    assert_eq!(&pre_state_slots[..], &[vec![40], vec![], vec![42]]);
+    assert_eq!(&post_state_slots[..], &[vec![40], vec![41], vec![42]]);
 
     // Now, they can be used for constraint checking.
     access.state_slots = StateSlots {
@@ -289,11 +291,14 @@ async fn read_pre_post_state_and_check_constraints() {
         constraint::asm::to_bytes(vec![
             asm::Stack::Push(1).into(), // slot
             asm::Stack::Push(0).into(), // pre
-            asm::Access::StateIsSome.into(),
-            asm::Pred::Not.into(),
+            asm::Access::StateLen.into(),
+            asm::Stack::Push(0).into(),
+            asm::Pred::Eq.into(),
             asm::Stack::Push(1).into(), // slot
             asm::Stack::Push(1).into(), // post
-            asm::Access::StateIsSome.into(),
+            asm::Access::StateLen.into(),
+            asm::Stack::Push(0).into(),
+            asm::Pred::Not.into(),
             asm::Pred::And.into(),
         ])
         .collect(),

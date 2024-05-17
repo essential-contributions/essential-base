@@ -212,54 +212,56 @@ StateRead:
               description: |
                 Access a state variable by `slot`.
 
-                Empty slots will be returned as 0. Use `StateIsSome` to check if a slot is empty.
+                Empty slots will write len 0 to the stack.
 
                 The `delta` parameter determines if changes are considered.
+
+                Use `StateLen` to get the length of the state variable.
               panics:
                 - The slot is out of range.
               stack_in: [slot, delta]
-              stack_out: [state_word]
+              stack_out: [state_slot_w0, ...state_slot_wN]
 
             StateRange:
               opcode: 0x33
               description: |
                 Access a range of state variables starting from a specified slot.
 
-                Empty slots will be returned as 0. Use `StateIsSome` to check if a slot is empty.
+                Empty slots will write len 0 to the stack.
 
                 The delta parameter determines if changes are considered.
 
                 Returns a list of state words with length equal to the specified range.
+                
+                Use `StateLenRange` to get the lengths of the state variables.
               panics:
                 - The range `slot..(slot + range)` is out of range.
               stack_in: [slot, range, delta]
-              stack_out:
-                elem: state_word
-                len: range
+              stack_out: [state_word_0, ...state_word_M, state_word_0, ...state_word_N, ...]
 
-            StateIsSome:
+            StateLen:
               opcode: 0x34
               description: |
-                Check if a state variable at a specified `slot` is set.
+                Get the length of a state variable at a specified `slot`.
 
-                Returns a boolean value indicating the presence of a state variable.
+                Returns a the length of the state variable.
               panics:
                 - The slot is out of range.
               stack_in: [slot, delta]
-              stack_out: [is_some]
+              stack_out: [len]
 
-            StateIsSomeRange:
+            StateLenRange:
               opcode: 0x35
               description: |
-                Check a `range` of state variables starting from a specified `slot` for their presence.
+                Get the lengths of a `range` of state variables starting from a specified `slot`.
 
-                Returns a list of boolean values, each indicating the presence of a state variable
+                Returns a list of lengths, each being the length of a state variable
                 in the range.
               panics:
                 - The range `slot..(slot + range)` is out of range.
               stack_in: [slot, range, delta]
               stack_out:
-                elem: is_some
+                elem: length
                 len: range
 
             MutKeysLen:
@@ -394,112 +396,99 @@ StateRead:
           description: Jump to the given address if the value is true.
           stack_in: [address, value]
 
-    Memory:
-      description: Operations for controlling memory.
+    StateSlots:
+      description: Operations for controlling mutable state slots.
       group:
-        Alloc:
+        AllocSlots:
           opcode: 0x80
-          description: Allocate new memory to the end of the memory.
-          stack_in: [size]
-
-        Free:
-          opcode: 0x81
-          description: Free the given size of memory from the end of the memory.
-          stack_in: [size]
-
-        Truncate:
-          opcode: 0x82
-          description: |
-            Truncate the memory to the given size.
-
-            Does not affect capacity.
+          description: Allocate new slots to the end of the memory.
           stack_in: [size]
 
         Load:
-          opcode: 0x83
+          opcode: 0x81
           description: |
-            Load the index of memory onto the stack.
+            Load the value at the index of a slot onto the stack.
 
-            Returns 0 if value is None.
+            Noop if the slot is empty.
           panics:
             - Index is out of bounds.
           stack_in: [index]
-          stack_out: [value]
+          stack_out:
+            elem: value_word
+            len: value_len
 
         Store:
-          opcode: 0x84
-          description: Store the value at the index of memory.
+          opcode: 0x82
+          description: Store the value at the index of state slots.
           panics:
             - Index is out of bounds.
-          stack_in: [index, value]
-
-        Push:
-          opcode: 0x85
-          description: Push the value onto the end of the memory.
+          stack_in: [value_word_0, ...value_word_len, len, index]
+        
+        LoadWord:
+          opcode: 0x83
+          description: |
+            Load the word at the index of the value at 
+            the slot onto the stack.
           panics:
-            - Not enough memory allocated.
-          stack_in: [value]
+            - Slot or Index is out of bounds.
+          stack_in: [slot, index]
+          stack_out: [Value_word]
 
-        PushNone:
-          opcode: 0x86
-          description: Push a None value onto the end of the memory.
+        StoreWord:
+          opcode: 0x84
+          description: |
+            Store the word at the index of the value 
+            at the slot.
           panics:
-            - Not enough memory allocated.
+            - Slot or Index is out of bounds.
+          stack_in: [slot, index, word]
 
         Clear:
-          opcode: 0x87
-          description: Set the value at the index of memory to None.
+          opcode: 0x85
+          description: Clear the value at the index.
           panics:
             - Index is out of bounds.
           stack_in: [index]
 
         ClearRange:
-          opcode: 0x88
-          description: Set a range of memory to None.
+          opcode: 0x86
+          description: Clear a range of values.
           panics:
             - The range is out of bounds.
           stack_in: [index, amount]
 
-        IsSome:
-          opcode: 0x89
-          description: Check if the value at the index of memory is Some.
-          panics:
-            - Index out of bounds.
-          stack_in: [index]
-          stack_out: [bool]
-
-        Capacity:
-          opcode: 0x8A
-          description: Get the current capacity of the memory.
-          stack_out: [capacity]
-
         Length:
-          opcode: 0x8B
+          opcode: 0x87
           description: Get the current length of the memory.
           stack_out: [length]
+        
+        ValueLen:
+          opcode: 0x88
+          description: Get the current length of a given value at the index.
+          stack_in: [index]
+          stack_out: [length]
 
-    WordRange:
+
+    KeyRange:
       opcode: 0x90
       description: |
-        Read a range of words from state starting at the key.
+        Read a range of values at each key from state starting at the key 
+        into state slots starting at the slot index.
 
-        Reads the state key and the number of words from the stack input.
+        The key is lexographically incremented for each value read.
 
-        Returns the memory address at which the data was written via the stack output.
-      panics:
-        - Not enough memory allocated to store the read state.
-      stack_in: [key_w0, key_w1, key_w2, key_w3, n_words]
-      stack_out: [mem_addr]
-
-    WordRangeExtern:
+        Returns the values onto the stack, followed by their indices.
+      stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]
+    
+    KeyRangeExtern:
       opcode: 0x91
       description: |
-        Read a range of words from external state starting at the key.
+        Read a range of values at each key from external state starting at the key
+        into state slots starting at the slot index.
 
-        Reads the external address, state key and the number of words from the stack input.
+        The key is lexographically incremented for each value read.
 
-        Returns the memory address at which the data was written via the stack output.
-      panics:
-        - Not enough memory allocated to store the read state.
-      stack_in: [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, key_w1, key_w2, key_w3, n_words]
-      stack_out: [mem_addr]
+        The external state is at the `ext` address.
+        
+        Returns the values onto the stack, followed by their indices.
+      stack_in: [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]

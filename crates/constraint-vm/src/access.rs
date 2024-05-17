@@ -47,7 +47,7 @@ pub struct StateSlots<'a> {
 }
 
 /// The state slots declared within the intent.
-pub type StateSlotSlice = [Option<Word>];
+pub type StateSlotSlice = [Vec<Word>];
 
 impl<'a> SolutionAccess<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
@@ -163,11 +163,10 @@ pub(crate) fn mut_keys_contains(solution: SolutionAccess, stack: &mut Stack) -> 
 
 /// `Access::State` implementation.
 pub(crate) fn state(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    stack.pop2_push1(|slot, delta| {
-        let slot = state_slot(slots, slot, delta)?;
-        let word = slot.unwrap_or_default();
-        Ok(word)
-    })
+    let [slot, delta] = stack.pop2()?;
+    let slot = state_slot(slots, slot, delta)?;
+    stack.extend(slot.clone())?;
+    Ok(())
 }
 
 /// `Access::StateRange` implementation.
@@ -175,28 +174,27 @@ pub(crate) fn state_range(slots: StateSlots, stack: &mut Stack) -> OpResult<()> 
     let [slot, len, delta] = stack.pop3()?;
     let slice = state_slot_range(slots, slot, len, delta)?;
     for slot in slice {
-        let word = slot.unwrap_or_default();
-        stack.push(word)?;
+        stack.extend(slot.clone())?;
     }
     Ok(())
 }
 
-/// `Access::StateIsSome` implementation.
-pub(crate) fn state_is_some(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
+/// `Access::StateLen` implementation.
+pub(crate) fn state_len(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
     stack.pop2_push1(|slot, delta| {
         let slot = state_slot(slots, slot, delta)?;
-        let is_some = Word::from(slot.is_some());
-        Ok(is_some)
+        let len = Word::try_from(slot.len()).map_err(|_| AccessError::StateSlotOutOfBounds)?;
+        Ok(len)
     })
 }
 
-/// `Access::StateIsSomeRange` implementation.
-pub(crate) fn state_is_some_range(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
+/// `Access::StateLenRange` implementation.
+pub(crate) fn state_len_range(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
     let [slot, len, delta] = stack.pop3()?;
     let slice = state_slot_range(slots, slot, len, delta)?;
     for slot in slice {
-        let is_some = Word::from(slot.is_some());
-        stack.push(is_some)?;
+        let len = Word::try_from(slot.len()).map_err(|_| AccessError::StateSlotOutOfBounds)?;
+        stack.push(len)?;
     }
     Ok(())
 }
@@ -262,7 +260,7 @@ pub(crate) fn resolve_decision_var(
     }
 }
 
-fn state_slot(slots: StateSlots, slot: Word, delta: Word) -> OpResult<&Option<Word>> {
+fn state_slot(slots: StateSlots, slot: Word, delta: Word) -> OpResult<&Vec<Word>> {
     let delta = bool_from_word(delta).ok_or(AccessError::InvalidStateSlotDelta(delta))?;
     let slots = state_slots_from_delta(slots, delta);
     let ix = usize::try_from(slot).map_err(|_| AccessError::StateSlotOutOfBounds)?;
