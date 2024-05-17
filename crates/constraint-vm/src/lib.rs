@@ -173,8 +173,17 @@ where
     let mut repeat = Repeat::new();
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
-        let update = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat)
-            .map_err(|err| ConstraintError::Op(pc, err))?;
+
+        let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat);
+
+        #[cfg(feature = "tracing")]
+        trace_op_res(pc, &op, &stack, &memory, res.as_ref());
+
+        let update = match res {
+            Ok(update) => update,
+            Err(err) => return Err(ConstraintError::Op(pc, err)),
+        };
+
         match update {
             Some(ProgramControlFlow::Pc(new_pc)) => pc = new_pc,
             Some(ProgramControlFlow::Halt) => break,
@@ -182,6 +191,28 @@ where
         }
     }
     Ok(stack)
+}
+
+/// Trace the operation at the given program counter.
+///
+/// In the success case, also emits the resulting stack.
+///
+/// In the error case, emits a debug log with the error.
+#[cfg(feature = "tracing")]
+fn trace_op_res<T, E>(pc: usize, op: &Op, stack: &Stack, memory: &Memory, op_res: Result<T, E>)
+where
+    E: core::fmt::Display,
+{
+    let pc_op = format!("0x{pc:02X}: {op:?}");
+    match op_res {
+        Ok(_) => {
+            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", &stack, &memory)
+        }
+        Err(ref err) => {
+            tracing::trace!("{pc_op}");
+            tracing::debug!("{err}");
+        }
+    }
 }
 
 /// Step forward constraint checking by the given operation.

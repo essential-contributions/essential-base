@@ -19,9 +19,14 @@ use crate::{
         IntentAddress, Key, Signed, Word,
     },
 };
+#[cfg(feature = "tracing")]
+use essential_hash::hash;
+use sign::verify;
 use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
+#[cfg(feature = "tracing")]
+use tracing::Instrument;
 
 /// Configuration options passed to [`check_intent`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
@@ -123,7 +128,7 @@ pub enum IntentError<E> {
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
     /// Failed to read state.
-    #[error("state read executino error: {0}")]
+    #[error("state read execution error: {0}")]
     StateRead(#[from] StateReadError<E>),
     /// Failed to write state slots to temporary slice.
     #[error("failed to write state slots to temporary slice: {0}")]
@@ -215,8 +220,9 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 /// without reference to its associated intents.
 ///
 /// This includes solution data and state mutations.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data))), err))]
 pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
-    sign::verify(solution)?;
+    verify(solution)?;
     check(&solution.data)?;
     Ok(())
 }
@@ -225,6 +231,7 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolu
 /// its associated intents.
 ///
 /// This includes solution data and state mutations.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data))), err))]
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
@@ -360,6 +367,7 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
 ///   intents are assumed to have been read from storage and validated ahead of time.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub async fn check_intents<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
@@ -380,6 +388,9 @@ where
         return Err(IntentErrors(failed).into());
     }
 
+    #[cfg(feature = "tracing")]
+    tracing::trace!("{}", essential_hash::content_addr(&*solution));
+
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
     for (solution_data_index, data) in solution.data.iter().enumerate() {
@@ -391,6 +402,7 @@ where
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         let config = config.clone();
+
         set.spawn(async move {
             let pre_state = pre_state;
             let post_state = post_state;
@@ -486,6 +498,7 @@ pub fn check_decision_variable_lengths(
 ///   to solve this intent.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = &hex::encode(hash(&*solution))[0..8], data={solution_data_index})))]
 pub async fn check_intent<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
@@ -524,7 +537,7 @@ where
         let state_read_mapped = BytecodeMapped::try_from(&state_read[..])?;
 
         // Read pre state slots and write them to the pre_slots slice.
-        let (gas, new_pre_slots) = read_state_slots(
+        let future = read_state_slots(
             &state_read_mapped,
             Access {
                 solution: solution_access,
@@ -534,8 +547,14 @@ where
                 },
             },
             pre_state,
-        )
-        .await?;
+        );
+        #[cfg(feature = "tracing")]
+        let (gas, new_pre_slots) = future
+            .instrument(tracing::info_span!("pre", ix = state_read_index))
+            .await?;
+        #[cfg(not(feature = "tracing"))]
+        let (gas, new_pre_slots) = future.await?;
+
         total_gas += gas;
         write_state_slots(
             state_read_index,
@@ -545,7 +564,7 @@ where
         )?;
 
         // Read post state slots and write them to the post_slots slice.
-        let (gas, new_post_slots) = read_state_slots(
+        let future = read_state_slots(
             &state_read_mapped,
             Access {
                 solution: solution_access,
@@ -555,8 +574,14 @@ where
                 },
             },
             post_state,
-        )
-        .await?;
+        );
+        #[cfg(feature = "tracing")]
+        let (gas, new_post_slots) = future
+            .instrument(tracing::info_span!("post", ix = state_read_index))
+            .await?;
+        #[cfg(not(feature = "tracing"))]
+        let (gas, new_post_slots) = future.await?;
+
         total_gas += gas;
         write_state_slots(
             state_read_index,
@@ -652,6 +677,7 @@ fn write_state_slots(
 /// constraints of the given intent.
 ///
 /// Returns the utility of the solution for the given intent.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, "check"))]
 pub async fn check_intent_constraints(
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
@@ -660,7 +686,7 @@ pub async fn check_intent_constraints(
     post_slots: Arc<StateSlotSlice>,
     config: &CheckIntentConfig,
 ) -> Result<Utility, IntentConstraintsError> {
-    check_intent_constraints_parallel(
+    match check_intent_constraints_parallel(
         solution.clone(),
         solution_data_index,
         intent.clone(),
@@ -668,16 +694,39 @@ pub async fn check_intent_constraints(
         post_slots.clone(),
         config,
     )
-    .await?;
-    let util = calculate_utility(
-        solution,
-        solution_data_index,
-        intent.clone(),
-        pre_slots,
-        post_slots,
-    )
-    .await?;
-    Ok(util)
+    .await
+    {
+        Ok(()) => {
+            #[cfg(feature = "tracing")]
+            tracing::trace!("constraint check complete");
+
+            match calculate_utility(
+                solution,
+                solution_data_index,
+                intent.clone(),
+                pre_slots,
+                post_slots,
+            )
+            .await
+            {
+                Ok(util) => {
+                    #[cfg(feature = "tracing")]
+                    tracing::trace!("utility: {}", util);
+                    Ok(util)
+                }
+                Err(err) => {
+                    #[cfg(feature = "tracing")]
+                    tracing::trace!("error calculating utility: {}", err);
+                    Err(err.into())
+                }
+            }
+        }
+        Err(err) => {
+            #[cfg(feature = "tracing")]
+            tracing::trace!("error checking constraints: {}", err);
+            Err(err)
+        }
+    }
 }
 
 /// Check intents in parallel without sleeping any threads.
@@ -694,6 +743,8 @@ async fn check_intent_constraints_parallel(
     // Spawn each constraint onto a rayon thread and
     // check them in parallel.
     for ix in 0..intent.constraints.len() {
+        // Spawn this sync code onto a rayon thread.
+        // This is a non-blocking operation.
         let (tx, rx) = tokio::sync::oneshot::channel();
         handles.push(rx);
 
@@ -703,9 +754,15 @@ async fn check_intent_constraints_parallel(
         let post_slots = post_slots.clone();
         let intent = intent.clone();
 
-        // Spawn this sync code onto a rayon thread.
-        // This is a non-blocking operation.
+        #[cfg(feature = "tracing")]
+        let span = tracing::Span::current();
+
         rayon::spawn(move || {
+            #[cfg(feature = "tracing")]
+            let span = tracing::trace_span!(parent: &span, "constraint", ix = ix as u32);
+            #[cfg(feature = "tracing")]
+            let guard = span.enter();
+
             let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
             let solution_access =
                 SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
@@ -728,6 +785,9 @@ async fn check_intent_constraints_parallel(
             // Send the result back to the main thread.
             // Send errors are ignored as if the recv is gone there's no one to send to.
             let _ = tx.send((ix, res));
+
+            #[cfg(feature = "tracing")]
+            drop(guard)
         })
     }
 
@@ -785,7 +845,16 @@ async fn calculate_utility(
 
     // Spawn this sync code onto a rayon thread.
     let (tx, rx) = tokio::sync::oneshot::channel();
+
+    #[cfg(feature = "tracing")]
+    let span = tracing::Span::current();
+
     rayon::spawn(move || {
+        #[cfg(feature = "tracing")]
+        let span = tracing::trace_span!(parent: &span, "utility");
+        #[cfg(feature = "tracing")]
+        let guard = span.enter();
+
         let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
         let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
         let access = Access {
@@ -812,6 +881,9 @@ async fn calculate_utility(
 
         // Send errors are ignored as if the recv is dropped.
         let _ = tx.send(res);
+
+        #[cfg(feature = "tracing")]
+        drop(guard)
     });
 
     // Await the result of the utility calculation.
