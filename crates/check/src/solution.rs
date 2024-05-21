@@ -403,13 +403,7 @@ where
         let post_state: SB = post_state.clone();
         let config = config.clone();
 
-        #[cfg(feature = "tracing")]
-        let span = tracing::Span::current();
-
-        set.spawn(async move {
-            #[cfg(feature = "tracing")]
-            let guard = span.enter();
-
+        let future = async move {
             let pre_state = pre_state;
             let post_state = post_state;
             let res = check_intent(
@@ -421,12 +415,13 @@ where
                 &config,
             )
             .await;
-
-            #[cfg(feature = "tracing")]
-            drop(guard);
-
             (solution_data_index, res)
-        });
+        };
+
+        #[cfg(feature = "tracing")]
+        let future = future.in_current_span();
+
+        set.spawn(future);
     }
 
     // Calculate total utility and gas used.
