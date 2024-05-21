@@ -39,6 +39,18 @@ fn signature() {
         3,
     );
 
+    // `fmt::LowerHex`
+    assert_eq!(
+        &format!("{sig:x}"),
+        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f03"
+    );
+
+    // `fmt::UpperHex`
+    assert_eq!(
+        &format!("{sig:X}"),
+        "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F03"
+    );
+
     // `fmt::Display`
     let sig_string = format!("{sig}");
     assert_eq!(

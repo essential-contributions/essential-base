@@ -13,11 +13,31 @@ impl fmt::LowerHex for ContentAddress {
     }
 }
 
+impl fmt::LowerHex for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for byte in self.0 {
+            write!(f, "{byte:02x}")?;
+        }
+        write!(f, "{:02x}", self.1)?;
+        Ok(())
+    }
+}
+
 impl fmt::UpperHex for ContentAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in self.0 {
             write!(f, "{byte:02X}")?;
         }
+        Ok(())
+    }
+}
+
+impl fmt::UpperHex for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for byte in self.0 {
+            write!(f, "{byte:02X}")?;
+        }
+        write!(f, "{:02X}", self.1)?;
         Ok(())
     }
 }
