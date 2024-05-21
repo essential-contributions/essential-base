@@ -8,6 +8,8 @@ use essential_types::{ContentAddress, Hash};
 use serde::Serialize;
 use sha2::Digest;
 
+pub mod intent_set_addr;
+
 /// Serialize data for hashing using postcard.
 ///
 /// This serialization format is standardized across essential crates.
