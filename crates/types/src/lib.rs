@@ -52,9 +52,16 @@ pub struct ContentAddress(pub Hash);
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Address of a persistent intent.
 pub struct IntentAddress {
-    /// Content address of the set of intents that this intent is deployed with.
+    /// Content address of the set of intents with which this intent was deployed.
+    ///
+    /// This is equal to `essential_hash::content_addr(intent_addresses)`,
+    /// where `intent_addresses` is a `&[ContentAddress]` sorted by the
+    /// `ContentAddress` `Ord` implementation.
     pub set: ContentAddress,
     /// Content address of the intent.
+    ///
+    /// This is equal to `essential_hash::content_addr(intent)` where `intent`
+    /// is a [`&Intent`][intent::Intent].
     pub intent: ContentAddress,
 }
 
