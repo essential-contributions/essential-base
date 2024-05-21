@@ -30,7 +30,7 @@
 
 use constraint::{ProgramControlFlow, Repeat};
 #[doc(inline)]
-pub use error::{MemoryResult, OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
+pub use error::{OpAsyncResult, OpResult, OpSyncResult, StateReadResult, StateSlotsResult};
 use error::{OpError, OpSyncError, StateReadError, StateSlotsError};
 #[doc(inline)]
 pub use essential_constraint_vm::{
@@ -63,7 +63,7 @@ pub struct Vm {
     pub temp_memory: essential_constraint_vm::Memory,
     /// The repeat stack.
     pub repeat: Repeat,
-    /// The program memory, primarily used for collecting the state being read.
+    /// The state slots that will be written to by this program.
     pub state_slots_mut: StateSlotsMut,
 }
 

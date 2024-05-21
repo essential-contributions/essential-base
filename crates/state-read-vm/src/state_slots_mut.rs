@@ -1,12 +1,12 @@
-//! Memory operation implementations and related items.
+//! State slot operation implementations and related items.
 
 use essential_constraint_vm::error::StackError;
 
-use crate::{asm::Word, MemoryResult, OpSyncResult, StateSlotsError, Vm};
+use crate::{asm::Word, OpSyncResult, StateSlotsError, StateSlotsResult, Vm};
 
-/// A type representing the VM's memory.
+/// A type representing the VM's mutable state slots.
 ///
-/// `Memory` is a thin wrapper around a `Vec<Option<Word>>`. The `Vec` mutable methods
+/// `StateSlots` is a thin wrapper around a `Vec<Vec<Word>>`. The `Vec` mutable methods
 /// are intentionally not exposed in order to maintain close control over capacity.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StateSlotsMut(Vec<Vec<Word>>);
@@ -18,8 +18,8 @@ impl StateSlotsMut {
     /// The maximum number of words stored in a single value.
     pub const VALUE_LIMIT: usize = 4096;
 
-    /// Allocate new slots to the end of the memory.
-    pub fn alloc_slots(&mut self, size: usize) -> MemoryResult<()> {
+    /// Allocate new slots to the end of the vector.
+    pub fn alloc_slots(&mut self, size: usize) -> StateSlotsResult<()> {
         if self.len() + size > Self::SLOT_LIMIT {
             return Err(StateSlotsError::Overflow);
         }
@@ -28,13 +28,13 @@ impl StateSlotsMut {
     }
 
     /// Load a value at the given slot index.
-    pub fn load(&self, index: usize) -> MemoryResult<&[Word]> {
+    pub fn load(&self, index: usize) -> StateSlotsResult<&[Word]> {
         let slot = self.get(index).ok_or(StateSlotsError::IndexOutOfBounds)?;
         Ok(slot)
     }
 
     /// Store the given value at the given slot `index`.
-    pub fn store(&mut self, index: usize, value: Vec<Word>) -> MemoryResult<()> {
+    pub fn store(&mut self, index: usize, value: Vec<Word>) -> StateSlotsResult<()> {
         if value.len() > Self::VALUE_LIMIT {
             return Err(StateSlotsError::Overflow);
         }
@@ -48,7 +48,7 @@ impl StateSlotsMut {
     }
 
     /// Store the given values starting at the given slot `index`.
-    pub fn store_range(&mut self, index: usize, values: Vec<Vec<Word>>) -> MemoryResult<()> {
+    pub fn store_range(&mut self, index: usize, values: Vec<Vec<Word>>) -> StateSlotsResult<()> {
         if values.iter().any(|val| val.len() > Self::VALUE_LIMIT) {
             return Err(StateSlotsError::Overflow);
         }
@@ -65,7 +65,7 @@ impl StateSlotsMut {
     }
 
     /// Clear the value at the given slot index.
-    pub fn clear(&mut self, index: usize) -> MemoryResult<()> {
+    pub fn clear(&mut self, index: usize) -> StateSlotsResult<()> {
         self.0
             .get_mut(index)
             .ok_or(StateSlotsError::IndexOutOfBounds)?
@@ -74,7 +74,7 @@ impl StateSlotsMut {
     }
 
     /// Clear a range of slot values.
-    pub fn clear_range(&mut self, range: core::ops::Range<usize>) -> MemoryResult<()> {
+    pub fn clear_range(&mut self, range: core::ops::Range<usize>) -> StateSlotsResult<()> {
         self.0
             .get_mut(range)
             .ok_or(StateSlotsError::IndexOutOfBounds)?
@@ -84,13 +84,13 @@ impl StateSlotsMut {
     }
 
     /// Get the length of a value at the given slot index.
-    pub fn value_len(&self, index: usize) -> MemoryResult<usize> {
+    pub fn value_len(&self, index: usize) -> StateSlotsResult<usize> {
         let slot = self.0.get(index).ok_or(StateSlotsError::IndexOutOfBounds)?;
         Ok(slot.len())
     }
 
     /// Load a word within a value at the given slot index.
-    pub fn load_word(&self, slot: usize, index: usize) -> MemoryResult<Word> {
+    pub fn load_word(&self, slot: usize, index: usize) -> StateSlotsResult<Word> {
         let word = self
             .get(slot)
             .and_then(|slot| slot.get(index).copied())
@@ -99,7 +99,7 @@ impl StateSlotsMut {
     }
 
     /// Store a word within a value at the given slot index.
-    pub fn store_word(&mut self, slot: usize, index: usize, value: Word) -> MemoryResult<()> {
+    pub fn store_word(&mut self, slot: usize, index: usize, value: Word) -> StateSlotsResult<()> {
         let word = self
             .0
             .get_mut(slot)
@@ -118,12 +118,12 @@ impl core::ops::Deref for StateSlotsMut {
 }
 
 impl From<StateSlotsMut> for Vec<Vec<Word>> {
-    fn from(memory: StateSlotsMut) -> Self {
-        memory.0
+    fn from(state_slots: StateSlotsMut) -> Self {
+        state_slots.0
     }
 }
 
-/// `Memory::AllocSlots` operation.
+/// `StateSlots::AllocSlots` operation.
 pub fn alloc_slots(vm: &mut Vm) -> OpSyncResult<()> {
     let size = vm.stack.pop()?;
     let size = usize::try_from(size).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
@@ -131,7 +131,7 @@ pub fn alloc_slots(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::Length` operation.
+/// `StateSlots::Length` operation.
 pub fn length(vm: &mut Vm) -> OpSyncResult<()> {
     let len =
         Word::try_from(vm.state_slots_mut.len()).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
@@ -139,7 +139,7 @@ pub fn length(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::ValueLen` operation.
+/// `StateSlots::ValueLen` operation.
 pub fn value_len(vm: &mut Vm) -> OpSyncResult<()> {
     let slot = vm.stack.pop()?;
     let slot = usize::try_from(slot).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
@@ -149,7 +149,7 @@ pub fn value_len(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::Clear` operation.
+/// `StateSlots::Clear` operation.
 pub fn clear(vm: &mut Vm) -> OpSyncResult<()> {
     let index = vm.stack.pop()?;
     let index = usize::try_from(index).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
@@ -157,7 +157,7 @@ pub fn clear(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::ClearRange` operation.
+/// `StateSlots::ClearRange` operation.
 pub fn clear_range(vm: &mut Vm) -> OpSyncResult<()> {
     let [index, len] = vm.stack.pop2()?;
     let range = range_from_start_len(index, len).ok_or(StateSlotsError::IndexOutOfBounds)?;
@@ -165,7 +165,7 @@ pub fn clear_range(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::Load` operation.
+/// `StateSlots::Load` operation.
 pub fn load(vm: &mut Vm) -> OpSyncResult<()> {
     let index = vm.stack.pop()?;
     let index = usize::try_from(index).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
@@ -174,7 +174,7 @@ pub fn load(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::Store` operation.
+/// `StateSlots::Store` operation.
 pub fn store(vm: &mut Vm) -> OpSyncResult<()> {
     let index = vm.stack.pop()?;
     let index = usize::try_from(index).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
@@ -185,7 +185,7 @@ pub fn store(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::LoadWord` operation.
+/// `StateSlots::LoadWord` operation.
 pub fn load_word(vm: &mut Vm) -> OpSyncResult<()> {
     let [slot, index] = vm.stack.pop2()?;
     let slot = usize::try_from(slot).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
@@ -195,7 +195,7 @@ pub fn load_word(vm: &mut Vm) -> OpSyncResult<()> {
     Ok(())
 }
 
-/// `Memory::StoreWord` operation.
+/// `StateSlots::StoreWord` operation.
 pub fn store_word(vm: &mut Vm) -> OpSyncResult<()> {
     let [slot, index, word] = vm.stack.pop3()?;
     let slot = usize::try_from(slot).map_err(|_| StateSlotsError::IndexOutOfBounds)?;

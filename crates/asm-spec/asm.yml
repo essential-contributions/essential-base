@@ -212,7 +212,7 @@ StateRead:
               description: |
                 Access a state variable by `slot`.
 
-                Empty slots will write len 0 to the stack.
+                If the slot is empty, this is a noop.
 
                 The `delta` parameter determines if changes are considered.
 
@@ -227,7 +227,7 @@ StateRead:
               description: |
                 Access a range of state variables starting from a specified slot.
 
-                Empty slots will write len 0 to the stack.
+                Empty slots will not write anything to the stack.
 
                 The delta parameter determines if changes are considered.
 

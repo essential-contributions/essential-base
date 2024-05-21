@@ -30,9 +30,9 @@ pub trait StateRead {
     /// require using a `Box` in order to name the anonymised type.
     type Future: Future<Output = Result<Vec<Vec<Word>>, Self::Error>> + Unpin;
 
-    /// Read the given number of words from state at the given key associated
+    /// Read the given number of values from state at the given key associated
     /// with the given intent set address.
-    fn key_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future;
+    fn key_range(&self, set_addr: ContentAddress, key: Key, num_values: usize) -> Self::Future;
 }
 
 /// A future representing the asynchronous `StateRead` (or `StateReadExtern`) operation.
@@ -140,7 +140,7 @@ where
     Ok(state_read.key_range(set_addr, key, num_keys))
 }
 
-/// Write the given words to the end of memory and push the starting memory address to the stack.
+/// Write the given values to mutable state slots.
 fn write_values_to_state_slots<E>(
     vm: &mut Vm,
     slot_index: usize,
