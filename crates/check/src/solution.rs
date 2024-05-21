@@ -20,7 +20,7 @@ use crate::{
     },
 };
 #[cfg(feature = "tracing")]
-use essential_hash::hash;
+use essential_hash::content_addr;
 use sign::verify;
 use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
@@ -220,7 +220,7 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 /// without reference to its associated intents.
 ///
 /// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data))), err))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(&solution.data)), err))]
 pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
     verify(solution)?;
     check(&solution.data)?;
@@ -231,7 +231,7 @@ pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolu
 /// its associated intents.
 ///
 /// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data))), err))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(&solution.data)), err))]
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
@@ -498,7 +498,16 @@ pub fn check_decision_variable_lengths(
 ///   to solve this intent.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = &hex::encode(hash(&*solution))[0..8], data={solution_data_index})))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(
+        skip_all,
+        fields(
+            solution = %format!("{}", content_addr(&*solution))[0..8],
+            data={solution_data_index},
+        ),
+    ),
+)]
 pub async fn check_intent<SA, SB>(
     pre_state: &SA,
     post_state: &SB,

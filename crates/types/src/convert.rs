@@ -1,6 +1,6 @@
 //! Helper functions for converting between byte and word representations.
 
-use crate::{ContentAddress, Word};
+use crate::{ContentAddress, Signature, Word};
 
 /// Convert a `Word` to its bytes.
 pub fn bytes_from_word(w: Word) -> [u8; 8] {
@@ -119,15 +119,76 @@ impl From<ContentAddress> for [Word; 4] {
     }
 }
 
+impl From<ContentAddress> for [u8; 32] {
+    fn from(address: ContentAddress) -> Self {
+        address.0
+    }
+}
+
 impl From<[Word; 4]> for ContentAddress {
     fn from(address: [Word; 4]) -> Self {
         Self(u8_32_from_word_4(address))
     }
 }
 
-impl From<ContentAddress> for [u8; 32] {
-    fn from(address: ContentAddress) -> Self {
-        address.0
+impl From<[u8; 32]> for ContentAddress {
+    fn from(address: [u8; 32]) -> Self {
+        Self(address)
+    }
+}
+
+impl From<Signature> for [u8; 65] {
+    #[rustfmt::skip]
+    fn from(sig: Signature) -> Self {
+        let [
+            b0, b1, b2, b3, b4, b5, b6, b7,
+            b8, b9, b10, b11, b12, b13, b14, b15,
+            b16, b17, b18, b19, b20, b21, b22, b23,
+            b24, b25, b26, b27, b28, b29, b30, b31,
+            b32, b33, b34, b35, b36, b37, b38, b39,
+            b40, b41, b42, b43, b44, b45, b46, b47,
+            b48, b49, b50, b51, b52, b53, b54, b55,
+            b56, b57, b58, b59, b60, b61, b62, b63,
+        ] = sig.0;
+        [
+            b0, b1, b2, b3, b4, b5, b6, b7,
+            b8, b9, b10, b11, b12, b13, b14, b15,
+            b16, b17, b18, b19, b20, b21, b22, b23,
+            b24, b25, b26, b27, b28, b29, b30, b31,
+            b32, b33, b34, b35, b36, b37, b38, b39,
+            b40, b41, b42, b43, b44, b45, b46, b47,
+            b48, b49, b50, b51, b52, b53, b54, b55,
+            b56, b57, b58, b59, b60, b61, b62, b63,
+            sig.1,
+        ]
+    }
+}
+
+impl From<[u8; 65]> for Signature {
+    #[rustfmt::skip]
+    fn from(bytes: [u8; 65]) -> Self {
+        let [
+            b0, b1, b2, b3, b4, b5, b6, b7,
+            b8, b9, b10, b11, b12, b13, b14, b15,
+            b16, b17, b18, b19, b20, b21, b22, b23,
+            b24, b25, b26, b27, b28, b29, b30, b31,
+            b32, b33, b34, b35, b36, b37, b38, b39,
+            b40, b41, b42, b43, b44, b45, b46, b47,
+            b48, b49, b50, b51, b52, b53, b54, b55,
+            b56, b57, b58, b59, b60, b61, b62, b63,
+            id,
+        ] = bytes;
+        let sig = [
+            b0, b1, b2, b3, b4, b5, b6, b7,
+            b8, b9, b10, b11, b12, b13, b14, b15,
+            b16, b17, b18, b19, b20, b21, b22, b23,
+            b24, b25, b26, b27, b28, b29, b30, b31,
+            b32, b33, b34, b35, b36, b37, b38, b39,
+            b40, b41, b42, b43, b44, b45, b46, b47,
+            b48, b49, b50, b51, b52, b53, b54, b55,
+            b56, b57, b58, b59, b60, b61, b62, b63,
+        ];
+        Signature(sig, id)
     }
 }
 

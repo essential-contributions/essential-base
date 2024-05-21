@@ -9,7 +9,7 @@ use crate::{
     },
 };
 #[cfg(feature = "tracing")]
-use essential_hash::hash;
+use essential_hash::intent_set_addr;
 use thiserror::Error;
 
 /// [`check_signed_set`] error.
@@ -135,7 +135,7 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Validate a signed set of intents.
 ///
 /// Verifies the signature and then validates the intent set.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(addr = hex::encode(hash(&intents.data))), err))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(addr = %intent_set_addr::from_intents(&intents.data)), err))]
 pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), InvalidSignedSet> {
     verify(intents)?;
     check_set(&intents.data)?;

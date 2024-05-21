@@ -4,6 +4,8 @@ name = "essential-types"
 version = "0.1.0"
 
 [dependencies]
+base64 = { workspace = true }
+hex = { workspace = true, features = ["serde"] }
 schemars = { workspace = true, optional = true }
 serde.workspace = true
 
