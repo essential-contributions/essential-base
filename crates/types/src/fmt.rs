@@ -24,14 +24,14 @@ impl fmt::UpperHex for ContentAddress {
 
 impl fmt::Display for ContentAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        crate::serde::hash::BASE64.encode(&self.0).fmt(f)
+        crate::serde::hash::BASE64.encode(self.0).fmt(f)
     }
 }
 
 impl fmt::Display for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let bytes: [u8; 65] = self.clone().into();
-        crate::serde::hash::BASE64.encode(&bytes).fmt(f)
+        crate::serde::hash::BASE64.encode(bytes).fmt(f)
     }
 }
 

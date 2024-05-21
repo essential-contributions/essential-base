@@ -31,7 +31,7 @@ where
 {
     let bytes: Vec<u8> = if d.is_human_readable() {
         let string = String::deserialize(d)?;
-        BASE64.decode(&string).map_err(serde::de::Error::custom)?
+        BASE64.decode(string).map_err(serde::de::Error::custom)?
     } else {
         Vec::deserialize(d)?
     };
