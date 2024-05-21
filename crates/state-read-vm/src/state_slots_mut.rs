@@ -23,7 +23,7 @@ impl StateSlotsMut {
         if self.len() + size > Self::SLOT_LIMIT {
             return Err(StateSlotsError::Overflow);
         }
-        self.0.resize_with(size, Default::default);
+        self.0.resize_with(self.len() + size, Default::default);
         Ok(())
     }
 
