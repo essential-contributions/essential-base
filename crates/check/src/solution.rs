@@ -403,7 +403,7 @@ where
         let post_state: SB = post_state.clone();
         let config = config.clone();
 
-        set.spawn(async move {
+        let future = async move {
             let pre_state = pre_state;
             let post_state = post_state;
             let res = check_intent(
@@ -416,7 +416,12 @@ where
             )
             .await;
             (solution_data_index, res)
-        });
+        };
+
+        #[cfg(feature = "tracing")]
+        let future = future.in_current_span();
+
+        set.spawn(future);
     }
 
     // Calculate total utility and gas used.
