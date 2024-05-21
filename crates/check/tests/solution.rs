@@ -1,5 +1,4 @@
 use essential_check::{intent, solution};
-use essential_sign::sign;
 use essential_types::{
     solution::{
         DecisionVariable, DecisionVariableIndex, Mutation, Solution, SolutionData, StateMutation,
@@ -7,7 +6,7 @@ use essential_types::{
     ContentAddress, IntentAddress,
 };
 use std::sync::Arc;
-use util::{empty_solution, intent_addr, random_keypair, State};
+use util::{empty_solution, intent_addr, State};
 
 pub mod util;
 
@@ -30,34 +29,6 @@ fn test_state_mutation() -> StateMutation {
         pathway: 0,
         mutations: vec![],
     }
-}
-
-#[test]
-fn check_signed_solution() {
-    let mut solution = empty_solution();
-    solution.data = vec![SolutionData {
-        intent_to_solve: test_intent_addr(),
-        decision_variables: vec![DecisionVariable::Inline(0)],
-    }];
-    solution.state_mutations = vec![StateMutation {
-        pathway: 0,
-        mutations: Default::default(),
-    }];
-    let (sk, _pk) = random_keypair([0xFA; 32]);
-    let solution = sign(solution, sk);
-    solution::check_signed(&solution).unwrap();
-}
-
-#[test]
-fn invalid_solution_signature() {
-    let solution = empty_solution();
-    let (sk, _pk) = random_keypair([0; 32]);
-    let mut signed = sign(solution, sk);
-    signed.signature.0 = [0; 64];
-    assert!(matches!(
-        solution::check_signed(&signed).unwrap_err(),
-        solution::InvalidSignedSolution::Signature(_),
-    ));
 }
 
 #[test]

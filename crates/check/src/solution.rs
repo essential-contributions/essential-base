@@ -5,7 +5,6 @@ use crate::{
         self,
         error::{CheckError, ConstraintErrors, ConstraintsUnsatisfied},
     },
-    sign::{self, secp256k1},
     state_read_vm::{
         self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
         SolutionAccess, StateRead, StateSlotSlice, StateSlots,
@@ -16,12 +15,11 @@ use crate::{
         solution::{
             DecisionVariable, DecisionVariableIndex, Solution, SolutionData, SolutionDataIndex,
         },
-        IntentAddress, Key, Signed, Word,
+        IntentAddress, Key, Word,
     },
 };
 #[cfg(feature = "tracing")]
 use essential_hash::hash;
-use sign::verify;
 use std::{collections::HashSet, fmt, sync::Arc};
 use thiserror::Error;
 use tokio::task::JoinSet;
@@ -38,17 +36,6 @@ pub struct CheckIntentConfig {
     ///
     /// Default: `false`
     pub collect_all_failures: bool,
-}
-
-/// [`check_signed`] error.
-#[derive(Debug, Error)]
-pub enum InvalidSignedSolution {
-    /// Invalid signature.
-    #[error("failed to validate solution signature")]
-    Signature(#[from] secp256k1::Error),
-    /// Invalid solution.
-    #[error("invalid solution: {0}")]
-    Solution(#[from] InvalidSolution),
 }
 
 /// [`check`] error.
@@ -214,17 +201,6 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
         }
         Ok(())
     }
-}
-
-/// Validate a [`Signed<Solution>`][Signed], to the extent it can be validated
-/// without reference to its associated intents.
-///
-/// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = hex::encode(hash(&solution.data))), err))]
-pub fn check_signed(solution: &Signed<Solution>) -> Result<(), InvalidSignedSolution> {
-    verify(solution)?;
-    check(&solution.data)?;
-    Ok(())
 }
 
 /// Validate a solution, to the extent it can be validated without reference to
