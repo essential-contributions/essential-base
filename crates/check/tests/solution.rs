@@ -10,9 +10,7 @@ use essential_types::{
     ContentAddress, IntentAddress,
 };
 use std::sync::Arc;
-use util::{empty_solution, intent_addr, State};
-
-use crate::util::random_keypair;
+use util::{empty_solution, intent_addr, random_keypair, State};
 
 pub mod util;
 
