@@ -85,10 +85,7 @@ impl State {
         // Collect the words.
         let mut words = vec![];
         for _ in 0..num_words {
-            let opt = set
-                .get(&key)
-                .cloned()
-                .unwrap_or_else(|| Vec::with_capacity(0));
+            let opt = set.get(&key).cloned().unwrap_or_default();
             words.push(opt);
             key = next_key(key).ok_or(InvalidStateRead)?;
         }
