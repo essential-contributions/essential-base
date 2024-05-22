@@ -12,7 +12,6 @@ pub mod convert;
 pub mod fmt;
 pub mod intent;
 pub mod serde;
-pub mod slots;
 pub mod solution;
 
 /// Constraint code serialized as json.
@@ -25,7 +24,7 @@ pub type StateReadBytecode = Vec<u8>;
 pub type Word = i64;
 
 /// Key for state data.
-pub type Key = [Word; 4];
+pub type Key = Vec<Word>;
 
 /// Hash encoded as a 32 byte array.
 pub type Hash = [u8; 32];

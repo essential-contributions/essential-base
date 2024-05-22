@@ -248,28 +248,28 @@ fn mut_keys_len() {
             StateMutation {
                 pathway: 0,
                 mutations: vec![Mutation {
-                    key: [0, 0, 0, 1],
-                    value: Some(1),
+                    key: vec![0, 0, 0, 1],
+                    value: vec![1],
                 }],
             },
             StateMutation {
                 pathway: 1,
                 mutations: vec![
                     Mutation {
-                        key: [1, 1, 1, 1],
-                        value: Some(6),
+                        key: vec![1, 1, 1, 1],
+                        value: vec![6],
                     },
                     Mutation {
-                        key: [1, 1, 1, 2],
-                        value: Some(7),
+                        key: vec![1, 1, 1, 2],
+                        value: vec![7],
                     },
                 ],
             },
             StateMutation {
                 pathway: 1,
                 mutations: vec![Mutation {
-                    key: [2, 2, 2, 1],
-                    value: Some(42),
+                    key: vec![2, 2, 2, 1],
+                    value: vec![42],
                 }],
             },
         ],
@@ -300,8 +300,8 @@ fn state_pre_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(0), Some(42)],
-            post: &[Some(0), Some(0)],
+            pre: &[vec![0], vec![42]],
+            post: &[vec![0], vec![0]],
         },
     };
     let ops = &[
@@ -318,8 +318,8 @@ fn state_post_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(0), Some(0)],
-            post: &[Some(42), Some(0)],
+            pre: &[vec![0], vec![0]],
+            post: &[vec![42], vec![0]],
         },
     };
     let ops = &[
@@ -336,8 +336,8 @@ fn state_pre_mutation_oob() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(0), Some(42)],
-            post: &[Some(0), Some(0)],
+            pre: &[vec![0], vec![42]],
+            post: &[vec![0], vec![0]],
         },
     };
     let ops = &[
@@ -357,8 +357,8 @@ fn invalid_state_slot_delta() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(0), Some(42)],
-            post: &[Some(0), Some(0)],
+            pre: &[vec![0], vec![42]],
+            post: &[vec![0], vec![0]],
         },
     };
     let ops = &[
@@ -378,8 +378,8 @@ fn state_slot_was_none() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[None],
-            post: &[None],
+            pre: &[vec![]],
+            post: &[vec![]],
         },
     };
     let ops = &[
@@ -388,7 +388,7 @@ fn state_slot_was_none() {
         asm::Access::State.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[0]);
+    assert!(&stack.is_empty());
 }
 
 #[test]
@@ -396,8 +396,8 @@ fn state_range_pre_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(10), Some(20), Some(30)],
-            post: &[Some(0), Some(0), Some(0)],
+            pre: &[vec![10], vec![20], vec![30]],
+            post: &[vec![0], vec![0], vec![0]],
         },
     };
     let ops = &[
@@ -415,8 +415,8 @@ fn state_range_post_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(0), Some(0), Some(0)],
-            post: &[Some(0), Some(40), Some(50)],
+            pre: &[vec![0], vec![0], vec![0]],
+            post: &[vec![0], vec![40], vec![50]],
         },
     };
     let ops = &[
@@ -430,38 +430,44 @@ fn state_range_post_mutation() {
 }
 
 #[test]
-fn state_is_some_pre_mutation_false() {
+fn state_is_not_empty_pre_mutation_false() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(0), None],
-            post: &[Some(0), Some(0)],
+            pre: &[vec![0], vec![]],
+            post: &[vec![0], vec![0]],
         },
     };
     let ops = &[
         asm::Stack::Push(1).into(), // Slot index.
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-        asm::Access::StateIsSome.into(),
+        asm::Access::StateLen.into(),
+        asm::Stack::Push(0).into(),
+        asm::Pred::Eq.into(),
+        asm::Pred::Not.into(),
     ];
-    // Expect false for `None`.
+    // Expect false for `vec![]`.
     assert!(!eval_ops(ops, access).unwrap());
 }
 
 #[test]
-fn state_is_some_post_mutation_true() {
+fn state_is_not_empty_post_mutation_true() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[None, None],
-            post: &[Some(42), None],
+            pre: &[vec![], vec![]],
+            post: &[vec![42], vec![]],
         },
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
         asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-        asm::Access::StateIsSome.into(),
+        asm::Access::StateLen.into(),
+        asm::Stack::Push(0).into(),
+        asm::Pred::Eq.into(),
+        asm::Pred::Not.into(),
     ];
-    // Expect true for `Some(42)`.
+    // Expect true for `vec![42]`.
     assert!(eval_ops(ops, access).unwrap());
 }
 
@@ -470,18 +476,18 @@ fn state_is_some_range_pre_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[Some(10), None, Some(30)],
-            post: &[None, None, None],
+            pre: &[vec![10], vec![], vec![30]],
+            post: &[vec![], vec![], vec![]],
         },
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
         asm::Stack::Push(3).into(), // Range length.
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-        asm::Access::StateIsSomeRange.into(),
+        asm::Access::StateLenRange.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
-    // Expect true, false, true for `Some(10), None, Some(30)`.
+    // Expect true, false, true for `vec![10], vec![], vec![30]`.
     assert_eq!(&stack[..], &[1, 0, 1]);
 }
 
@@ -490,18 +496,18 @@ fn state_is_some_range_post_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
-            pre: &[None, None, None],
-            post: &[None, Some(40), None],
+            pre: &[vec![], vec![], vec![]],
+            post: &[vec![], vec![40], vec![]],
         },
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
         asm::Stack::Push(3).into(), // Range length.
         asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-        asm::Access::StateIsSomeRange.into(),
+        asm::Access::StateLenRange.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
-    // Expect false, true, false for `None, Some(40), None`.
+    // Expect false, true, false for `vec![], vec![40], vec![]`.
     assert_eq!(&stack[..], &[0, 1, 0]);
 }
 

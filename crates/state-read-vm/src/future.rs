@@ -325,12 +325,12 @@ where
     S: StateRead,
 {
     match op {
-        OpAsync::StateReadWordRange => {
-            let future = state_read::word_range(state_read, &set_addr, &mut *vm)?;
+        OpAsync::StateReadKeyRange => {
+            let future = state_read::key_range(state_read, &set_addr, &mut *vm)?;
             Ok(StepOpAsyncFuture::StateRead(future))
         }
-        OpAsync::StateReadWordRangeExt => {
-            let future = state_read::word_range_ext(state_read, &mut *vm)?;
+        OpAsync::StateReadKeyRangeExt => {
+            let future = state_read::key_range_ext(state_read, &mut *vm)?;
             Ok(StepOpAsyncFuture::StateRead(future))
         }
     }
@@ -364,7 +364,11 @@ where
     let pc_op = format!("0x{:02X}: {op:?}", vm.pc);
     match op_res {
         Ok(_) => {
-            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", &vm.stack, &vm.memory)
+            tracing::trace!(
+                "{pc_op}\n  ├── {:?}\n  └── {:?}",
+                &vm.stack,
+                &vm.state_slots_mut
+            )
         }
         Err(ref err) => {
             tracing::trace!("{pc_op}");

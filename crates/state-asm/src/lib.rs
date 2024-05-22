@@ -81,8 +81,8 @@ mod tests {
         let ops: Vec<Op> = vec![
             Stack::Push(0x1234567812345678).into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-            Memory::Alloc.into(),
-            Memory::Free.into(),
+            StateSlots::AllocSlots.into(),
+            StateSlots::Length.into(),
         ];
         roundtrip(ops);
     }
@@ -91,8 +91,8 @@ mod tests {
     #[allow(clippy::useless_conversion)]
     fn roundtrip_args_end() {
         let ops: Vec<Op> = vec![
-            StateRead::WordRange.into(),
-            StateRead::WordRangeExtern.into(),
+            StateRead::KeyRange.into(),
+            StateRead::KeyRangeExtern.into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
         ];
         roundtrip(ops);
@@ -113,11 +113,11 @@ mod tests {
     #[test]
     fn roundtrip_no_args() {
         let ops: Vec<Op> = vec![
-            Memory::Store.into(),
+            StateSlots::Store.into(),
             Access::ThisAddress.into(),
-            Memory::Load.into(),
+            StateSlots::Load.into(),
             Access::ThisSetAddress.into(),
-            Memory::Capacity.into(),
+            StateSlots::Length.into(),
         ];
         roundtrip(ops);
     }

@@ -4,7 +4,6 @@ use crate::{
     sign::{secp256k1, verify},
     types::{
         intent::{Directive, Intent},
-        slots::{state_len, Slots},
         ConstraintBytecode, Signed, StateReadBytecode,
     },
 };
@@ -159,32 +158,10 @@ pub fn check_set(intents: &[Intent]) -> Result<(), InvalidSet> {
 ///
 /// Validates the slots, directive, state reads, and constraints.
 pub fn check(intent: &Intent) -> Result<(), InvalidIntent> {
-    check_slots(&intent.slots)?;
     check_directive(&intent.directive)?;
     check_state_reads(&intent.state_read)?;
     check_constraints(&intent.constraints)?;
     Ok(())
-}
-
-/// Validate an intent's slots.
-///
-/// Checks the number of decision variables, state slots and the total state length in words.
-pub fn check_slots(slots: &Slots) -> Result<(), InvalidSlots> {
-    if slots.decision_variables > MAX_DECISION_VARIABLES {
-        return Err(InvalidSlots::TooManyDecisionVariables(
-            slots.decision_variables,
-        ));
-    }
-    if slots.state.len() > MAX_NUM_STATE_SLOTS {
-        return Err(InvalidSlots::TooManyStateSlots(slots.state.len()));
-    }
-    match state_len(&slots.state) {
-        None => Err(InvalidSlots::StateSlotLengthExceedsLimit(None)),
-        Some(len) if len > MAX_STATE_LEN => {
-            Err(InvalidSlots::StateSlotLengthExceedsLimit(Some(len)))
-        }
-        _ => Ok(()),
-    }
 }
 
 /// Validate an intent's directive.

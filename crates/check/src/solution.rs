@@ -12,7 +12,6 @@ use crate::{
     },
     types::{
         intent::{Directive, Intent},
-        slots::{self, StateSlot},
         solution::{
             DecisionVariable, DecisionVariableIndex, Solution, SolutionData, SolutionDataIndex,
         },
@@ -120,19 +119,12 @@ pub struct IntentErrors<E>(pub Vec<(SolutionDataIndex, IntentError<E>)>);
 /// [`check_intent`] error.
 #[derive(Debug, Error)]
 pub enum IntentError<E> {
-    /// The number of decision variables provided by the solution data differs
-    /// from the number expected by the intent.
-    #[error("{0}")]
-    DecisionVariablesMismatch(#[from] InvalidDecisionVariablesLength),
     /// Failed to parse ops from bytecode during bytecode mapping.
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
     /// Failed to read state.
     #[error("state read execution error: {0}")]
     StateRead(#[from] StateReadError<E>),
-    /// Failed to write state slots to temporary slice.
-    #[error("failed to write state slots to temporary slice: {0}")]
-    WriteStateSlots(#[from] WriteStateSlotsError),
     /// Constraint checking failed.
     #[error("constraint checking failed: {0}")]
     Constraints(#[from] IntentConstraintsError),
@@ -147,22 +139,6 @@ pub struct InvalidDecisionVariablesLength {
     pub data: usize,
     /// Number of decision variables expected by the solution data's associated intent.
     pub intent: u32,
-}
-
-/// Failed to write state slots.
-#[derive(Debug, Error)]
-pub enum WriteStateSlotsError {
-    /// No program index matching state read index.
-    #[error("no program index matching state read index {0}")]
-    NoProgramIndexMatchingStateReadIndex(u16),
-    /// Length of read state slots does not match expected length.
-    #[error("length of read state slots ({found}) does not match expected length ({expected})")]
-    StateSlotLengthMismatch {
-        /// The number of read state slots.
-        found: usize,
-        /// The expected number of state slots.
-        expected: usize,
-    },
 }
 
 /// [`check_intent_constraints`] error.
@@ -337,7 +313,7 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
             if !mut_keys.insert((intent_addr, &mutation.key)) {
                 return Err(InvalidStateMutations::MultipleMutationsForSlot(
                     intent_addr.clone(),
-                    mutation.key,
+                    mutation.key.clone(),
                 ));
             }
         }
@@ -382,12 +358,6 @@ where
     SB::Future: Send,
     SA::Error: Send,
 {
-    // Check decision variable lengths before spawning tasks.
-    if let Err((ix, err)) = check_decision_variable_lengths(&solution, &get_intent) {
-        let failed = vec![(ix, IntentError::DecisionVariablesMismatch(err))];
-        return Err(IntentErrors(failed).into());
-    }
-
     #[cfg(feature = "tracing")]
     tracing::trace!("{}", essential_hash::content_addr(&*solution));
 
@@ -462,31 +432,6 @@ where
     Ok((utility, total_gas))
 }
 
-/// Validate the solution data decision variables against those expected by their associated intent.
-///
-/// This function assumes that `Solution` and `Intent` have already been
-/// independently validated, and may `panic!` otherwise.
-///
-/// Upon error, returns the index of the failed data alongside the error.
-pub fn check_decision_variable_lengths(
-    solution: &Solution,
-    get_intent: impl Fn(&IntentAddress) -> Arc<Intent>,
-) -> Result<(), (u16, InvalidDecisionVariablesLength)> {
-    for (ix, data) in solution.data.iter().enumerate() {
-        let intent = get_intent(&data.intent_to_solve);
-        // Ensure the numbers match.
-        if data.decision_variables.len() != intent.slots.decision_variables as usize {
-            let err = InvalidDecisionVariablesLength {
-                data: data.decision_variables.len(),
-                intent: intent.slots.decision_variables,
-            };
-            let ix = u16::try_from(ix).expect("solution data length already validated");
-            return Err((ix, err));
-        }
-    }
-    Ok(())
-}
-
 /// Checks a solution against a single intent using the solution data at the given index.
 ///
 /// Reads all pre and post state slots into memory, then checks all constraints.
@@ -525,26 +470,19 @@ where
     SA: StateRead + Sync,
     SB: StateRead<Error = SA::Error> + Sync,
 {
-    // Get the length of state slots for this intent.
-    let intent_state_len: usize = slots::state_len(&intent.slots.state)
-        .expect("intent state slot length must be validated prior to calling `check_intent`")
-        .try_into()
-        .expect("`u32` to `usize` conversion cannot fail on 32 or 64-bit machines");
-
     // Track the total gas spent over all execution.
     let mut total_gas = 0;
 
     // Initialize pre and post slots. These will contain all state slots for all state reads.
-    let mut pre_slots: Vec<Option<Word>> = vec![None; intent_state_len];
-    let mut post_slots: Vec<Option<Word>> = vec![None; intent_state_len];
+    let mut pre_slots: Vec<Vec<Word>> = Vec::new();
+    let mut post_slots: Vec<Vec<Word>> = Vec::new();
     let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
     let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
 
     // Read pre and post states.
     for (state_read_index, state_read) in intent.state_read.iter().enumerate() {
-        let state_read_index: u16 = state_read_index
-            .try_into()
-            .expect("intent state read count checked previously");
+        #[cfg(not(feature = "tracing"))]
+        let _ = state_read_index;
 
         // Map the bytecode ops ahead of execution to share the mapping
         // between both pre and post state slot reads.
@@ -570,12 +508,7 @@ where
         let (gas, new_pre_slots) = future.await?;
 
         total_gas += gas;
-        write_state_slots(
-            state_read_index,
-            &intent.slots.state,
-            &mut pre_slots,
-            &new_pre_slots,
-        )?;
+        pre_slots.extend(new_pre_slots);
 
         // Read post state slots and write them to the post_slots slice.
         let future = read_state_slots(
@@ -597,12 +530,7 @@ where
         let (gas, new_post_slots) = future.await?;
 
         total_gas += gas;
-        write_state_slots(
-            state_read_index,
-            &intent.slots.state,
-            &mut post_slots,
-            &new_post_slots,
-        )?;
+        post_slots.extend(new_post_slots);
     }
 
     // Check constraints.
@@ -628,7 +556,7 @@ async fn read_state_slots<S>(
     bytecode_mapped: &BytecodeMapped<&[u8]>,
     access: Access<'_>,
     state_read: &S,
-) -> Result<(Gas, Box<StateSlotSlice>), state_read_vm::error::StateReadError<S::Error>>
+) -> Result<(Gas, Vec<Vec<Word>>), state_read_vm::error::StateReadError<S::Error>>
 where
     S: StateRead,
 {
@@ -646,45 +574,7 @@ where
         )
         .await?;
 
-    Ok((gas_spent, vm.into_state_slots().into_boxed_slice()))
-}
-
-/// Write to the correct slots based on the state read index.
-fn write_state_slots(
-    state_read_index: u16,
-    state_slots: &[StateSlot],
-    slots: &mut StateSlotSlice,
-    output_slots: &StateSlotSlice,
-) -> Result<(), WriteStateSlotsError> {
-    // Find the state slot by matching the state read index with the program index.
-    let Some(slots) = state_slots
-        .iter()
-        .find(|slot| slot.program_index == state_read_index)
-        .and_then(|slot| {
-            let start: usize = slot.index.try_into().ok()?;
-            let end: usize = slot.amount.try_into().ok()?;
-            let end = end.checked_add(start)?;
-            slots.get_mut(start..end)
-        })
-    else {
-        return Err(WriteStateSlotsError::NoProgramIndexMatchingStateReadIndex(
-            state_read_index,
-        ));
-    };
-
-    // The length of the output slots must match the length of the slots
-    // that are being written to.
-    if slots.len() != output_slots.len() {
-        return Err(WriteStateSlotsError::StateSlotLengthMismatch {
-            found: output_slots.len(),
-            expected: slots.len(),
-        });
-    }
-
-    // Write the output slots to the correct position in the slots.
-    slots.copy_from_slice(output_slots);
-
-    Ok(())
+    Ok((gas_spent, vm.into_state_slots()))
 }
 
 /// Checks if the given solution data at the given index satisfies the
