@@ -2,16 +2,16 @@
 #![deny(missing_docs)]
 //! # Common types for Essential Chain.
 
+use ::serde::{Deserialize, Serialize};
 use core::time::Duration;
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use solution::Solution;
 
 pub mod convert;
 pub mod fmt;
 pub mod intent;
-pub mod signature_ser;
+pub mod serde;
 pub mod solution;
 
 /// Constraint code serialized as json.
@@ -32,17 +32,16 @@ pub type Hash = [u8; 32];
 /// Externally owned account.
 pub type Eoa = [u8; 32];
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Recoverable ECDSA signature over some data.
 pub struct Signature(
     /// Compact signature
-    #[serde(with = "signature_ser")]
     pub [u8; 64],
     /// ID used for public key recovery
     pub u8,
 );
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Content address of an intent or set of intents.
 pub struct ContentAddress(pub Hash);

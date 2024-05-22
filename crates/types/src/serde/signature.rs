@@ -1,27 +1,42 @@
 //! Helpers for serializing and deserializing `Signature` types.
+//!
+//! Serializes the signature as a sequence of 65 bytes (64 for the signature, 1 for the ID).
+//!
+//! Human readable serialization formats are serialized as a 65-byte, base64-encoded string.
 
-use serde::{Deserialize, Deserializer, Serializer};
+pub use super::hash::{deserialize, serialize, BASE64};
+use crate::Signature;
+use base64::Engine;
+use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 
-/// Serialize a `Signature.data` as a byte array.
-pub fn serialize<S>(value: &[u8; 64], serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_bytes(&value[..])
+impl Serialize for Signature {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if serializer.is_human_readable() {
+            let bytes: [u8; 65] = self.clone().into();
+            let string = BASE64.encode(bytes);
+            string.serialize(serializer)
+        } else {
+            let mut seq = serializer.serialize_seq(Some(self.0.len() + 1))?;
+            for b in &self.0 {
+                seq.serialize_element(b)?;
+            }
+            seq.serialize_element(&self.1)?;
+            seq.end()
+        }
+    }
 }
 
-/// Deserialize a `Signature.data` from a byte array.
-pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 64], D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let bytes = Vec::<u8>::deserialize(deserializer)?;
-    if bytes.len() != 64 {
-        return Err(serde::de::Error::custom("invalid length"));
+impl<'de> Deserialize<'de> for Signature {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: [u8; 65] = crate::serde::hash::deserialize(d)?;
+        Ok(bytes.into())
     }
-    let mut result = [0; 64];
-    result.copy_from_slice(&bytes);
-    Ok(result)
 }
 
 #[cfg(feature = "schema")]

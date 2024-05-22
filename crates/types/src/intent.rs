@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ConstraintBytecode, StateReadBytecode};
+use crate::{serde::bytecode, ConstraintBytecode, StateReadBytecode};
 
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
@@ -13,8 +13,16 @@ use schemars::JsonSchema;
 /// An individual intent to be solved.
 pub struct Intent {
     /// The programs that read state.
+    #[serde(
+        serialize_with = "bytecode::serialize_vec",
+        deserialize_with = "bytecode::deserialize_vec"
+    )]
     pub state_read: Vec<StateReadBytecode>,
     /// The programs that check constraints.
+    #[serde(
+        serialize_with = "bytecode::serialize_vec",
+        deserialize_with = "bytecode::deserialize_vec"
+    )]
     pub constraints: Vec<ConstraintBytecode>,
     /// The directive for the intent.
     pub directive: Directive,
