@@ -17,7 +17,6 @@
 //!
 //! ## Solution Validation
 //!
-//! - [`solution::check_signed`] validates a signed solution.
 //! - [`solution::check`] validates an unsigned solution.
 //! - [`solution::check_data`] validates a solution's data slice.
 //! - [`solution::check_state_mutations`] validates a solution's state mutation slice.

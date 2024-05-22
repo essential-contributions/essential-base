@@ -90,7 +90,7 @@ pub struct Block {
 /// A batch of solutions
 pub struct Batch {
     /// The solutions in the batch.
-    pub solutions: Vec<Signed<Solution>>,
+    pub solutions: Vec<Solution>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
