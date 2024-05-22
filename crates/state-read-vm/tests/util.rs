@@ -116,7 +116,7 @@ impl State {
                 .ok_or(InvalidStateRead)?
                 .get(&key)
                 .cloned()
-                .unwrap_or_else(|| Vec::with_capacity(0));
+                .unwrap_or_default();
             words.push(opt);
             key = next_key(key).ok_or(InvalidStateRead)?;
         }
