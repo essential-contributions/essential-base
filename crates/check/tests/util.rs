@@ -189,7 +189,7 @@ pub fn test_intent_42(entropy: Word) -> Intent {
 }
 
 pub fn intent_set_addr(intents: &Signed<Vec<Intent>>) -> ContentAddress {
-    ContentAddress(essential_hash::hash(&intents.data))
+    essential_hash::intent_set_addr::from_intents(&intents.data)
 }
 
 pub fn intent_addr(intents: &Signed<Vec<Intent>>, ix: usize) -> IntentAddress {

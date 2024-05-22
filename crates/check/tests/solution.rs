@@ -242,7 +242,7 @@ async fn check_intent_42_with_solution() {
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(ContentAddress(essential_hash::hash(&intents.data)));
+    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 
@@ -399,7 +399,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(ContentAddress(essential_hash::hash(&intents.data)));
+    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 

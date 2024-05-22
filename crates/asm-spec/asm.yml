@@ -476,6 +476,7 @@ StateRead:
         into state slots starting at the slot index.
 
         The key is lexographically incremented for each value read.
+        All keys are assumed to be the same length.
 
         Returns the values onto the stack, followed by their indices.
       stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]
