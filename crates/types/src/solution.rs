@@ -59,7 +59,7 @@ pub struct Mutation {
     pub key: Key,
     /// Value to set the key to.
     /// None means the value is being deleted.
-    pub value: Option<Word>,
+    pub value: Vec<Word>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

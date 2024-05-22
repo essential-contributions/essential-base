@@ -1,10 +1,7 @@
 use essential_check::intent;
 use essential_sign::sign;
-use essential_types::{
-    intent::{Directive, Intent},
-    slots::{Slots, StateSlot},
-};
-use util::{empty_intent, empty_state_slot, random_keypair};
+use essential_types::intent::{Directive, Intent};
+use util::{empty_intent, random_keypair};
 
 pub mod util;
 
@@ -37,69 +34,6 @@ fn too_many_intents() {
         intent::check_signed_set(&signed).unwrap_err(),
         intent::InvalidSignedSet::Set(intent::InvalidSet::TooManyIntents(n))
             if n == intent::MAX_INTENTS + 1
-    ));
-}
-
-#[test]
-fn too_many_decision_variables() {
-    let mut intent = empty_intent();
-    intent.slots = Slots {
-        decision_variables: intent::MAX_DECISION_VARIABLES + 1,
-        state: Default::default(),
-    };
-    assert!(matches!(
-        intent::check(&intent).unwrap_err(),
-        intent::InvalidIntent::Slots(intent::InvalidSlots::TooManyDecisionVariables(n))
-            if n == intent::MAX_DECISION_VARIABLES + 1
-    ));
-}
-
-#[test]
-fn too_many_state_slots() {
-    let mut intent = empty_intent();
-    intent.slots = Slots {
-        decision_variables: Default::default(),
-        state: vec![empty_state_slot(); intent::MAX_NUM_STATE_SLOTS + 1],
-    };
-    assert!(matches!(
-        intent::check(&intent).unwrap_err(),
-        intent::InvalidIntent::Slots(intent::InvalidSlots::TooManyStateSlots(n))
-            if n == intent::MAX_NUM_STATE_SLOTS + 1
-    ));
-}
-
-#[test]
-fn state_slot_length_exceeds_limit() {
-    let mut intent = empty_intent();
-    intent.slots = Slots {
-        decision_variables: Default::default(),
-        state: vec![StateSlot {
-            index: u32::MAX,
-            amount: 1,
-            program_index: Default::default(),
-        }],
-    };
-    assert!(matches!(
-        intent::check(&intent).unwrap_err(),
-        intent::InvalidIntent::Slots(intent::InvalidSlots::StateSlotLengthExceedsLimit(None)),
-    ));
-}
-
-#[test]
-fn test_fail_state_slots_length_too_large() {
-    let mut intent = empty_intent();
-    intent.slots = Slots {
-        decision_variables: Default::default(),
-        state: vec![StateSlot {
-            index: Default::default(),
-            amount: intent::MAX_STATE_LEN + 1,
-            program_index: Default::default(),
-        }],
-    };
-    assert!(matches!(
-        intent::check(&intent).unwrap_err(),
-        intent::InvalidIntent::Slots(intent::InvalidSlots::StateSlotLengthExceedsLimit(Some(n)))
-            if n == intent::MAX_STATE_LEN + 1,
     ));
 }
 
