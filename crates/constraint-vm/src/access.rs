@@ -1,7 +1,7 @@
 //! Access operation implementations.
 
 use crate::{
-    error::{AccessError, StackError},
+    error::{AccessError, OpError, StackError},
     repeat::Repeat,
     types::convert::bool_from_word,
     OpResult, Stack,
@@ -275,13 +275,13 @@ pub(crate) fn transient_len(stack: &mut Stack, solution: SolutionAccess) -> OpRe
     let pathway = stack.pop()?;
     let pathway =
         SolutionDataIndex::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
-    let length = stack.pop_len_words::<_, _, StackError>(|key| {
+    let length = stack.pop_len_words::<_, _, OpError>(|key| {
         let value = solution
             .transient_data
             .get(&pathway)
-            .ok_or(StackError::IndexOutOfBounds)?
+            .ok_or(AccessError::TransientDataOutOfBounds)?
             .get(key)
-            .ok_or(StackError::IndexOutOfBounds)?;
+            .ok_or(AccessError::TransientDataKeyOutOfBounds)?;
         Ok(value.len())
     })?;
     let length = Word::try_from(length).map_err(|_| AccessError::TransientDataOutOfBounds)?;
@@ -330,6 +330,7 @@ pub(crate) fn this_transient_contains(
     stack.push(contains)?;
     Ok(())
 }
+
 /// Resolve the decision variable by traversing any necessary transient data.
 ///
 /// Errors if the solution data or decision var indices are out of bounds
