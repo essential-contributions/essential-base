@@ -6,7 +6,7 @@ use crate::{error::AccessError, repeat::Repeat, types::convert::bool_from_word, 
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
-    solution::{DecisionVariable, Solution, SolutionData, SolutionDataIndex},
+    solution::{Solution, SolutionData, SolutionDataIndex},
     Key,
 };
 
@@ -233,31 +233,17 @@ pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()>
 /// occurs between transient decision variables.
 pub(crate) fn resolve_decision_var(
     data: &[SolutionData],
-    mut data_ix: usize,
-    mut var_ix: usize,
+    data_ix: usize,
+    var_ix: usize,
 ) -> Result<Word, AccessError> {
-    // Track visited vars `(data_ix, var_ix)` to ensure we do not enter a cycle.
-    let mut visited = std::collections::HashSet::new();
-    loop {
-        let solution_data = data
-            .get(data_ix)
-            .ok_or(AccessError::SolutionDataOutOfBounds)?;
-        let dec_var = solution_data
-            .decision_variables
-            .get(var_ix)
-            .ok_or(AccessError::DecisionSlotOutOfBounds)?;
-        match *dec_var {
-            DecisionVariable::Inline(w) => return Ok(w),
-            DecisionVariable::Transient(ref transient) => {
-                // We're traversing transient data, so make sure we track vars already visited.
-                if !visited.insert((data_ix, var_ix)) {
-                    return Err(AccessError::TransientDecisionVariableCycle);
-                }
-                data_ix = transient.solution_data_index.into();
-                var_ix = transient.variable_index.into();
-            }
-        }
-    }
+    let solution_data = data
+        .get(data_ix)
+        .ok_or(AccessError::SolutionDataOutOfBounds)?;
+    solution_data
+        .decision_variables
+        .get(var_ix)
+        .copied()
+        .ok_or(AccessError::DecisionSlotOutOfBounds)
 }
 
 fn state_slot(slots: StateSlots, slot: Word, delta: Word) -> OpResult<&Vec<Word>> {

@@ -11,9 +11,7 @@ use crate::{
     },
     types::{
         intent::{Directive, Intent},
-        solution::{
-            DecisionVariable, DecisionVariableIndex, Solution, SolutionData, SolutionDataIndex,
-        },
+        solution::{Solution, SolutionData, SolutionDataIndex},
         IntentAddress, Key, Word,
     },
 };
@@ -60,12 +58,6 @@ pub enum InvalidSolutionData {
     /// A solution data expects too many decision variables.
     #[error("data {0} expects too many decision vars {1} (limit: {MAX_DECISION_VARIABLES})")]
     TooManyDecisionVariables(usize, usize),
-    /// A decision variable fails to resolve within the solution's data.
-    #[error("the following decision variable fails to resolve: {0:?}")]
-    UnresolvingDecisionVariable(DecisionVariableIndex),
-    /// A set of decision variables were found to cause a cycle during resolution.
-    #[error("the following set of decision variables form a cycle: {0:?}")]
-    DecisionVariablesCycle(HashSet<DecisionVariableIndex>),
 }
 
 /// [`check_state_mutations`] error.
@@ -202,11 +194,7 @@ pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData
         return Err(InvalidSolutionData::TooMany(data_slice.len()));
     }
 
-    // Check whether we have too many decision vars, or if any don't resolve.
-    // We track already `resolved` variables to avoid checking them multiple times.
-    // We re-use a `visited` set between transient entry points to check for cycles.
-    let mut resolved = HashSet::new();
-    let mut visited = HashSet::new(); // Re-used to track visited dec vars, checking for cycles.
+    // Check whether we have too many decision vars
     for (data_ix, data) in data_slice.iter().enumerate() {
         // Ensure the length limit is not exceeded.
         if data.decision_variables.len() > MAX_DECISION_VARIABLES as usize {
@@ -214,49 +202,6 @@ pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData
                 data_ix,
                 data.decision_variables.len(),
             ));
-        }
-
-        // Ensure that all transient decision variables resolve without cycling.
-        for var_ix in 0..data.decision_variables.len() {
-            let mut ix = DecisionVariableIndex {
-                solution_data_index: u16::try_from(data_ix).expect("checked prev"),
-                variable_index: u16::try_from(var_ix).expect("checked prev"),
-            };
-
-            // If we already know this resolves because it was previously
-            // visited in a successful resolution, we can skip the following check.
-            if resolved.contains(&ix) {
-                continue;
-            }
-
-            // Reset our visited set.
-            visited.clear();
-            loop {
-                let dec_var = data_slice
-                    .get(ix.solution_data_index as usize)
-                    .and_then(|data| data.decision_variables.get(ix.variable_index as usize))
-                    .ok_or(InvalidSolutionData::UnresolvingDecisionVariable(ix))?;
-
-                // We managed to resolve both data and the dec var for this index.
-                let already_resolved = !resolved.insert(ix);
-
-                match *dec_var {
-                    DecisionVariable::Inline(_w) => break,
-                    DecisionVariable::Transient(ref transient) => {
-                        // We're traversing transient data, so track vars already visited.
-                        if !visited.insert(ix) {
-                            return Err(InvalidSolutionData::DecisionVariablesCycle(visited));
-                        }
-                        // Now that we know we're not cycling and this transient
-                        // var has already been resolved before, we're done.
-                        if already_resolved {
-                            break;
-                        }
-                        // Otherwise, continue resolving.
-                        ix = *transient;
-                    }
-                }
-            }
         }
     }
     Ok(())
