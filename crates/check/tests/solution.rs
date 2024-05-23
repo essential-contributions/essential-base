@@ -4,9 +4,7 @@ use essential_constraint_vm as constraint_vm;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
     intent::{Directive, Intent},
-    solution::{
-        DecisionVariable, DecisionVariableIndex, Mutation, Solution, SolutionData, StateMutation,
-    },
+    solution::{Mutation, Solution, SolutionData, StateMutation},
     ContentAddress, IntentAddress,
 };
 use std::sync::Arc;
@@ -64,10 +62,7 @@ fn too_many_decision_variables() {
     let solution = Solution {
         data: vec![SolutionData {
             intent_to_solve: test_intent_addr(),
-            decision_variables: vec![
-                DecisionVariable::Inline(0);
-                (solution::MAX_DECISION_VARIABLES + 1) as usize
-            ],
+            decision_variables: vec![0; (solution::MAX_DECISION_VARIABLES + 1) as usize],
         }],
         ..empty_solution()
     };
@@ -75,77 +70,6 @@ fn too_many_decision_variables() {
         solution::check(&solution).unwrap_err(),
         solution::InvalidSolution::Data(solution::InvalidSolutionData::TooManyDecisionVariables(0, n))
             if n == solution::MAX_DECISION_VARIABLES as usize + 1
-    ));
-}
-
-#[test]
-fn unresolving_decision_variable() {
-    let dec_var_ix = DecisionVariableIndex {
-        solution_data_index: 0,
-        variable_index: 42,
-    };
-    let solution = Solution {
-        data: vec![SolutionData {
-            intent_to_solve: test_intent_addr(),
-            decision_variables: vec![DecisionVariable::Transient(dec_var_ix)],
-        }],
-        ..empty_solution()
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::Data(solution::InvalidSolutionData::UnresolvingDecisionVariable(ix))
-            if ix == dec_var_ix
-    ));
-}
-
-#[test]
-fn decision_variables_cycle() {
-    let solution = Solution {
-        data: vec![SolutionData {
-            intent_to_solve: test_intent_addr(),
-            decision_variables: vec![
-                DecisionVariable::Transient(DecisionVariableIndex {
-                    solution_data_index: 0,
-                    variable_index: 1,
-                }),
-                DecisionVariable::Transient(DecisionVariableIndex {
-                    solution_data_index: 0,
-                    variable_index: 0,
-                }),
-            ],
-        }],
-        ..empty_solution()
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::Data(solution::InvalidSolutionData::DecisionVariablesCycle(_))
-    ));
-}
-
-#[test]
-fn decision_variables_cycle_via_data() {
-    let solution = Solution {
-        data: vec![
-            SolutionData {
-                intent_to_solve: test_intent_addr(),
-                decision_variables: vec![DecisionVariable::Transient(DecisionVariableIndex {
-                    solution_data_index: 1,
-                    variable_index: 0,
-                })],
-            },
-            SolutionData {
-                intent_to_solve: test_intent_addr(),
-                decision_variables: vec![DecisionVariable::Transient(DecisionVariableIndex {
-                    solution_data_index: 0,
-                    variable_index: 0,
-                })],
-            },
-        ],
-        ..empty_solution()
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::Data(solution::InvalidSolutionData::DecisionVariablesCycle(_))
     ));
 }
 

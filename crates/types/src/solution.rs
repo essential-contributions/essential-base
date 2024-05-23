@@ -28,27 +28,7 @@ pub struct SolutionData {
     /// Which intent this input data is for.
     pub intent_to_solve: IntentAddress,
     /// The decision variables for the intent.
-    pub decision_variables: Vec<DecisionVariable>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A decision variable for a solution.
-pub enum DecisionVariable {
-    /// An inline decision variable.
-    Inline(Word),
-    /// A decision variable from another intent in this solution.
-    Transient(DecisionVariableIndex),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// Index into the decision variables of a solution data.
-pub struct DecisionVariableIndex {
-    /// The solution data that this decision variable is from.
-    pub solution_data_index: SolutionDataIndex,
-    /// The index into the decision variables of the solution data.
-    pub variable_index: u16,
+    pub decision_variables: Vec<Word>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

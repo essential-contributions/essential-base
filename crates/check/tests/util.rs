@@ -5,7 +5,7 @@ use essential_check::{
     state_read_vm::StateRead,
     types::{
         intent::{Directive, Intent},
-        solution::{DecisionVariable, Mutation, Solution, SolutionData, StateMutation},
+        solution::{Mutation, Solution, SolutionData, StateMutation},
         ContentAddress, IntentAddress, Key, Signed, Word,
     },
 };
@@ -209,7 +209,7 @@ pub fn test_intent_42_solution_pair(
 
     // Construct the solution decision variables.
     // The first is an inline variable 42.
-    let decision_variables = vec![DecisionVariable::Inline(42)];
+    let decision_variables = vec![42];
 
     // Create the solution.
     let solution = Solution {

@@ -2,10 +2,7 @@ use std::collections::HashSet;
 
 use essential_constraint_asm as asm;
 use essential_constraint_vm::{eval_ops, Access, SolutionAccess, StateSlots};
-use essential_types::{
-    solution::{DecisionVariable, SolutionData},
-    ContentAddress, IntentAddress,
-};
+use essential_types::{solution::SolutionData, ContentAddress, IntentAddress};
 
 #[test]
 fn test_forall_in_asm() {
@@ -17,13 +14,7 @@ fn test_forall_in_asm() {
                     set: ContentAddress([0; 32]),
                     intent: ContentAddress([0; 32]),
                 },
-                decision_variables: vec![
-                    DecisionVariable::Inline(2),
-                    DecisionVariable::Inline(4),
-                    DecisionVariable::Inline(6),
-                    DecisionVariable::Inline(8),
-                    DecisionVariable::Inline(12),
-                ],
+                decision_variables: vec![2, 4, 6, 8, 12],
             }],
             index: 0,
             mutable_keys: &mutable_keys,
