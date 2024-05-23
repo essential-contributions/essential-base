@@ -15,6 +15,7 @@ use crate::{
         IntentAddress, Key, Word,
     },
 };
+use constraint_vm::TransientData;
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
 use std::{collections::HashSet, fmt, sync::Arc};
@@ -282,6 +283,8 @@ where
     #[cfg(feature = "tracing")]
     tracing::trace!("{}", essential_hash::content_addr(&*solution));
 
+    let transient_data: Arc<TransientData> =
+        Arc::new(essential_constraint_vm::transient_data(&solution));
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
     for (solution_data_index, data) in solution.data.iter().enumerate() {
@@ -290,6 +293,7 @@ where
             .expect("solution data index already validated");
         let intent = get_intent(&data.intent_to_solve);
         let solution = solution.clone();
+        let transient_data = transient_data.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         let config = config.clone();
@@ -304,6 +308,7 @@ where
                 intent,
                 solution_data_index,
                 &config,
+                transient_data,
             )
             .await;
             (solution_data_index, res)
@@ -386,6 +391,7 @@ pub async fn check_intent<SA, SB>(
     intent: Arc<Intent>,
     solution_data_index: SolutionDataIndex,
     config: &CheckIntentConfig,
+    transient_data: Arc<TransientData>,
 ) -> Result<(Utility, Gas), IntentError<SA::Error>>
 where
     SA: StateRead + Sync,
@@ -398,7 +404,12 @@ where
     let mut pre_slots: Vec<Vec<Word>> = Vec::new();
     let mut post_slots: Vec<Vec<Word>> = Vec::new();
     let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-    let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
+    let solution_access = SolutionAccess::new(
+        &solution,
+        solution_data_index,
+        &mutable_keys,
+        &transient_data,
+    );
 
     // Read pre and post states.
     for (state_read_index, state_read) in intent.state_read.iter().enumerate() {
@@ -462,6 +473,7 @@ where
         Arc::from(pre_slots.into_boxed_slice()),
         Arc::from(post_slots.into_boxed_slice()),
         config,
+        transient_data,
     )
     .await?;
 
@@ -510,6 +522,7 @@ pub async fn check_intent_constraints(
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
     config: &CheckIntentConfig,
+    transient_data: Arc<TransientData>,
 ) -> Result<Utility, IntentConstraintsError> {
     match check_intent_constraints_parallel(
         solution.clone(),
@@ -518,6 +531,7 @@ pub async fn check_intent_constraints(
         pre_slots.clone(),
         post_slots.clone(),
         config,
+        transient_data.clone(),
     )
     .await
     {
@@ -531,6 +545,7 @@ pub async fn check_intent_constraints(
                 intent.clone(),
                 pre_slots,
                 post_slots,
+                transient_data,
             )
             .await
             {
@@ -562,6 +577,7 @@ async fn check_intent_constraints_parallel(
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
     config: &CheckIntentConfig,
+    transient_data: Arc<TransientData>,
 ) -> Result<(), IntentConstraintsError> {
     let mut handles = Vec::with_capacity(intent.constraints.len());
 
@@ -575,6 +591,7 @@ async fn check_intent_constraints_parallel(
 
         // These are all cheap Arc clones.
         let solution = solution.clone();
+        let transient_data = transient_data.clone();
         let pre_slots = pre_slots.clone();
         let post_slots = post_slots.clone();
         let intent = intent.clone();
@@ -589,8 +606,12 @@ async fn check_intent_constraints_parallel(
             let guard = span.enter();
 
             let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-            let solution_access =
-                SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
+            let solution_access = SolutionAccess::new(
+                &solution,
+                solution_data_index,
+                &mutable_keys,
+                &transient_data,
+            );
             let access = Access {
                 solution: solution_access,
                 state_slots: StateSlots {
@@ -662,6 +683,7 @@ async fn calculate_utility(
     intent: Arc<Intent>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
+    transient_data: Arc<TransientData>,
 ) -> Result<Utility, UtilityError> {
     match &intent.directive {
         Directive::Satisfy => return Ok(1.0),
@@ -681,7 +703,12 @@ async fn calculate_utility(
         let guard = span.enter();
 
         let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-        let solution_access = SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
+        let solution_access = SolutionAccess::new(
+            &solution,
+            solution_data_index,
+            &mutable_keys,
+            &transient_data,
+        );
         let access = Access {
             solution: solution_access,
             state_slots: StateSlots {

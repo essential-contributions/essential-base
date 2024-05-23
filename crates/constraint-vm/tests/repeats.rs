@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use essential_constraint_asm as asm;
 use essential_constraint_vm::{eval_ops, Access, SolutionAccess, StateSlots};
@@ -7,6 +7,7 @@ use essential_types::{solution::SolutionData, ContentAddress, IntentAddress};
 #[test]
 fn test_forall_in_asm() {
     let mutable_keys = HashSet::with_capacity(0);
+    let transient_data = HashMap::with_capacity(0);
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
@@ -18,6 +19,7 @@ fn test_forall_in_asm() {
             }],
             index: 0,
             mutable_keys: &mutable_keys,
+            transient_data: &transient_data,
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -55,6 +57,7 @@ fn test_forall_in_asm() {
 #[test]
 fn test_fold_filter_in_asm() {
     let mutable_keys = HashSet::with_capacity(0);
+    let transient_data = HashMap::with_capacity(0);
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
@@ -66,6 +69,7 @@ fn test_fold_filter_in_asm() {
             }],
             index: 0,
             mutable_keys: &mutable_keys,
+            transient_data: &transient_data,
         },
         state_slots: StateSlots::EMPTY,
     };

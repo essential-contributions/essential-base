@@ -201,6 +201,7 @@ async fn read_pre_post_state_and_check_constraints() {
             intent_to_solve: intent_addr.clone(),
             decision_variables: vec![],
         }],
+        transient_data: vec![],
         // We have one mutation that sets a missing value to 41.
         state_mutations: vec![StateMutation {
             pathway: 0,
@@ -218,7 +219,12 @@ async fn read_pre_post_state_and_check_constraints() {
 
     // Construct access to the necessary solution data for the VM.
     let mut access = Access {
-        solution: SolutionAccess::new(&solution, intent_index, &mutable_keys),
+        solution: SolutionAccess::new(
+            &solution,
+            intent_index,
+            &mutable_keys,
+            test_transient_data(),
+        ),
         // Haven't calculated these yet.
         state_slots: StateSlots::EMPTY,
     };
