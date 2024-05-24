@@ -45,6 +45,9 @@ pub enum InvalidSolution {
     /// State mutations validation failed.
     #[error("state mutations validation failed: {0}")]
     StateMutations(#[from] InvalidStateMutations),
+    /// Transient data validation failed.
+    #[error("transient data validation failed: {0}")]
+    TransientData(#[from] InvalidTransientData),
 }
 
 /// [`check_data`] error.
@@ -73,6 +76,17 @@ pub enum InvalidStateMutations {
     /// Discovered multiple mutations to the same slot.
     #[error("attempt to apply multiple mutations to the same slot: {0:?} {1:?}")]
     MultipleMutationsForSlot(IntentAddress, Key),
+}
+
+/// [`check_transient_data`] error.
+#[derive(Debug, Error)]
+pub enum InvalidTransientData {
+    /// The number of transient data exceeds the limit.
+    #[error("the number of transient data ({0}) exceeds the limit ({MAX_TRANSIENT_DATA})")]
+    TooMany(usize),
+    /// Transient data pathway at the given index is out of range of solution data.
+    #[error("transient data pathway {0} out of range of solution data")]
+    PathwayOutOfRangeOfSolutionData(u16),
 }
 
 /// [`check_intents`] error.
@@ -161,6 +175,8 @@ pub const MAX_DECISION_VARIABLES: u32 = 100;
 pub const MAX_SOLUTION_DATA: usize = 100;
 /// Maximum number of state mutations of a solution.
 pub const MAX_STATE_MUTATIONS: usize = 1000;
+/// Maximum number of transient data of a solution.
+pub const MAX_TRANSIENT_DATA: usize = 1000;
 
 impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -180,6 +196,7 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
+    check_transient_data(solution)?;
     Ok(())
 }
 
@@ -238,6 +255,26 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
                     mutation.key.clone(),
                 ));
             }
+        }
+    }
+
+    Ok(())
+}
+
+/// Validate the solution's transient data.
+pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidTransientData> {
+    // Validate transient data.
+    // Ensure that solution transient data length is below limit length.
+    if solution.transient_data.len() > MAX_TRANSIENT_DATA {
+        return Err(InvalidTransientData::TooMany(solution.transient_data.len()));
+    }
+
+    // Ensure that all transient data with a pathway points to some solution data.
+    for transient_datum in &solution.transient_data {
+        if solution.data.len() <= usize::from(transient_datum.pathway) {
+            return Err(InvalidTransientData::PathwayOutOfRangeOfSolutionData(
+                transient_datum.pathway,
+            ));
         }
     }
 

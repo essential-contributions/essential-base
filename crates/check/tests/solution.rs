@@ -74,6 +74,20 @@ fn too_many_decision_variables() {
 }
 
 #[test]
+fn too_many_state_mutations() {
+    let solution = Solution {
+        data: vec![test_solution_data()],
+        transient_data: vec![],
+        state_mutations: vec![test_state_mutation(); solution::MAX_STATE_MUTATIONS + 1],
+    };
+    assert!(matches!(
+        solution::check(&solution).unwrap_err(),
+        solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::TooMany(n))
+            if n == solution::MAX_STATE_MUTATIONS + 1
+    ));
+}
+
+#[test]
 fn state_mutation_pathways_must_have_associated_solution_data() {
     let solution = Solution {
         state_mutations: vec![StateMutation {
@@ -89,20 +103,6 @@ fn state_mutation_pathways_must_have_associated_solution_data() {
         solution::InvalidSolution::StateMutations(
             solution::InvalidStateMutations::PathwayOutOfRangeOfSolutionData(1)
         ),
-    ));
-}
-
-#[test]
-fn too_many_state_mutations() {
-    let solution = Solution {
-        data: vec![test_solution_data()],
-        transient_data: vec![],
-        state_mutations: vec![test_state_mutation(); solution::MAX_STATE_MUTATIONS + 1],
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::TooMany(n))
-            if n == solution::MAX_STATE_MUTATIONS + 1
     ));
 }
 
@@ -126,6 +126,39 @@ fn multiple_mutations_for_slot() {
         solution::check(&solution).unwrap_err(),
         solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::MultipleMutationsForSlot(addr, key))
             if addr == test_intent_addr() && key == [0; 4]
+    ));
+}
+
+#[test]
+fn too_many_transient_data() {
+    let solution = Solution {
+        data: vec![test_solution_data()],
+        transient_data: vec![test_state_mutation(); solution::MAX_TRANSIENT_DATA + 1],
+        state_mutations: vec![],
+    };
+    assert!(matches!(
+        solution::check(&solution).unwrap_err(),
+        solution::InvalidSolution::TransientData(solution::InvalidTransientData::TooMany(n))
+            if n == solution::MAX_TRANSIENT_DATA + 1
+    ));
+}
+
+#[test]
+fn transient_data_pathways_must_have_associated_solution_data() {
+    let solution = Solution {
+        state_mutations: vec![],
+        transient_data: vec![StateMutation {
+            // Note: pathway out of bounds of solution data to trigger error.
+            pathway: 1,
+            mutations: Default::default(),
+        }],
+        data: vec![test_solution_data()],
+    };
+    assert!(matches!(
+        solution::check(&solution).unwrap_err(),
+        solution::InvalidSolution::TransientData(
+            solution::InvalidTransientData::PathwayOutOfRangeOfSolutionData(1)
+        ),
     ));
 }
 
