@@ -1,17 +1,24 @@
 //! Access operation implementations.
 
-use std::collections::HashSet;
-
-use crate::{error::AccessError, repeat::Repeat, types::convert::bool_from_word, OpResult, Stack};
+use crate::{
+    error::{AccessError, OpError, StackError},
+    repeat::Repeat,
+    types::convert::bool_from_word,
+    OpResult, Stack,
+};
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
     solution::{Solution, SolutionData, SolutionDataIndex},
     Key,
 };
+use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 mod tests;
+
+/// Transient data map.
+pub type TransientData = HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>>;
 
 /// All necessary solution data and state access required to check an individual intent.
 #[derive(Clone, Copy, Debug)]
@@ -35,6 +42,8 @@ pub struct SolutionAccess<'a> {
     pub index: usize,
     /// The keys being proposed for mutation for the intent.
     pub mutable_keys: &'a HashSet<&'a [Word]>,
+    /// The transient data that points to the data in another solution data index.
+    pub transient_data: &'a TransientData,
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -59,11 +68,13 @@ impl<'a> SolutionAccess<'a> {
         solution: &'a Solution,
         intent_index: SolutionDataIndex,
         mutable_keys: &'a HashSet<&[Word]>,
+        transient_data: &'a TransientData,
     ) -> Self {
         Self {
             data: &solution.data,
             index: intent_index.into(),
             mutable_keys,
+            transient_data,
         }
     }
 
@@ -74,6 +85,11 @@ impl<'a> SolutionAccess<'a> {
         self.data
             .get(self.index)
             .expect("intent index out of range of solution data")
+    }
+
+    /// The transient data associated with the intent currently being checked.
+    pub fn this_transient_data(&self) -> Option<&HashMap<Key, Vec<Word>>> {
+        self.transient_data.get(&(self.index as SolutionDataIndex))
     }
 }
 
@@ -119,6 +135,19 @@ pub fn mut_keys_slices(
 /// Get the set of mutable keys for this intent.
 pub fn mut_keys_set(solution: &Solution, intent_index: SolutionDataIndex) -> HashSet<&[Word]> {
     mut_keys_slices(solution, intent_index).collect()
+}
+
+/// Create a transient data map from the solution.
+pub fn transient_data(solution: &Solution) -> TransientData {
+    let mut transient_data = HashMap::new();
+    for mutation in &solution.transient_data {
+        let entry: &mut HashMap<Key, Vec<Word>> =
+            transient_data.entry(mutation.pathway).or_default();
+        for mutation in &mutation.mutations {
+            entry.insert(mutation.key.clone(), mutation.value.clone());
+        }
+    }
+    transient_data
 }
 
 /// `Access::DecisionVar` implementation.
@@ -224,6 +253,82 @@ pub(crate) fn this_pathway(index: usize, stack: &mut Stack) -> OpResult<()> {
 pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()> {
     let counter = repeat.counter()?;
     Ok(stack.push(counter)?)
+}
+
+pub(crate) fn transient(stack: &mut Stack, solution: SolutionAccess) -> OpResult<()> {
+    let pathway = stack.pop()?;
+    let pathway =
+        SolutionDataIndex::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
+    let value = stack.pop_len_words::<_, _, StackError>(|key| {
+        let value = solution
+            .transient_data
+            .get(&pathway)
+            .ok_or(StackError::IndexOutOfBounds)?
+            .get(key)
+            .ok_or(StackError::IndexOutOfBounds)?;
+        Ok(value.clone())
+    })?;
+    Ok(stack.extend(value)?)
+}
+
+pub(crate) fn transient_len(stack: &mut Stack, solution: SolutionAccess) -> OpResult<()> {
+    let pathway = stack.pop()?;
+    let pathway =
+        SolutionDataIndex::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
+    let length = stack.pop_len_words::<_, _, OpError>(|key| {
+        let value = solution
+            .transient_data
+            .get(&pathway)
+            .ok_or(AccessError::TransientDataOutOfBounds)?
+            .get(key)
+            .ok_or(AccessError::TransientDataKeyOutOfBounds)?;
+        Ok(value.len())
+    })?;
+    let length = Word::try_from(length).map_err(|_| AccessError::TransientDataOutOfBounds)?;
+    Ok(stack.push(length)?)
+}
+
+pub(crate) fn intent_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult<()> {
+    let pathway = stack.pop()?;
+    let pathway = usize::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
+    let address = data
+        .get(pathway)
+        .ok_or(StackError::IndexOutOfBounds)?
+        .intent_to_solve
+        .clone();
+    let set_address = word_4_from_u8_32(address.set.0);
+    let intent_address = word_4_from_u8_32(address.intent.0);
+    stack.extend(set_address)?;
+    stack.extend(intent_address)?;
+    Ok(())
+}
+
+pub(crate) fn this_transient_len(
+    stack: &mut Stack,
+    transient_data: Option<&HashMap<Key, Vec<Word>>>,
+) -> OpResult<()> {
+    let Some(transient_data) = transient_data else {
+        return Ok(stack.push(0)?);
+    };
+    let length = transient_data.len();
+    let length = Word::try_from(length).map_err(|_| AccessError::TransientDataOutOfBounds)?;
+    stack.push(length)?;
+    Ok(())
+}
+
+pub(crate) fn this_transient_contains(
+    stack: &mut Stack,
+    transient_data: Option<&HashMap<Key, Vec<Word>>>,
+) -> OpResult<()> {
+    let Some(transient_data) = transient_data else {
+        stack.pop_len_words::<_, _, StackError>(|_| Ok(()))?;
+        return Ok(stack.push(Word::from(false))?);
+    };
+    let contains =
+        stack.pop_len_words::<_, _, StackError>(|key| Ok(transient_data.contains_key(key)))?;
+    let contains = Word::from(contains);
+    stack.push(contains)?;
+    Ok(())
 }
 
 /// Resolve the decision variable by traversing any necessary transient data.

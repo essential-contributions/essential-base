@@ -2,12 +2,13 @@
 // are considered dead code.
 #![allow(dead_code)]
 
+use essential_constraint_vm::TransientData;
 use essential_state_read_vm::{
     types::{solution::SolutionData, ContentAddress, IntentAddress, Key, Word},
     Access, SolutionAccess, StateRead, StateSlots,
 };
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     future::{self, Ready},
 };
 use thiserror::Error;
@@ -28,6 +29,11 @@ pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
     INSTANCE.get_or_init(|| HashSet::with_capacity(0))
 }
 
+pub(crate) fn test_transient_data() -> &'static TransientData {
+    static INSTANCE: once_cell::sync::OnceCell<TransientData> = once_cell::sync::OnceCell::new();
+    INSTANCE.get_or_init(|| HashMap::with_capacity(0))
+}
+
 pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
     static INSTANCE: once_cell::sync::OnceCell<[SolutionData; 1]> =
         once_cell::sync::OnceCell::new();
@@ -40,6 +46,7 @@ pub(crate) fn test_solution_access() -> &'static SolutionAccess<'static> {
         data: test_solution_data_arr(),
         index: 0,
         mutable_keys: test_empty_keys(),
+        transient_data: test_transient_data(),
     })
 }
 

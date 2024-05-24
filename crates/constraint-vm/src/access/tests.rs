@@ -20,6 +20,7 @@ fn decision_var_inline() {
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
+            transient_data: test_transient_data(),
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -41,6 +42,7 @@ fn decision_var_range() {
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
+            transient_data: test_transient_data(),
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -63,6 +65,7 @@ fn decision_var_slot_oob() {
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
+            transient_data: test_transient_data(),
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -100,6 +103,7 @@ fn mut_keys_len() {
                 decision_variables: vec![],
             },
         ],
+        transient_data: Default::default(),
         // All state mutations, 3 of which point to the intent we're solving.
         state_mutations: vec![
             StateMutation {
@@ -139,7 +143,12 @@ fn mut_keys_len() {
 
     // Construct access to the parts of the solution that we need for checking.
     let access = Access {
-        solution: SolutionAccess::new(&solution, intent_index, &mutable_keys),
+        solution: SolutionAccess::new(
+            &solution,
+            intent_index,
+            &mutable_keys,
+            test_transient_data(),
+        ),
         state_slots: StateSlots::EMPTY,
     };
 
@@ -382,4 +391,129 @@ fn this_set_address() {
     let stack = exec_ops(ops, *test_access()).unwrap();
     let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.set.0);
     assert_eq!(&stack[..], expected_words);
+}
+
+#[test]
+fn transient() {
+    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
+        .into_iter()
+        .collect();
+    let access = Access {
+        solution: SolutionAccess {
+            data: test_solution_data_arr(),
+            index: 0,
+            mutable_keys: test_empty_keys(),
+            transient_data: &transient_data,
+        },
+        state_slots: StateSlots::EMPTY,
+    };
+    let ops = &[
+        asm::Stack::Push(3).into(),
+        asm::Stack::Push(1).into(),
+        asm::Stack::Push(0).into(),
+        asm::Access::Transient.into(),
+    ];
+    let stack = exec_ops(ops, access).unwrap();
+    assert_eq!(&stack[..], &[2]);
+}
+
+#[test]
+fn transient_len() {
+    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
+        .into_iter()
+        .collect();
+    let access = Access {
+        solution: SolutionAccess {
+            data: test_solution_data_arr(),
+            index: 0,
+            mutable_keys: test_empty_keys(),
+            transient_data: &transient_data,
+        },
+        state_slots: StateSlots::EMPTY,
+    };
+    let ops = &[
+        asm::Stack::Push(3).into(),
+        asm::Stack::Push(1).into(),
+        asm::Stack::Push(0).into(),
+        asm::Access::TransientLen.into(),
+    ];
+    let stack = exec_ops(ops, access).unwrap();
+    assert_eq!(&stack[..], &[1]);
+}
+
+#[test]
+fn intent_at() {
+    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
+        .into_iter()
+        .collect();
+    let data = [SolutionData {
+        intent_to_solve: TEST_INTENT_ADDR,
+        decision_variables: vec![],
+    }];
+    let access = Access {
+        solution: SolutionAccess {
+            data: &data,
+            index: 0,
+            mutable_keys: test_empty_keys(),
+            transient_data: &transient_data,
+        },
+        state_slots: StateSlots::EMPTY,
+    };
+    let ops = &[asm::Stack::Push(0).into(), asm::Access::IntentAt.into()];
+    let stack = exec_ops(ops, access).unwrap();
+    let intent = data[0].intent_to_solve.clone();
+    let mut expected = vec![];
+    expected.extend(word_4_from_u8_32(intent.set.0));
+    expected.extend(word_4_from_u8_32(intent.intent.0));
+    assert_eq!(&stack[..], expected);
+}
+
+#[test]
+fn this_transient_len() {
+    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
+        .into_iter()
+        .collect();
+    let data = [SolutionData {
+        intent_to_solve: TEST_INTENT_ADDR,
+        decision_variables: vec![],
+    }];
+    let access = Access {
+        solution: SolutionAccess {
+            data: &data,
+            index: 0,
+            mutable_keys: test_empty_keys(),
+            transient_data: &transient_data,
+        },
+        state_slots: StateSlots::EMPTY,
+    };
+    let ops = &[asm::Access::ThisTransientLen.into()];
+    let stack = exec_ops(ops, access).unwrap();
+    assert_eq!(&stack[..], &[1]);
+}
+
+#[test]
+fn this_transient_contains() {
+    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
+        .into_iter()
+        .collect();
+    let data = [SolutionData {
+        intent_to_solve: TEST_INTENT_ADDR,
+        decision_variables: vec![],
+    }];
+    let access = Access {
+        solution: SolutionAccess {
+            data: &data,
+            index: 0,
+            mutable_keys: test_empty_keys(),
+            transient_data: &transient_data,
+        },
+        state_slots: StateSlots::EMPTY,
+    };
+    let ops = &[
+        asm::Stack::Push(3).into(),
+        asm::Stack::Push(1).into(),
+        asm::Access::ThisTransientContains.into(),
+    ];
+    let stack = exec_ops(ops, access).unwrap();
+    assert_eq!(&stack[..], &[1]);
 }

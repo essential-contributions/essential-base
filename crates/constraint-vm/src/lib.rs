@@ -34,7 +34,8 @@
 #![deny(missing_docs, unsafe_code)]
 
 pub use access::{
-    mut_keys, mut_keys_set, mut_keys_slices, Access, SolutionAccess, StateSlotSlice, StateSlots,
+    mut_keys, mut_keys_set, mut_keys_slices, transient_data, Access, SolutionAccess,
+    StateSlotSlice, StateSlots, TransientData,
 };
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
@@ -255,6 +256,15 @@ pub fn step_op_access(
         asm::Access::ThisSetAddress => access::this_set_address(access.solution.this_data(), stack),
         asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
+        asm::Access::Transient => access::transient(stack, access.solution),
+        asm::Access::TransientLen => access::transient_len(stack, access.solution),
+        asm::Access::IntentAt => access::intent_at(stack, access.solution.data),
+        asm::Access::ThisTransientLen => {
+            access::this_transient_len(stack, access.solution.this_transient_data())
+        }
+        asm::Access::ThisTransientContains => {
+            access::this_transient_contains(stack, access.solution.this_transient_data())
+        }
     }
 }
 
@@ -352,9 +362,10 @@ pub fn step_on_temporary(
 
 #[cfg(test)]
 pub(crate) mod test_util {
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
     use asm::Word;
+    use types::{solution::SolutionDataIndex, Key};
 
     use crate::{
         types::{solution::SolutionData, ContentAddress, IntentAddress},
@@ -378,6 +389,14 @@ pub(crate) mod test_util {
         INSTANCE.get_or_init(|| HashSet::with_capacity(0))
     }
 
+    pub(crate) fn test_transient_data(
+    ) -> &'static HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>> {
+        static INSTANCE: once_cell::sync::OnceCell<
+            HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>>,
+        > = once_cell::sync::OnceCell::new();
+        INSTANCE.get_or_init(|| HashMap::with_capacity(0))
+    }
+
     pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
         static INSTANCE: once_cell::sync::OnceCell<[SolutionData; 1]> =
             once_cell::sync::OnceCell::new();
@@ -391,6 +410,7 @@ pub(crate) mod test_util {
             data: test_solution_data_arr(),
             index: 0,
             mutable_keys: test_empty_keys(),
+            transient_data: test_transient_data(),
         })
     }
 

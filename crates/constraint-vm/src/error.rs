@@ -92,9 +92,12 @@ pub enum AccessError {
     /// A solution data index provided by a transient decision variable was out of bounds.
     #[error("solution data index out of bounds")]
     SolutionDataOutOfBounds,
-    /// A cycle was detected between two or more transient decision variables.
-    #[error("a cycle was detected between transient decision variables")]
-    TransientDecisionVariableCycle,
+    /// A transient data index was out of bounds.
+    #[error("transient data index out of bounds")]
+    TransientDataOutOfBounds,
+    /// A transient data key was out of bounds.
+    #[error("transient data key out of bounds")]
+    TransientDataKeyOutOfBounds,
     /// A state slot index was out of bounds.
     #[error("state slot out of bounds")]
     StateSlotOutOfBounds,

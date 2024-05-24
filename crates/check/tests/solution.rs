@@ -81,6 +81,7 @@ fn state_mutation_pathways_must_have_associated_solution_data() {
             pathway: 1,
             mutations: Default::default(),
         }],
+        transient_data: vec![],
         data: vec![test_solution_data()],
     };
     assert!(matches!(
@@ -95,6 +96,7 @@ fn state_mutation_pathways_must_have_associated_solution_data() {
 fn too_many_state_mutations() {
     let solution = Solution {
         data: vec![test_solution_data()],
+        transient_data: vec![],
         state_mutations: vec![test_state_mutation(); solution::MAX_STATE_MUTATIONS + 1],
     };
     assert!(matches!(
@@ -108,6 +110,7 @@ fn too_many_state_mutations() {
 fn multiple_mutations_for_slot() {
     let solution = Solution {
         data: vec![test_solution_data()],
+        transient_data: vec![],
         state_mutations: vec![StateMutation {
             pathway: 0,
             mutations: vec![
@@ -261,6 +264,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
             intent_to_solve: intent_addr,
             decision_variables: Default::default(),
         }],
+        transient_data: vec![],
         state_mutations: vec![StateMutation {
             pathway: 0,
             mutations: vec![

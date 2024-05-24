@@ -17,6 +17,8 @@ pub type SolutionDataIndex = u16;
 pub struct Solution {
     /// The input data for each intent.
     pub data: Vec<SolutionData>,
+    /// The transient data being proposed.
+    pub transient_data: Vec<StateMutation>,
     /// The state mutations being proposed.
     pub state_mutations: Vec<StateMutation>,
 }

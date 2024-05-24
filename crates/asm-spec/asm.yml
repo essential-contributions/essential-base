@@ -48,20 +48,20 @@ StateRead:
                 Swap the top word on the stack with the word at the given stack depth index.
 
                 `0` is the index of the element at the top of the stack.
-              panics: 
+              panics:
                 - Index is out of range.
               stack_in: [a, b, c, d, index]
               stack_out: [a, d, c, b]
-              
+
             Select:
               opcode: 0x07
-              description: | 
+              description: |
                 Conditionally keep one of the top two elements on the stack.
-                
+
                 If condition is `true`, the top element is kept.
               stack_in: [a, b, cond]
               stack_out: [b]
-            
+
             Repeat:
               opcode: 0x08
               description: |
@@ -75,13 +75,13 @@ StateRead:
                 Increment or decrements the top counter on the repeat stack.
                 If the counter is counting up and `counter == limit - 1`
                 then this pops the counter and continues with the program.
-                If the counter is counting down and the counter is 0 
+                If the counter is counting down and the counter is 0
                 then this pops the counter and continues with the program.
-                If it is `< limit - 1` or `> 0` respectively then the program jumps to 
+                If it is `< limit - 1` or `> 0` respectively then the program jumps to
                 the last Repeat
               panics:
-                  - If there is no counter on the repeat stack.
-                  - If there is no repeat registered to return to.
+                - If there is no counter on the repeat stack.
+                - If there is no repeat registered to return to.
 
         Pred:
           description: Operations for computing predicates.
@@ -102,7 +102,7 @@ StateRead:
                 Here `N` is `len -1`.
               stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len]
               stack_out: ["(top-(2*len))..(top - len) == (top - len)..top"]
-            
+
             Gt:
               opcode: 0x12
               description: Check if left-hand side is greater than right-hand side.
@@ -232,7 +232,7 @@ StateRead:
                 The delta parameter determines if changes are considered.
 
                 Returns a list of state words with length equal to the specified range.
-                
+
                 Use `StateLenRange` to get the lengths of the state variables.
               panics:
                 - The range `slot..(slot + range)` is out of range.
@@ -271,7 +271,7 @@ StateRead:
 
                 This operation returns a single word representing the length.
               stack_out: [word]
-            
+
             MutKeysContains:
               opcode: 0x37
               description: |
@@ -296,7 +296,7 @@ StateRead:
 
                 This operation returns a list of words with a length of 4, representing the set's hash.
               stack_out: [key]
-            
+
             ThisPathway:
               opcode: 0x3A
               description: |
@@ -310,40 +310,112 @@ StateRead:
               description: Access the top repeat counters current value.
               stack_out: [counter_value]
 
+            Transient:
+              opcode: 0x3C
+              description: Get the solution data indexed by pathway and key.
+              stack_in: [key_0, ...key_N, key_len, pathway]
+              stack_out:
+                elem: slot_word
+                len: value_len
+
+            TransientLen:
+              opcode: 0x3D
+              description: Get the length of solution data indexed by pathway and key.
+              stack_in: [key_0, ...key_N, key_len, pathway]
+              stack_out: [len]
+
+            IntentAt:
+              opcode: 0x3E
+              description: Get the intent at solution data pathway.
+              stack_in: [pathway]
+              stack_out:
+                [
+                  set_key_0,
+                  set_key_1,
+                  set_key_2,
+                  set_key_3,
+                  intent_key_0,
+                  intent_key_1,
+                  intent_key_2,
+                  intent_key_3,
+                ]
+
+            ThisTransientLen:
+              opcode: 0x3F
+              description: Get the length of the transient data at this intent.
+              stack_out: [len]
+
+            ThisTransientContains:
+              opcode: 0x40
+              description: Check if the transient data at this intent contains the given key.
+              stack_in: [key_0, ...key_N, key_len]
+              stack_out: [bool]
+
         Crypto:
           description: Operations providing cryptographic functionality.
           group:
             Sha256:
-              opcode: 0x40
+              opcode: 0x50
               description: Produce a SHA 256 hash from the specified data.
               stack_in: [data, data_len]
               stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
 
             VerifyEd25519:
-              opcode: 0x41
+              opcode: 0x51
               description: Validate an Ed25519 signature against a public key.
-              stack_in: [data, data_len, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, sig_w7, key_w0, key_w1, key_w2, key_w3]
+              stack_in:
+                [
+                  data,
+                  data_len,
+                  sig_w0,
+                  sig_w1,
+                  sig_w2,
+                  sig_w3,
+                  sig_w4,
+                  sig_w5,
+                  sig_w6,
+                  sig_w7,
+                  key_w0,
+                  key_w1,
+                  key_w2,
+                  key_w3,
+                ]
               stack_out: [bool]
-            
+
             RecoverSecp256k1:
-              opcode: 0x42
+              opcode: 0x52
               description: |
                 Recover the public key from a secp256k1 signature.
 
                 If the signature is invalid, the operation will return all zeros.
-              stack_in: [hash_0, hash_1, hash_2, hash_3, sig_w0, sig_w1, sig_w2, sig_w3, sig_w4, sig_w5, sig_w6, sig_w7, sig_8]
+              stack_in:
+                [
+                  hash_0,
+                  hash_1,
+                  hash_2,
+                  hash_3,
+                  sig_w0,
+                  sig_w1,
+                  sig_w2,
+                  sig_w3,
+                  sig_w4,
+                  sig_w5,
+                  sig_w6,
+                  sig_w7,
+                  sig_8,
+                ]
               stack_out: [pub_key_w0, pub_key_w1, pub_key_w2, pub_key_w3, pub_key_4]
-        
+
         TotalControlFlow:
           description: Control flow operations that keep the program total.
           group:
             HaltIf:
-              opcode: 0x50
+              opcode: 0x60
               description: Halt the program if the value is true.
               stack_in: [value]
-                
+
             JumpForwardIf:
-              opcode: 0x51
+              opcode: 0x61
               description: Jump forward the given number of instructions if the value is true.
               panics:
                 - The jump is out of bounds.
@@ -354,7 +426,7 @@ StateRead:
           description: Operations for temporary memory.
           group:
             Alloc:
-              opcode: 0x60
+              opcode: 0x70
               description: |
                 Allocate new memory to the end of the temporary memory.
                 Sets new memory to 0.
@@ -364,16 +436,16 @@ StateRead:
               stack_in: [size]
               stack_out: [index]
 
-            Load: 
-              opcode: 0x61
+            Load:
+              opcode: 0x71
               description: Load the value at the index of temporary memory onto the stack.
               panics:
                 - Index is out of bounds.
               stack_in: [index]
               stack_out: [value]
-            
-            Store: 
-              opcode: 0x62
+
+            Store:
+              opcode: 0x72
               description: Store the value at the index of temporary memory.
               panics:
                 - Index is out of bounds.
@@ -383,16 +455,16 @@ StateRead:
       description: Operations for controlling the flow of the program.
       group:
         Halt:
-          opcode: 0x70
+          opcode: 0x80
           description: End the execution of the program and return the keys and memory.
 
         Jump:
-          opcode: 0x71
+          opcode: 0x81
           description: Jump to the given address.
           stack_in: [address]
 
         JumpIf:
-          opcode: 0x72
+          opcode: 0x82
           description: Jump to the given address if the value is true.
           stack_in: [address, value]
 
@@ -400,12 +472,12 @@ StateRead:
       description: Operations for controlling mutable state slots.
       group:
         AllocSlots:
-          opcode: 0x80
+          opcode: 0x90
           description: Allocate new slots to the end of the memory.
           stack_in: [size]
 
         Load:
-          opcode: 0x81
+          opcode: 0x91
           description: |
             Load the value at the index of a slot onto the stack.
 
@@ -418,16 +490,16 @@ StateRead:
             len: value_len
 
         Store:
-          opcode: 0x82
+          opcode: 0x92
           description: Store the value at the index of state slots.
           panics:
             - Index is out of bounds.
           stack_in: [value_word_0, ...value_word_len, len, index]
-        
+
         LoadWord:
-          opcode: 0x83
+          opcode: 0x93
           description: |
-            Load the word at the index of the value at 
+            Load the word at the index of the value at
             the slot onto the stack.
           panics:
             - Slot or Index is out of bounds.
@@ -435,44 +507,43 @@ StateRead:
           stack_out: [Value_word]
 
         StoreWord:
-          opcode: 0x84
+          opcode: 0x94
           description: |
-            Store the word at the index of the value 
+            Store the word at the index of the value
             at the slot.
           panics:
             - Slot or Index is out of bounds.
           stack_in: [slot, index, word]
 
         Clear:
-          opcode: 0x85
+          opcode: 0x95
           description: Clear the value at the index.
           panics:
             - Index is out of bounds.
           stack_in: [index]
 
         ClearRange:
-          opcode: 0x86
+          opcode: 0x96
           description: Clear a range of values.
           panics:
             - The range is out of bounds.
           stack_in: [index, amount]
 
         Length:
-          opcode: 0x87
+          opcode: 0x97
           description: Get the current length of the memory.
           stack_out: [length]
-        
+
         ValueLen:
-          opcode: 0x88
+          opcode: 0x98
           description: Get the current length of a given value at the index.
           stack_in: [index]
           stack_out: [length]
 
-
     KeyRange:
-      opcode: 0x90
+      opcode: 0xA0
       description: |
-        Read a range of values at each key from state starting at the key 
+        Read a range of values at each key from state starting at the key
         into state slots starting at the slot index.
 
         The key is lexographically incremented for each value read.
@@ -480,9 +551,9 @@ StateRead:
 
         Returns the values onto the stack, followed by their indices.
       stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]
-    
+
     KeyRangeExtern:
-      opcode: 0x91
+      opcode: 0xA1
       description: |
         Read a range of values at each key from external state starting at the key
         into state slots starting at the slot index.
@@ -490,6 +561,7 @@ StateRead:
         The key is lexographically incremented for each value read.
 
         The external state is at the `ext` address.
-        
+
         Returns the values onto the stack, followed by their indices.
-      stack_in: [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]
+      stack_in:
+        [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]

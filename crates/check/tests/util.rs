@@ -126,6 +126,7 @@ impl StateRead for State {
 pub fn empty_solution() -> Solution {
     Solution {
         data: Default::default(),
+        transient_data: Default::default(),
         state_mutations: Default::default(),
     }
 }
@@ -217,6 +218,7 @@ pub fn test_intent_42_solution_pair(
             intent_to_solve: intent_addr,
             decision_variables,
         }],
+        transient_data: vec![],
         state_mutations: vec![StateMutation {
             pathway: 0,
             mutations: vec![Mutation {
