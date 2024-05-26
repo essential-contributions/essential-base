@@ -6,7 +6,7 @@ use constraint::mut_keys_set;
 use essential_state_read_vm::{
     asm::{self, Op},
     constraint,
-    types::solution::{Mutation, Solution, SolutionData, StateMutation},
+    types::solution::{Mutation, Mutations, Solution, SolutionData},
     Access, BytecodeMapped, Gas, GasLimit, SolutionAccess, StateSlots, Vm,
 };
 use util::*;
@@ -203,7 +203,7 @@ async fn read_pre_post_state_and_check_constraints() {
         }],
         transient_data: vec![],
         // We have one mutation that sets a missing value to 41.
-        state_mutations: vec![StateMutation {
+        state_mutations: vec![Mutations {
             pathway: 0,
             mutations: vec![Mutation {
                 key: vec![0, 0, 0, 1],
