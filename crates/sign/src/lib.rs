@@ -58,7 +58,7 @@ pub fn sign_hash(hash: Hash, sk: &SecretKey) -> Signature {
 }
 
 /// Sign directly over the given [`Message`] with secret key using secp256k1 curve.
-pub fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
+fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
     let secp = Secp256k1::new();
     let (rec_id, sig) = secp.sign_ecdsa_recoverable(msg, sk).serialize_compact();
     Signature(sig, rec_id.to_i32().try_into().unwrap())
@@ -83,7 +83,7 @@ pub fn verify_hash(hash: Hash, signature: &Signature) -> Result<(), secp256k1::E
 }
 
 /// Verify the given message against the given signature.
-pub fn verify_message(msg: &Message, signature: &Signature) -> Result<(), secp256k1::Error> {
+fn verify_message(msg: &Message, signature: &Signature) -> Result<(), secp256k1::Error> {
     let pk = recover_from_message(msg, signature)?;
     let secp = Secp256k1::new();
     let sig = secp256k1::ecdsa::Signature::from_compact(&signature.0)?;
