@@ -36,17 +36,22 @@ pub mod intent_set;
 
 /// Sign over data with secret key using secp256k1 curve.
 ///
-/// This first hashes the given data, then produces a signature over the hash using [`sign_hash`].
+/// This first hashes the given data with [`essential_hash::hash`], then
+/// produces a signature over the hash using [`sign_hash`].
 pub fn sign<T: Serialize>(data: T, sk: &SecretKey) -> Signed<T> {
     let hash = hash(&data);
     let signature = sign_hash(hash, sk);
     Signed { data, signature }
 }
 
-/// Sign directly over a sha256 hash (as produced by [`essential_hash::hash`])
-/// with the given secret key using `secp256k1`.
+/// Sign directly over a hash with the given secret key using `secp256k1`.
 ///
 /// This treats the hash as a digest from which a [`Message`] is produced and then signed.
+///
+/// If you plan to use the resulting `Signature` with [`verify`] or [`recover`]
+/// to verify a signature or recover a public key over some arbitrary data, the
+/// given `hash` must be produced by [`essential_hash::hash`] (i.e. be a sha256
+/// hash).
 pub fn sign_hash(hash: Hash, sk: &SecretKey) -> Signature {
     let message = Message::from_digest(hash);
     sign_message(&message, sk)
@@ -61,13 +66,14 @@ pub fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
 
 /// Verify signature against data.
 ///
-/// This first hashes the `Signed.data` field then calls `verify_hash` with the given signature.
+/// This first hashes the `Signed.data` field with [`essential_hash::hash`] then
+/// calls `verify_hash` with the given signature.
 pub fn verify<T: Serialize>(signed: &Signed<T>) -> Result<(), secp256k1::Error> {
     let hash = hash(&signed.data);
     verify_hash(hash, &signed.signature)
 }
 
-/// Verify a signature over the given `sha256` hash.
+/// Verify a signature over the given hash.
 ///
 /// This treats the given hash as a digest for a [`Message`] that is verified
 /// with [`verify_message`].
@@ -86,14 +92,14 @@ pub fn verify_message(msg: &Message, signature: &Signature) -> Result<(), secp25
 
 /// Recover the [`PublicKey`] from the given signed data.
 ///
-/// This first hashes the given `Signed.data`, then calls [`recover_hash`] with
-/// the given signature.
+/// This first hashes the given `Signed.data` with [`essential_hash::hash`],
+/// then calls [`recover_hash`] with the given signature.
 pub fn recover<T: Serialize>(signed: Signed<T>) -> Result<PublicKey, secp256k1::Error> {
     let hash = hash(&signed.data);
     recover_hash(hash, &signed.signature)
 }
 
-/// Recover the [`PublicKey`] from the signed sha256 hash.
+/// Recover the [`PublicKey`] from the signed hash.
 ///
 /// This treats the given hash as a digest for a [`Message`], then uses [`recover_from_message`].
 pub fn recover_hash(hash: Hash, signature: &Signature) -> Result<PublicKey, secp256k1::Error> {
