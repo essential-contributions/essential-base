@@ -4,9 +4,9 @@ use essential_check::{
     state_read_vm,
     state_read_vm::StateRead,
     types::{
-        intent::{Directive, Intent},
+        intent::{self, Directive, Intent},
         solution::{Mutation, Mutations, Solution, SolutionData},
-        ContentAddress, IntentAddress, Key, Signed, Word,
+        ContentAddress, IntentAddress, Key, Word,
     },
 };
 use std::{
@@ -186,14 +186,14 @@ pub fn test_intent_42(entropy: Word) -> Intent {
     }
 }
 
-pub fn intent_set_addr(intents: &Signed<Vec<Intent>>) -> ContentAddress {
-    essential_hash::intent_set_addr::from_intents(&intents.data)
+pub fn intent_set_addr(intents: &intent::SignedSet) -> ContentAddress {
+    essential_hash::intent_set_addr::from_intents(&intents.set)
 }
 
-pub fn intent_addr(intents: &Signed<Vec<Intent>>, ix: usize) -> IntentAddress {
+pub fn intent_addr(intents: &intent::SignedSet, ix: usize) -> IntentAddress {
     IntentAddress {
         set: intent_set_addr(intents),
-        intent: ContentAddress(essential_hash::hash(&intents.data[ix])),
+        intent: ContentAddress(essential_hash::hash(&intents.set[ix])),
     }
 }
 
@@ -201,11 +201,11 @@ pub fn intent_addr(intents: &Signed<Vec<Intent>>, ix: usize) -> IntentAddress {
 pub fn test_intent_42_solution_pair(
     entropy: Word,
     keypair_seed: [u8; 32],
-) -> (Signed<Vec<Intent>>, Solution) {
+) -> (intent::SignedSet, Solution) {
     // Create the test intent, ensure its decision_variables match, and sign.
     let intent = test_intent_42(entropy);
     let (sk, _pk) = random_keypair(keypair_seed);
-    let intents = essential_sign::sign(vec![intent], sk);
+    let intents = essential_sign::intent_set::sign(vec![intent], &sk);
     let intent_addr = intent_addr(&intents, 0);
 
     // Construct the solution decision variables.

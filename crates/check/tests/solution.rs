@@ -173,13 +173,13 @@ async fn check_intent_42_with_solution() {
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
+    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.set));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 
     // There's only one intent to solve.
     let intent_addr = intent_addr(&intents, 0);
-    let intent = Arc::new(intents.data[0].clone());
+    let intent = Arc::new(intents.set[0].clone());
     let get_intent = |addr: &IntentAddress| {
         assert_eq!(&intent_addr, addr);
         intent.clone()
@@ -288,7 +288,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
     };
 
     let (sk, _pk) = random_keypair([1; 32]);
-    let intents = essential_sign::sign(vec![intent], sk);
+    let intents = essential_sign::intent_set::sign(vec![intent], &sk);
     let intent_addr = util::intent_addr(&intents, 0);
 
     // Create the solution.
@@ -331,13 +331,13 @@ async fn intent_with_multiple_state_reads_and_slots() {
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
+    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.set));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 
     // There's only one intent to solve.
     let intent_addr = util::intent_addr(&intents, 0);
-    let intent = Arc::new(intents.data[0].clone());
+    let intent = Arc::new(intents.set[0].clone());
     let get_intent = |addr: &IntentAddress| {
         assert_eq!(&intent_addr, addr);
         intent.clone()
