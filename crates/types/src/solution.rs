@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{IntentAddress, Key, Word};
+use crate::{IntentAddress, Key, Value, Word};
 
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
@@ -18,9 +18,9 @@ pub struct Solution {
     /// The input data for each intent.
     pub data: Vec<SolutionData>,
     /// The transient data being proposed.
-    pub transient_data: Vec<StateMutation>,
+    pub transient_data: Vec<Mutations>,
     /// The state mutations being proposed.
-    pub state_mutations: Vec<StateMutation>,
+    pub state_mutations: Vec<Mutations>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -35,24 +35,24 @@ pub struct SolutionData {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A mutation to a single key in state.
+/// A mutation to a single key in state or transient data.
 pub struct Mutation {
-    /// Key of state.
+    /// Key to data.
     pub key: Key,
     /// Value to set the key to.
-    /// None means the value is being deleted.
-    pub value: Vec<Word>,
+    /// Empty value means the value is being deleted.
+    pub value: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// The state that is being proposed to be mutated.
-/// This state is owned by the persistent intent.
-pub struct StateMutation {
-    /// A pathway intent to allow a state mutation.
+/// The state or transient data that is being proposed to be mutated.
+/// This state or transient data is owned by an intent.
+pub struct Mutations {
+    /// A pathway intent to allow a set of mutations.
     ///
-    /// The intent must be solved to allow the state mutation.
+    /// The intent must be solved to allow the mutations.
     pub pathway: SolutionDataIndex,
-    /// The mutations to the state.
+    /// The mutations to the state or transient data.
     pub mutations: Vec<Mutation>,
 }

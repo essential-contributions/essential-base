@@ -4,7 +4,7 @@ use essential_constraint_vm as constraint_vm;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
     intent::{Directive, Intent},
-    solution::{Mutation, Solution, SolutionData, StateMutation},
+    solution::{Mutation, Mutations, Solution, SolutionData},
     ContentAddress, IntentAddress,
 };
 use std::sync::Arc;
@@ -26,8 +26,8 @@ fn test_solution_data() -> SolutionData {
     }
 }
 
-fn test_state_mutation() -> StateMutation {
-    StateMutation {
+fn test_state_mutation() -> Mutations {
+    Mutations {
         pathway: 0,
         mutations: vec![],
     }
@@ -90,7 +90,7 @@ fn too_many_state_mutations() {
 #[test]
 fn state_mutation_pathways_must_have_associated_solution_data() {
     let solution = Solution {
-        state_mutations: vec![StateMutation {
+        state_mutations: vec![Mutations {
             // Note: pathway out of bounds of solution data to trigger error.
             pathway: 1,
             mutations: Default::default(),
@@ -111,7 +111,7 @@ fn multiple_mutations_for_slot() {
     let solution = Solution {
         data: vec![test_solution_data()],
         transient_data: vec![],
-        state_mutations: vec![StateMutation {
+        state_mutations: vec![Mutations {
             pathway: 0,
             mutations: vec![
                 Mutation {
@@ -147,7 +147,7 @@ fn too_many_transient_data() {
 fn transient_data_pathways_must_have_associated_solution_data() {
     let solution = Solution {
         state_mutations: vec![],
-        transient_data: vec![StateMutation {
+        transient_data: vec![Mutations {
             // Note: pathway out of bounds of solution data to trigger error.
             pathway: 1,
             mutations: Default::default(),
@@ -298,7 +298,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
             decision_variables: Default::default(),
         }],
         transient_data: vec![],
-        state_mutations: vec![StateMutation {
+        state_mutations: vec![Mutations {
             pathway: 0,
             mutations: vec![
                 Mutation {

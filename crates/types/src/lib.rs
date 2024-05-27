@@ -23,8 +23,11 @@ pub type StateReadBytecode = Vec<u8>;
 /// Single unit of data.
 pub type Word = i64;
 
-/// Key for state data.
+/// Key for data.
 pub type Key = Vec<Word>;
+
+/// The data at a key.
+pub type Value = Vec<Word>;
 
 /// Hash encoded as a 32 byte array.
 pub type Hash = [u8; 32];

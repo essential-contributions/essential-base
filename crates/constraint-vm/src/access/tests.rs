@@ -6,7 +6,7 @@ use crate::{
     test_util::*,
 };
 use essential_types::{
-    solution::{Mutation, Solution, StateMutation},
+    solution::{Mutation, Mutations, Solution},
     ContentAddress, IntentAddress,
 };
 
@@ -106,14 +106,14 @@ fn mut_keys_len() {
         transient_data: Default::default(),
         // All state mutations, 3 of which point to the intent we're solving.
         state_mutations: vec![
-            StateMutation {
+            Mutations {
                 pathway: 0,
                 mutations: vec![Mutation {
                     key: vec![0, 0, 0, 1],
                     value: vec![1],
                 }],
             },
-            StateMutation {
+            Mutations {
                 pathway: 1,
                 mutations: vec![
                     Mutation {
@@ -126,7 +126,7 @@ fn mut_keys_len() {
                     },
                 ],
             },
-            StateMutation {
+            Mutations {
                 pathway: 1,
                 mutations: vec![Mutation {
                     key: vec![2, 2, 2, 1],

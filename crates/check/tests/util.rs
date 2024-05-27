@@ -5,7 +5,7 @@ use essential_check::{
     state_read_vm::StateRead,
     types::{
         intent::{Directive, Intent},
-        solution::{Mutation, Solution, SolutionData, StateMutation},
+        solution::{Mutation, Mutations, Solution, SolutionData},
         ContentAddress, IntentAddress, Key, Signed, Word,
     },
 };
@@ -219,7 +219,7 @@ pub fn test_intent_42_solution_pair(
             decision_variables,
         }],
         transient_data: vec![],
-        state_mutations: vec![StateMutation {
+        state_mutations: vec![Mutations {
             pathway: 0,
             mutations: vec![Mutation {
                 key: vec![0, 0, 0, 0],
