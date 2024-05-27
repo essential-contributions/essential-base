@@ -6,7 +6,7 @@
 //! avoid this unnecessary requirement we instead sign over [the content address
 //! of the intent set][essential_hash::intent_set_addr].
 //!
-//! A [`sign_intent_set`] shorthand function is provided to account for this
+//! A [`intent_set::sign`][sign] shorthand function is provided to account for this
 //! special case.
 
 use essential_types::intent::{self, Intent};
@@ -18,8 +18,8 @@ use secp256k1::{PublicKey, SecretKey};
 /// content address to produce the signature.
 ///
 /// If the content address of the set is already known, consider signing
-/// the content address directly with [`sign_hash`] and then constructing the
-/// [`intent::SignedSet`] from its fields.
+/// the content address directly with [`sign_hash`][crate::sign_hash] and then
+/// constructing the [`intent::SignedSet`] from its fields.
 pub fn sign(set: Vec<Intent>, sk: &SecretKey) -> intent::SignedSet {
     let ca = essential_hash::intent_set_addr::from_intents(&set);
     let signature = crate::sign_hash(ca.0, sk);
