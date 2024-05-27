@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use asm::Op;
 use criterion::{criterion_group, criterion_main, Criterion};
 use essential_constraint_asm as asm;
 use essential_constraint_vm::{eval_bytecode_iter, Access, SolutionAccess, StateSlots};
@@ -23,16 +24,15 @@ pub fn bench(c: &mut Criterion) {
         },
         state_slots: StateSlots::EMPTY,
     };
-    let bytes: Vec<_> = asm::to_bytes([
-        asm::Stack::Push(1).into(),
-        asm::Stack::Pop.into(),
-        asm::Stack::Push(1).into(),
-    ])
-    .collect();
-    let mut iter = bytes.into_iter().cycle();
-    c.bench_function("push_pop", |b| {
-        b.iter(|| eval_bytecode_iter(iter.by_ref().take(100), access))
-    });
+    let bytes = [asm::Stack::Push(1).into(), asm::Stack::Pop.into()];
+    for i in [100, 1000, 10_000, 100_000] {
+        let mut bytes: Vec<Op> = bytes.iter().cycle().take(i).copied().collect();
+        bytes.push(asm::Stack::Push(1).into());
+        let bytes: Vec<_> = asm::to_bytes(bytes).collect();
+        c.bench_function(&format!("push_pop_{}", i), |b| {
+            b.iter(|| eval_bytecode_iter(bytes.iter().copied(), access))
+        });
+    }
 }
 
 criterion_group!(benches, bench);
