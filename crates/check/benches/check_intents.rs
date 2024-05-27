@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     future::{self, Ready},
     sync::Arc,
 };
@@ -16,33 +16,60 @@ use essential_types::{
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 pub fn bench(c: &mut Criterion) {
-    let (intents, solution) = test_intent_42_solution_pair(1, [0; 32]);
-    let intent = Arc::new(intents.data[0].clone());
-    let get_intent = |_addr: &IntentAddress| intent.clone();
-    let solution = Arc::new(solution);
     let config = Arc::new(essential_check::solution::CheckIntentConfig::default());
-    let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
-    let mut post_state = pre_state.clone();
-    post_state.apply_mutations(&solution);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
-    c.bench_function("check_42", |b| {
-        b.to_async(&runtime).iter(|| {
-            essential_check::solution::check_intents(
-                &pre_state,
-                &post_state,
-                solution.clone(),
-                get_intent,
-                config.clone(),
-            )
+
+    for i in [1, 10, 100, 1000, 10_000] {
+        let (intents, solution, intents_map) = create(i);
+        let get_intent = |addr: &IntentAddress| intents_map.get(addr).cloned().unwrap();
+        let mut pre_state = State::EMPTY;
+        pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
+        let mut post_state = pre_state.clone();
+        post_state.apply_mutations(&solution);
+        c.bench_function(&format!("check_42_{}", i), |b| {
+            b.to_async(&runtime).iter(|| {
+                essential_check::solution::check_intents(
+                    &pre_state,
+                    &post_state,
+                    solution.clone(),
+                    get_intent,
+                    config.clone(),
+                )
+            });
         });
-    });
+    }
 }
 
 criterion_group!(benches, bench);
 criterion_main!(benches);
+
+#[allow(clippy::type_complexity)]
+fn create(
+    amount: usize,
+) -> (
+    Signed<Vec<Intent>>,
+    Arc<Solution>,
+    HashMap<IntentAddress, Arc<Intent>>,
+) {
+    let (intents, solution) = test_intent_42_solution_pair(amount, [0; 32]);
+    let set = intent_set_addr(&intents);
+    let intents_map: HashMap<_, _> = intents
+        .data
+        .iter()
+        .map(|intent| {
+            (
+                IntentAddress {
+                    set: set.clone(),
+                    intent: ContentAddress(essential_hash::hash(&intent)),
+                },
+                Arc::new(intent.clone()),
+            )
+        })
+        .collect();
+    (intents, Arc::new(solution), intents_map)
+}
 
 #[derive(Clone, Debug)]
 pub struct State(BTreeMap<ContentAddress, BTreeMap<Key, Vec<Word>>>);
@@ -180,6 +207,14 @@ fn test_intent_42(entropy: Word) -> Intent {
             constraint_vm::asm::Stack::Push(42).into(),
             constraint_vm::asm::Pred::Eq.into(),
             constraint_vm::asm::Pred::And.into(),
+            constraint_vm::asm::Stack::Push(0).into(),
+            constraint_vm::asm::Access::DecisionVar.into(),
+            constraint_vm::asm::Stack::Push(0).into(), // slot
+            constraint_vm::asm::Stack::Push(1).into(), // post
+            constraint_vm::asm::Access::State.into(),
+            constraint_vm::asm::Stack::Push(42).into(),
+            constraint_vm::asm::Pred::Eq.into(),
+            constraint_vm::asm::Pred::And.into(),
         ])
         .collect()],
         directive: Directive::Satisfy,
@@ -190,13 +225,6 @@ fn intent_set_addr(intents: &Signed<Vec<Intent>>) -> ContentAddress {
     essential_hash::intent_set_addr::from_intents(&intents.data)
 }
 
-fn intent_addr(intents: &Signed<Vec<Intent>>, ix: usize) -> IntentAddress {
-    IntentAddress {
-        set: intent_set_addr(intents),
-        intent: ContentAddress(essential_hash::hash(&intents.data[ix])),
-    }
-}
-
 fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
     use rand::SeedableRng;
     let mut rng = rand::rngs::SmallRng::from_seed(seed);
@@ -205,33 +233,40 @@ fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 }
 
 fn test_intent_42_solution_pair(
-    entropy: Word,
+    amount: usize,
     keypair_seed: [u8; 32],
 ) -> (Signed<Vec<Intent>>, Solution) {
     // Create the test intent, ensure its decision_variables match, and sign.
-    let intent = test_intent_42(entropy);
+    let intents: Vec<_> = (0..amount).map(|i| test_intent_42(i as Word)).collect();
     let (sk, _pk) = random_keypair(keypair_seed);
-    let intents = essential_sign::sign(vec![intent], sk);
-    let intent_addr = intent_addr(&intents, 0);
+    let intents = essential_sign::sign(intents, sk);
 
-    // Construct the solution decision variables.
-    // The first is an inline variable 42.
-    let decision_variables = vec![42];
+    let set = intent_set_addr(&intents);
 
-    // Create the solution.
-    let solution = Solution {
-        data: vec![SolutionData {
-            intent_to_solve: intent_addr,
-            decision_variables,
-        }],
-        transient_data: vec![],
-        state_mutations: vec![Mutations {
-            pathway: 0,
+    let data = (0..amount)
+        .map(|i| SolutionData {
+            intent_to_solve: IntentAddress {
+                set: set.clone(),
+                intent: ContentAddress(essential_hash::hash(intents.data.get(i).unwrap())),
+            },
+            decision_variables: vec![42],
+        })
+        .collect();
+
+    let state_mutations = (0..amount)
+        .map(|i| Mutations {
+            pathway: i as u16,
             mutations: vec![Mutation {
                 key: vec![0, 0, 0, 0],
                 value: vec![42],
             }],
-        }],
+        })
+        .collect();
+
+    let solution = Solution {
+        data,
+        transient_data: vec![],
+        state_mutations,
     };
 
     (intents, solution)
