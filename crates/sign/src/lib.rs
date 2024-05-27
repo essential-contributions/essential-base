@@ -19,8 +19,6 @@
 //! - [`sign_hash`]
 //! - [`verify_hash`]
 //! - [`recover_hash`]
-//!
-//! The internal message implementations are also exposed as `*_message` functions.
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
@@ -45,7 +43,8 @@ pub fn sign<T: Serialize>(data: T, sk: &SecretKey) -> Signed<T> {
     Signed { data, signature }
 }
 
-/// Sign directly over a hash with the given secret key using `secp256k1`.
+/// Sign directly over a sha256 hash (as produced by [`essential_hash::hash`])
+/// with the given secret key using `secp256k1`.
 ///
 /// This treats the hash as a digest from which a [`Message`] is produced and then signed.
 pub fn sign_hash(hash: Hash, sk: &SecretKey) -> Signature {
@@ -68,7 +67,7 @@ pub fn verify<T: Serialize>(signed: &Signed<T>) -> Result<(), secp256k1::Error> 
     verify_hash(hash, &signed.signature)
 }
 
-/// Verify a signature over the given hash.
+/// Verify a signature over the given `sha256` hash.
 ///
 /// This treats the given hash as a digest for a [`Message`] that is verified
 /// with [`verify_message`].
@@ -94,7 +93,7 @@ pub fn recover<T: Serialize>(signed: Signed<T>) -> Result<PublicKey, secp256k1::
     recover_hash(hash, &signed.signature)
 }
 
-/// Recover the [`PublicKey`] from the signed hash.
+/// Recover the [`PublicKey`] from the signed sha256 hash.
 ///
 /// This treats the given hash as a digest for a [`Message`], then uses [`recover_from_message`].
 pub fn recover_hash(hash: Hash, signature: &Signature) -> Result<PublicKey, secp256k1::Error> {
