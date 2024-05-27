@@ -6,7 +6,7 @@ use crate::{
     test_util::*,
 };
 use essential_types::{
-    solution::{Mutation, Mutations, Solution},
+    solution::{Mutation, Solution},
     ContentAddress, IntentAddress,
 };
 
@@ -17,6 +17,8 @@ fn decision_var_inline() {
             data: &[SolutionData {
                 intent_to_solve: TEST_INTENT_ADDR,
                 decision_variables: vec![42],
+                state_mutations: Default::default(),
+                transient_data: Default::default(),
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
@@ -39,6 +41,8 @@ fn decision_var_range() {
             data: &[SolutionData {
                 intent_to_solve: TEST_INTENT_ADDR,
                 decision_variables: vec![7, 8, 9],
+                state_mutations: Default::default(),
+                transient_data: Default::default(),
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
@@ -62,6 +66,8 @@ fn decision_var_slot_oob() {
             data: &[SolutionData {
                 intent_to_solve: TEST_INTENT_ADDR,
                 decision_variables: vec![42],
+                state_mutations: Default::default(),
+                transient_data: Default::default(),
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
@@ -96,26 +102,17 @@ fn mut_keys_len() {
                     intent: ContentAddress([0x31; 32]),
                 },
                 decision_variables: vec![],
+                state_mutations: vec![Mutation {
+                    key: vec![0, 0, 0, 1],
+                    value: vec![1],
+                }],
+                transient_data: Default::default(),
             },
             // Solution data for the intent we're checking.
             SolutionData {
                 intent_to_solve: intent_addr.clone(),
                 decision_variables: vec![],
-            },
-        ],
-        transient_data: Default::default(),
-        // All state mutations, 3 of which point to the intent we're solving.
-        state_mutations: vec![
-            Mutations {
-                pathway: 0,
-                mutations: vec![Mutation {
-                    key: vec![0, 0, 0, 1],
-                    value: vec![1],
-                }],
-            },
-            Mutations {
-                pathway: 1,
-                mutations: vec![
+                state_mutations: vec![
                     Mutation {
                         key: vec![1, 1, 1, 1],
                         value: vec![6],
@@ -124,16 +121,15 @@ fn mut_keys_len() {
                         key: vec![1, 1, 1, 2],
                         value: vec![7],
                     },
+                    Mutation {
+                        key: vec![2, 2, 2, 1],
+                        value: vec![42],
+                    },
                 ],
-            },
-            Mutations {
-                pathway: 1,
-                mutations: vec![Mutation {
-                    key: vec![2, 2, 2, 1],
-                    value: vec![42],
-                }],
+                transient_data: Default::default(),
             },
         ],
+        // All state mutations, 3 of which point to the intent we're solving.
     };
 
     // The intent we're solving is the second intent, i.e. index `1`.
@@ -449,6 +445,8 @@ fn intent_at() {
     let data = [SolutionData {
         intent_to_solve: TEST_INTENT_ADDR,
         decision_variables: vec![],
+        state_mutations: vec![],
+        transient_data: vec![],
     }];
     let access = Access {
         solution: SolutionAccess {
@@ -476,6 +474,8 @@ fn this_transient_len() {
     let data = [SolutionData {
         intent_to_solve: TEST_INTENT_ADDR,
         decision_variables: vec![],
+        state_mutations: vec![],
+        transient_data: vec![],
     }];
     let access = Access {
         solution: SolutionAccess {
@@ -499,6 +499,8 @@ fn this_transient_contains() {
     let data = [SolutionData {
         intent_to_solve: TEST_INTENT_ADDR,
         decision_variables: vec![],
+        state_mutations: vec![],
+        transient_data: vec![],
     }];
     let access = Access {
         solution: SolutionAccess {

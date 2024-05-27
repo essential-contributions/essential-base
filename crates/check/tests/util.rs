@@ -5,7 +5,7 @@ use essential_check::{
     state_read_vm::StateRead,
     types::{
         intent::{self, Directive, Intent},
-        solution::{Mutation, Mutations, Solution, SolutionData},
+        solution::{Mutation, Solution, SolutionData},
         ContentAddress, IntentAddress, Key, Word,
     },
 };
@@ -94,15 +94,13 @@ impl State {
 
     /// Apply all mutations proposed by the given solution.
     pub fn apply_mutations(&mut self, solution: &Solution) {
-        for state_mutation in &solution.state_mutations {
-            let set = &solution
-                .data
-                .get(state_mutation.pathway as usize)
-                .expect("intent pathway not found in solution data")
-                .intent_to_solve
-                .set;
-            for mutation in state_mutation.mutations.iter() {
-                self.set(set.clone(), &mutation.key, mutation.value.clone());
+        for data in &solution.data {
+            for mutation in data.state_mutations.iter() {
+                self.set(
+                    data.intent_to_solve.set.clone(),
+                    &mutation.key,
+                    mutation.value.clone(),
+                );
             }
         }
     }
@@ -126,8 +124,6 @@ impl StateRead for State {
 pub fn empty_solution() -> Solution {
     Solution {
         data: Default::default(),
-        transient_data: Default::default(),
-        state_mutations: Default::default(),
     }
 }
 
@@ -217,14 +213,11 @@ pub fn test_intent_42_solution_pair(
         data: vec![SolutionData {
             intent_to_solve: intent_addr,
             decision_variables,
-        }],
-        transient_data: vec![],
-        state_mutations: vec![Mutations {
-            pathway: 0,
-            mutations: vec![Mutation {
+            state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 0],
                 value: vec![42],
             }],
+            transient_data: vec![],
         }],
     };
 

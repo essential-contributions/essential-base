@@ -6,7 +6,7 @@ use constraint::mut_keys_set;
 use essential_state_read_vm::{
     asm::{self, Op},
     constraint,
-    types::solution::{Mutation, Mutations, Solution, SolutionData},
+    types::solution::{Mutation, Solution, SolutionData},
     Access, BytecodeMapped, Gas, GasLimit, SolutionAccess, StateSlots, Vm,
 };
 use util::*;
@@ -200,12 +200,9 @@ async fn read_pre_post_state_and_check_constraints() {
         data: vec![SolutionData {
             intent_to_solve: intent_addr.clone(),
             decision_variables: vec![],
-        }],
-        transient_data: vec![],
-        // We have one mutation that sets a missing value to 41.
-        state_mutations: vec![Mutations {
-            pathway: 0,
-            mutations: vec![Mutation {
+            transient_data: vec![],
+            // We have one mutation that sets a missing value to 41.
+            state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 1],
                 value: vec![41],
             }],
@@ -255,10 +252,9 @@ async fn read_pre_post_state_and_check_constraints() {
 
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
-    for mutation in &solution.state_mutations {
-        let solution_data = &solution.data[usize::from(mutation.pathway)];
-        let set_addr = &solution_data.intent_to_solve.set;
-        for Mutation { key, value } in mutation.mutations.iter() {
+    for data in &solution.data {
+        let set_addr = &data.intent_to_solve.set;
+        for Mutation { key, value } in &data.state_mutations {
             post_state.set(set_addr.clone(), key, value.clone());
         }
     }

@@ -10,7 +10,7 @@ use essential_state_read_vm as state_read_vm;
 use essential_state_read_vm::StateRead;
 use essential_types::{
     intent::{Directive, Intent},
-    solution::{Mutation, Mutations, Solution, SolutionData},
+    solution::{Mutation, Solution, SolutionData},
     ContentAddress, IntentAddress, Key, Signed, Word,
 };
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
@@ -145,15 +145,13 @@ impl State {
 
     /// Apply all mutations proposed by the given solution.
     pub fn apply_mutations(&mut self, solution: &Solution) {
-        for state_mutation in &solution.state_mutations {
-            let set = &solution
-                .data
-                .get(state_mutation.pathway as usize)
-                .expect("intent pathway not found in solution data")
-                .intent_to_solve
-                .set;
-            for mutation in state_mutation.mutations.iter() {
-                self.set(set.clone(), &mutation.key, mutation.value.clone());
+        for data in &solution.data {
+            for mutation in &data.state_mutations {
+                self.set(
+                    data.intent_to_solve.set.clone(),
+                    &mutation.key,
+                    mutation.value.clone(),
+                );
             }
         }
     }
@@ -250,24 +248,15 @@ fn test_intent_42_solution_pair(
                 intent: ContentAddress(essential_hash::hash(intents.data.get(i).unwrap())),
             },
             decision_variables: vec![42],
-        })
-        .collect();
-
-    let state_mutations = (0..amount)
-        .map(|i| Mutations {
-            pathway: i as u16,
-            mutations: vec![Mutation {
+            state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 0],
                 value: vec![42],
             }],
+            transient_data: vec![],
         })
         .collect();
 
-    let solution = Solution {
-        data,
-        transient_data: vec![],
-        state_mutations,
-    };
+    let solution = Solution { data };
 
     (intents, solution)
 }

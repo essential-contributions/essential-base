@@ -9,7 +9,7 @@ use crate::{
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
-    solution::{Solution, SolutionData, SolutionDataIndex},
+    solution::{Mutation, Solution, SolutionData, SolutionDataIndex},
     Key,
 };
 use std::collections::{HashMap, HashSet};
@@ -113,11 +113,10 @@ pub fn mut_keys(
     solution: &Solution,
     intent_index: SolutionDataIndex,
 ) -> impl Iterator<Item = &Key> {
-    solution
+    solution.data[intent_index as usize]
         .state_mutations
         .iter()
-        .filter(move |state_mutation| state_mutation.pathway == intent_index)
-        .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| &m.key))
+        .map(|m| &m.key)
 }
 
 /// Get the mutable keys as slices
@@ -125,11 +124,10 @@ pub fn mut_keys_slices(
     solution: &Solution,
     intent_index: SolutionDataIndex,
 ) -> impl Iterator<Item = &[Word]> {
-    solution
+    solution.data[intent_index as usize]
         .state_mutations
         .iter()
-        .filter(move |state_mutation| state_mutation.pathway == intent_index)
-        .flat_map(|state_mutation| state_mutation.mutations.iter().map(|m| m.key.as_ref()))
+        .map(|m| m.key.as_ref())
 }
 
 /// Get the set of mutable keys for this intent.
@@ -140,11 +138,16 @@ pub fn mut_keys_set(solution: &Solution, intent_index: SolutionDataIndex) -> Has
 /// Create a transient data map from the solution.
 pub fn transient_data(solution: &Solution) -> TransientData {
     let mut transient_data = HashMap::new();
-    for mutation in &solution.transient_data {
-        let entry: &mut HashMap<Key, Vec<Word>> =
-            transient_data.entry(mutation.pathway).or_default();
-        for mutation in &mutation.mutations {
-            entry.insert(mutation.key.clone(), mutation.value.clone());
+    for (ix, data) in solution.data.iter().enumerate() {
+        if !data.transient_data.is_empty() {
+            transient_data.insert(
+                ix as SolutionDataIndex,
+                data.transient_data
+                    .iter()
+                    .cloned()
+                    .map(|Mutation { key, value }| (key, value))
+                    .collect(),
+            );
         }
     }
     transient_data

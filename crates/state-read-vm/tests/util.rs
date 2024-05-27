@@ -22,6 +22,8 @@ pub const TEST_INTENT_ADDR: IntentAddress = IntentAddress {
 pub const TEST_SOLUTION_DATA: SolutionData = SolutionData {
     intent_to_solve: TEST_INTENT_ADDR,
     decision_variables: vec![],
+    state_mutations: vec![],
+    transient_data: vec![],
 };
 
 pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {

@@ -4,8 +4,8 @@ use essential_constraint_vm as constraint_vm;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
     intent::{Directive, Intent},
-    solution::{Mutation, Mutations, Solution, SolutionData},
-    ContentAddress, IntentAddress,
+    solution::{Mutation, Solution, SolutionData},
+    ContentAddress, IntentAddress, Word,
 };
 use std::sync::Arc;
 use util::{empty_solution, intent_addr, random_keypair, State};
@@ -23,13 +23,15 @@ fn test_solution_data() -> SolutionData {
     SolutionData {
         intent_to_solve: test_intent_addr(),
         decision_variables: vec![],
+        state_mutations: vec![],
+        transient_data: vec![],
     }
 }
 
-fn test_state_mutation() -> Mutations {
-    Mutations {
-        pathway: 0,
-        mutations: vec![],
+fn test_mutation(salt: usize) -> Mutation {
+    Mutation {
+        key: vec![salt as Word; 4],
+        value: vec![42],
     }
 }
 
@@ -48,7 +50,6 @@ fn too_many_solution_data() {
         data: (0..solution::MAX_SOLUTION_DATA + 1)
             .map(|_| test_solution_data())
             .collect(),
-        ..empty_solution()
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
@@ -63,8 +64,9 @@ fn too_many_decision_variables() {
         data: vec![SolutionData {
             intent_to_solve: test_intent_addr(),
             decision_variables: vec![0; (solution::MAX_DECISION_VARIABLES + 1) as usize],
+            state_mutations: vec![],
+            transient_data: vec![],
         }],
-        ..empty_solution()
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
@@ -76,9 +78,14 @@ fn too_many_decision_variables() {
 #[test]
 fn too_many_state_mutations() {
     let solution = Solution {
-        data: vec![test_solution_data()],
-        transient_data: vec![],
-        state_mutations: vec![test_state_mutation(); solution::MAX_STATE_MUTATIONS + 1],
+        data: vec![SolutionData {
+            intent_to_solve: test_intent_addr(),
+            decision_variables: vec![],
+            state_mutations: (0..(solution::MAX_STATE_MUTATIONS + 1))
+                .map(test_mutation)
+                .collect(),
+            transient_data: vec![],
+        }],
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
@@ -88,38 +95,19 @@ fn too_many_state_mutations() {
 }
 
 #[test]
-fn state_mutation_pathways_must_have_associated_solution_data() {
-    let solution = Solution {
-        state_mutations: vec![Mutations {
-            // Note: pathway out of bounds of solution data to trigger error.
-            pathway: 1,
-            mutations: Default::default(),
-        }],
-        transient_data: vec![],
-        data: vec![test_solution_data()],
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::StateMutations(
-            solution::InvalidStateMutations::PathwayOutOfRangeOfSolutionData(1)
-        ),
-    ));
-}
-
-#[test]
 fn multiple_mutations_for_slot() {
     let solution = Solution {
-        data: vec![test_solution_data()],
-        transient_data: vec![],
-        state_mutations: vec![Mutations {
-            pathway: 0,
-            mutations: vec![
+        data: vec![SolutionData {
+            intent_to_solve: test_intent_addr(),
+            decision_variables: vec![],
+            state_mutations: vec![
                 Mutation {
                     key: vec![0; 4],
                     value: vec![42],
                 };
                 2
             ],
+            transient_data: vec![],
         }],
     };
     assert!(matches!(
@@ -132,33 +120,19 @@ fn multiple_mutations_for_slot() {
 #[test]
 fn too_many_transient_data() {
     let solution = Solution {
-        data: vec![test_solution_data()],
-        transient_data: vec![test_state_mutation(); solution::MAX_TRANSIENT_DATA + 1],
-        state_mutations: vec![],
+        data: vec![SolutionData {
+            intent_to_solve: test_intent_addr(),
+            decision_variables: vec![],
+            state_mutations: vec![],
+            transient_data: (0..(solution::MAX_TRANSIENT_DATA + 1))
+                .map(test_mutation)
+                .collect(),
+        }],
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
         solution::InvalidSolution::TransientData(solution::InvalidTransientData::TooMany(n))
             if n == solution::MAX_TRANSIENT_DATA + 1
-    ));
-}
-
-#[test]
-fn transient_data_pathways_must_have_associated_solution_data() {
-    let solution = Solution {
-        state_mutations: vec![],
-        transient_data: vec![Mutations {
-            // Note: pathway out of bounds of solution data to trigger error.
-            pathway: 1,
-            mutations: Default::default(),
-        }],
-        data: vec![test_solution_data()],
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::TransientData(
-            solution::InvalidTransientData::PathwayOutOfRangeOfSolutionData(1)
-        ),
     ));
 }
 
@@ -296,11 +270,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
         data: vec![SolutionData {
             intent_to_solve: intent_addr,
             decision_variables: Default::default(),
-        }],
-        transient_data: vec![],
-        state_mutations: vec![Mutations {
-            pathway: 0,
-            mutations: vec![
+            state_mutations: vec![
                 Mutation {
                     key: vec![0],
                     value: vec![0, 1, 2, 3, 4],
@@ -322,6 +292,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
                     value: vec![8],
                 },
             ],
+            transient_data: vec![],
         }],
     };
 

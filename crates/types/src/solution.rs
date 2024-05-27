@@ -17,10 +17,6 @@ pub type SolutionDataIndex = u16;
 pub struct Solution {
     /// The input data for each intent.
     pub data: Vec<SolutionData>,
-    /// The transient data being proposed.
-    pub transient_data: Vec<Mutations>,
-    /// The state mutations being proposed.
-    pub state_mutations: Vec<Mutations>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -31,6 +27,10 @@ pub struct SolutionData {
     pub intent_to_solve: IntentAddress,
     /// The decision variables for the intent.
     pub decision_variables: Vec<Word>,
+    /// The transient data being proposed.
+    pub transient_data: Vec<Mutation>,
+    /// The state mutations being proposed.
+    pub state_mutations: Vec<Mutation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -44,15 +44,14 @@ pub struct Mutation {
     pub value: Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// The state or transient data that is being proposed to be mutated.
-/// This state or transient data is owned by an intent.
-pub struct Mutations {
-    /// A pathway intent to allow a set of mutations.
-    ///
-    /// The intent must be solved to allow the mutations.
-    pub pathway: SolutionDataIndex,
-    /// The mutations to the state or transient data.
-    pub mutations: Vec<Mutation>,
+impl Solution {
+    /// Get the length of all the state mutations in the solution.
+    pub fn state_mutations_len(&self) -> usize {
+        self.data.iter().map(|d| d.state_mutations.len()).sum()
+    }
+
+    /// Get the length of all the transient data in the solution.
+    pub fn transient_data_len(&self) -> usize {
+        self.data.iter().map(|d| d.transient_data.len()).sum()
+    }
 }
