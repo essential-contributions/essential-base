@@ -17,6 +17,8 @@ pub fn bench(c: &mut Criterion) {
                     intent: ContentAddress([0; 32]),
                 },
                 decision_variables: vec![],
+                state_mutations: vec![],
+                transient_data: vec![],
             }],
             index: 0,
             mutable_keys: &mutable_keys,

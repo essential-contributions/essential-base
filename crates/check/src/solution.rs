@@ -84,9 +84,6 @@ pub enum InvalidTransientData {
     /// The number of transient data exceeds the limit.
     #[error("the number of transient data ({0}) exceeds the limit ({MAX_TRANSIENT_DATA})")]
     TooMany(usize),
-    /// Transient data pathway at the given index is out of range of solution data.
-    #[error("transient data pathway {0} out of range of solution data")]
-    PathwayOutOfRangeOfSolutionData(u16),
 }
 
 /// [`check_intents`] error.
@@ -229,29 +226,19 @@ pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData
 pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMutations> {
     // Validate state mutations.
     // Ensure that solution state mutations length is below limit length.
-    if solution.state_mutations.len() > MAX_STATE_MUTATIONS {
+    if solution.state_mutations_len() > MAX_STATE_MUTATIONS {
         return Err(InvalidStateMutations::TooMany(
-            solution.state_mutations.len(),
+            solution.state_mutations_len(),
         ));
     }
 
-    // Ensure that all state mutations with a pathway points to some solution data.
-    for state_mut in &solution.state_mutations {
-        if solution.data.len() <= usize::from(state_mut.pathway) {
-            return Err(InvalidStateMutations::PathwayOutOfRangeOfSolutionData(
-                state_mut.pathway,
-            ));
-        }
-    }
-
     // Ensure that no more than one mutation per slot is proposed.
-    let mut mut_keys = HashSet::new();
-    for state_mutation in &solution.state_mutations {
-        let intent_addr = &solution.data[state_mutation.pathway as usize].intent_to_solve;
-        for mutation in &state_mutation.mutations {
-            if !mut_keys.insert((intent_addr, &mutation.key)) {
+    for data in &solution.data {
+        let mut mut_keys = HashSet::new();
+        for mutation in &data.state_mutations {
+            if !mut_keys.insert(&mutation.key) {
                 return Err(InvalidStateMutations::MultipleMutationsForSlot(
-                    intent_addr.clone(),
+                    data.intent_to_solve.clone(),
                     mutation.key.clone(),
                 ));
             }
@@ -265,17 +252,8 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
 pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidTransientData> {
     // Validate transient data.
     // Ensure that solution transient data length is below limit length.
-    if solution.transient_data.len() > MAX_TRANSIENT_DATA {
-        return Err(InvalidTransientData::TooMany(solution.transient_data.len()));
-    }
-
-    // Ensure that all transient data with a pathway points to some solution data.
-    for transient_datum in &solution.transient_data {
-        if solution.data.len() <= usize::from(transient_datum.pathway) {
-            return Err(InvalidTransientData::PathwayOutOfRangeOfSolutionData(
-                transient_datum.pathway,
-            ));
-        }
+    if solution.transient_data_len() > MAX_TRANSIENT_DATA {
+        return Err(InvalidTransientData::TooMany(solution.transient_data_len()));
     }
 
     Ok(())
