@@ -1,10 +1,10 @@
 //! Items related to the validation of [`Intent`]s.
 
 use crate::{
-    sign::{secp256k1, verify},
+    sign::secp256k1,
     types::{
-        intent::{Directive, Intent},
-        ConstraintBytecode, Signed, StateReadBytecode,
+        intent::{self, Directive, Intent},
+        ConstraintBytecode, StateReadBytecode,
     },
 };
 #[cfg(feature = "tracing")]
@@ -134,10 +134,10 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Validate a signed set of intents.
 ///
 /// Verifies the signature and then validates the intent set.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(addr = %intent_set_addr::from_intents(&intents.data)), err))]
-pub fn check_signed_set(intents: &Signed<Vec<Intent>>) -> Result<(), InvalidSignedSet> {
-    verify(intents)?;
-    check_set(&intents.data)?;
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(addr = %intent_set_addr::from_intents(&intents.set)), err))]
+pub fn check_signed_set(intents: &intent::SignedSet) -> Result<(), InvalidSignedSet> {
+    essential_sign::intent_set::verify(intents)?;
+    check_set(&intents.set)?;
     Ok(())
 }
 

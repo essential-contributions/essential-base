@@ -1,5 +1,4 @@
 use essential_check::intent;
-use essential_sign::sign;
 use essential_types::intent::{Directive, Intent};
 use util::{empty_intent, random_keypair};
 
@@ -9,7 +8,7 @@ pub mod util;
 fn signed_set_one_empty_intent() {
     let intent = empty_intent();
     let (sk, _pk) = random_keypair([0; 32]);
-    let signed = sign(vec![intent], sk);
+    let signed = essential_sign::intent_set::sign(vec![intent], &sk);
     intent::check_signed_set(&signed).unwrap();
 }
 
@@ -17,7 +16,7 @@ fn signed_set_one_empty_intent() {
 fn invalid_signature() {
     let intent = empty_intent();
     let (sk, _pk) = random_keypair([0; 32]);
-    let mut signed = sign(vec![intent], sk);
+    let mut signed = essential_sign::intent_set::sign(vec![intent], &sk);
     signed.signature.0 = [0; 64];
     assert!(matches!(
         intent::check_signed_set(&signed).unwrap_err(),
@@ -29,7 +28,7 @@ fn invalid_signature() {
 fn too_many_intents() {
     let intents: Vec<Intent> = vec![empty_intent(); intent::MAX_INTENTS + 1];
     let (sk, _pk) = random_keypair([0; 32]);
-    let signed = sign(intents, sk);
+    let signed = essential_sign::intent_set::sign(intents, &sk);
     assert!(matches!(
         intent::check_signed_set(&signed).unwrap_err(),
         intent::InvalidSignedSet::Set(intent::InvalidSet::TooManyIntents(n))
