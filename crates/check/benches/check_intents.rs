@@ -237,7 +237,7 @@ fn test_intent_42_solution_pair(
     // Create the test intent, ensure its decision_variables match, and sign.
     let intents: Vec<_> = (0..amount).map(|i| test_intent_42(i as Word)).collect();
     let (sk, _pk) = random_keypair(keypair_seed);
-    let intents = essential_sign::sign(intents, sk);
+    let intents = essential_sign::sign(intents, &sk);
 
     let set = intent_set_addr(&intents);
 

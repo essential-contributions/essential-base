@@ -84,9 +84,6 @@ pub enum InvalidTransientData {
     /// The number of transient data exceeds the limit.
     #[error("the number of transient data ({0}) exceeds the limit ({MAX_TRANSIENT_DATA})")]
     TooMany(usize),
-    /// Transient data pathway at the given index is out of range of solution data.
-    #[error("transient data pathway {0} out of range of solution data")]
-    PathwayOutOfRangeOfSolutionData(u16),
 }
 
 /// [`check_intents`] error.
