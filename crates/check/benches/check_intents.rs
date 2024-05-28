@@ -17,28 +17,37 @@ use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 pub fn bench(c: &mut Criterion) {
     let config = Arc::new(essential_check::solution::CheckIntentConfig::default());
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .build()
-        .unwrap();
+    let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
 
-    for i in [1, 10, 100, 1000, 10_000] {
-        let (intents, solution, intents_map) = create(i);
-        let get_intent = |addr: &IntentAddress| intents_map.get(addr).cloned().unwrap();
-        let mut pre_state = State::EMPTY;
-        pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
-        let mut post_state = pre_state.clone();
-        post_state.apply_mutations(&solution);
-        c.bench_function(&format!("check_42_{}", i), |b| {
-            b.to_async(&runtime).iter(|| {
-                essential_check::solution::check_intents(
-                    &pre_state,
-                    &post_state,
-                    solution.clone(),
-                    get_intent,
-                    config.clone(),
-                )
+    for (i, num_constraints) in [
+        (1, &[1, 10, 100, 1000, 10_000][..]),
+        (10, &[1, 10, 100, 1000]),
+        (100, &[1, 10, 100]),
+        (1000, &[1, 10]),
+        (10_000, &[1]),
+    ] {
+        for num_constraints in num_constraints {
+            let (intents, solution, intents_map) = create(i, *num_constraints);
+            let get_intent = |addr: &IntentAddress| intents_map.get(addr).cloned().unwrap();
+            let mut pre_state = State::EMPTY;
+            pre_state
+                .deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
+            let mut post_state = pre_state.clone();
+            post_state.apply_mutations(&solution);
+            c.bench_function(&format!("check_42_{}_{}", i, num_constraints), |b| {
+                b.to_async(&runtime).iter(|| async {
+                    essential_check::solution::check_intents(
+                        &pre_state,
+                        &post_state,
+                        solution.clone(),
+                        get_intent,
+                        config.clone(),
+                    )
+                    .await
+                    .unwrap();
+                });
             });
-        });
+        }
     }
 }
 
@@ -48,12 +57,13 @@ criterion_main!(benches);
 #[allow(clippy::type_complexity)]
 fn create(
     amount: usize,
+    num_constraints: usize,
 ) -> (
     Signed<Vec<Intent>>,
     Arc<Solution>,
     HashMap<IntentAddress, Arc<Intent>>,
 ) {
-    let (intents, solution) = test_intent_42_solution_pair(amount, [0; 32]);
+    let (intents, solution) = test_intent_42_solution_pair(amount, num_constraints, [0; 32]);
     let set = intent_set_addr(&intents);
     let intents_map: HashMap<_, _> = intents
         .data
@@ -172,49 +182,78 @@ impl StateRead for State {
     }
 }
 
-fn test_intent_42(entropy: Word) -> Intent {
+fn test_intent_42(entropy: Word, num_constraints: usize) -> Intent {
+    let mut state_read: Vec<state_read_vm::asm::Op> = vec![
+        state_read_vm::asm::Stack::Push(2).into(),
+        state_read_vm::asm::StateSlots::AllocSlots.into(),
+        state_read_vm::asm::Stack::Push(0).into(),
+        state_read_vm::asm::Stack::Push(0).into(),
+        state_read_vm::asm::Stack::Push(0).into(),
+        state_read_vm::asm::Stack::Push(0).into(),
+        state_read_vm::asm::Stack::Push(4).into(),
+        state_read_vm::asm::Stack::Push(1).into(),
+        state_read_vm::asm::Stack::Push(0).into(),
+        state_read_vm::asm::StateRead::KeyRange,
+    ];
+    state_read.extend(vec![
+        state_read_vm::asm::Op::from(
+            state_read_vm::asm::Stack::Push(20)
+        );
+        32
+    ]);
+    state_read.extend([
+        state_read_vm::asm::Stack::Push(32).into(),
+        state_read_vm::asm::Stack::Push(1).into(),
+        state_read_vm::asm::Stack::Push(1).into(),
+        state_read_vm::asm::StateRead::KeyRange,
+        state_read_vm::asm::ControlFlow::Halt.into(),
+    ]);
     Intent {
         // State read program to read state slot 0.
-        state_read: vec![state_read_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::StateSlots::AllocSlots.into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(4).into(),
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::StateRead::KeyRange,
-            state_read_vm::asm::ControlFlow::Halt.into(),
-        ])
-        .collect()],
+        state_read: vec![state_read_vm::asm::to_bytes(state_read).collect()],
         // Program to check pre-mutation value is None and
         // post-mutation value is 42 at slot 0.
-        constraints: vec![constraint_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(entropy).into(),
-            state_read_vm::asm::Stack::Pop.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
-            constraint_vm::asm::Stack::Push(0).into(), // pre
-            constraint_vm::asm::Access::StateLen.into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
-            constraint_vm::asm::Stack::Push(1).into(), // post
-            constraint_vm::asm::Access::State.into(),
-            constraint_vm::asm::Stack::Push(42).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Pred::And.into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
-            constraint_vm::asm::Stack::Push(1).into(), // post
-            constraint_vm::asm::Access::State.into(),
-            constraint_vm::asm::Stack::Push(42).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Pred::And.into(),
-        ])
-        .collect()],
+        constraints: (0..num_constraints)
+            .map(|_| {
+                constraint_vm::asm::to_bytes([
+                    state_read_vm::asm::Stack::Push(entropy).into(),
+                    state_read_vm::asm::Stack::Pop.into(),
+                    constraint_vm::asm::Stack::Push(0).into(), // slot
+                    constraint_vm::asm::Stack::Push(0).into(), // pre
+                    constraint_vm::asm::Access::StateLen.into(),
+                    constraint_vm::asm::Stack::Push(0).into(),
+                    constraint_vm::asm::Pred::Eq.into(),
+                    constraint_vm::asm::Stack::Push(0).into(), // slot
+                    constraint_vm::asm::Stack::Push(1).into(), // post
+                    constraint_vm::asm::Access::State.into(),
+                    constraint_vm::asm::Stack::Push(42).into(),
+                    constraint_vm::asm::Pred::Eq.into(),
+                    constraint_vm::asm::Pred::And.into(),
+                    constraint_vm::asm::Stack::Push(0).into(),
+                    constraint_vm::asm::Access::DecisionVar.into(),
+                    constraint_vm::asm::Stack::Push(0).into(), // slot
+                    constraint_vm::asm::Stack::Push(1).into(), // post
+                    constraint_vm::asm::Access::State.into(),
+                    constraint_vm::asm::Stack::Push(42).into(),
+                    constraint_vm::asm::Pred::Eq.into(),
+                    constraint_vm::asm::Pred::And.into(),
+                    constraint_vm::asm::Stack::Push(1).into(), // slot
+                    constraint_vm::asm::Stack::Push(1).into(), // post
+                    constraint_vm::asm::Access::State.into(),
+                    constraint_vm::asm::Stack::Push(1000).into(),
+                    constraint_vm::asm::Crypto::Sha256.into(),
+                    constraint_vm::asm::Stack::Push(1).into(), // slot
+                    constraint_vm::asm::Stack::Push(1).into(), // post
+                    constraint_vm::asm::Access::State.into(),
+                    constraint_vm::asm::Stack::Push(1000).into(),
+                    constraint_vm::asm::Crypto::Sha256.into(),
+                    constraint_vm::asm::Stack::Push(4).into(),
+                    constraint_vm::asm::Pred::EqRange.into(),
+                    constraint_vm::asm::Pred::And.into(),
+                ])
+                .collect()
+            })
+            .collect(),
         directive: Directive::Satisfy,
     }
 }
@@ -232,10 +271,13 @@ fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 
 fn test_intent_42_solution_pair(
     amount: usize,
+    num_constraints: usize,
     keypair_seed: [u8; 32],
 ) -> (Signed<Vec<Intent>>, Solution) {
     // Create the test intent, ensure its decision_variables match, and sign.
-    let intents: Vec<_> = (0..amount).map(|i| test_intent_42(i as Word)).collect();
+    let intents: Vec<_> = (0..amount)
+        .map(|i| test_intent_42(i as Word, num_constraints))
+        .collect();
     let (sk, _pk) = random_keypair(keypair_seed);
     let intents = essential_sign::sign(intents, &sk);
 
@@ -248,10 +290,16 @@ fn test_intent_42_solution_pair(
                 intent: ContentAddress(essential_hash::hash(intents.data.get(i).unwrap())),
             },
             decision_variables: vec![42],
-            state_mutations: vec![Mutation {
-                key: vec![0, 0, 0, 0],
-                value: vec![42],
-            }],
+            state_mutations: vec![
+                Mutation {
+                    key: vec![0, 0, 0, 0],
+                    value: vec![42],
+                },
+                Mutation {
+                    key: vec![20; 32],
+                    value: vec![42; 1000],
+                },
+            ],
             transient_data: vec![],
         })
         .collect();

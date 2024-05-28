@@ -4,7 +4,7 @@ use essential_check::{
     state_read_vm,
     state_read_vm::StateRead,
     types::{
-        intent::{Directive, Intent},
+        intent::{self, Directive, Intent},
         solution::{Mutation, Solution, SolutionData},
         ContentAddress, IntentAddress, Key, Word,
     },
