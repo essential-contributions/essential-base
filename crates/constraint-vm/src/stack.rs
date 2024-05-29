@@ -84,6 +84,9 @@ impl Stack {
     pub(crate) fn select_range(&mut self) -> StackResult<()> {
         let cond_w = self.pop()?;
         let len = self.pop()?;
+        if len == 0 {
+            return Ok(());
+        }
         let double = len.checked_mul(2).ok_or(StackError::IndexOutOfBounds)?;
         self.push(double)?;
         let selected = self.pop_len_words::<_, _, StackError>(|words| {
