@@ -321,6 +321,7 @@ pub fn step_op_stack(
         asm::Stack::Swap => stack.pop2_push2(|a, b| Ok([b, a])),
         asm::Stack::SwapIndex => stack.swap_index().map_err(From::from),
         asm::Stack::Select => stack.select().map_err(From::from),
+        asm::Stack::SelectRange => stack.select_range().map_err(From::from),
         asm::Stack::Repeat => repeat::repeat(pc, stack, repeat),
         asm::Stack::RepeatEnd => unreachable!(),
     };

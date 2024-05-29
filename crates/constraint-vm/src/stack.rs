@@ -80,6 +80,26 @@ impl Stack {
         Ok(())
     }
 
+    /// The SelectRange op implementation.
+    pub(crate) fn select_range(&mut self) -> StackResult<()> {
+        let cond_w = self.pop()?;
+        let len = self.pop()?;
+        let double = len.checked_mul(2).ok_or(StackError::IndexOutOfBounds)?;
+        self.push(double)?;
+        let selected = self.pop_len_words::<_, _, StackError>(|words| {
+            let (a, b) = words.split_at(len.try_into().map_err(|_| StackError::IndexOutOfBounds)?);
+            Ok(
+                if bool_from_word(cond_w).ok_or(StackError::InvalidCondition(cond_w))? {
+                    b.to_owned()
+                } else {
+                    a.to_owned()
+                },
+            )
+        })?;
+        self.extend(selected)?;
+        Ok(())
+    }
+
     /// A wrapper around `Vec::pop`, producing an error in the case that the stack is empty.
     pub fn pop(&mut self) -> StackResult<Word> {
         self.0.pop().ok_or(StackError::Empty)
@@ -349,5 +369,22 @@ mod tests {
         ];
         let stack = exec_ops(ops, *test_access()).unwrap();
         assert_eq!(&stack[..], &[4]);
+    }
+
+    #[test]
+    fn select_range() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(3).into(), // len
+            Stack::Push(1).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[5, 5, 5]);
     }
 }
