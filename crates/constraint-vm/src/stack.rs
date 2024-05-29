@@ -375,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn select_range() {
+    fn select_range_cond_1() {
         let ops = &[
             Stack::Push(4).into(),
             Stack::Push(4).into(),
@@ -389,5 +389,78 @@ mod tests {
         ];
         let stack = exec_ops(ops, *test_access()).unwrap();
         assert_eq!(&stack[..], &[5, 5, 5]);
+    }
+
+    #[test]
+    fn select_range_cond_0() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(3).into(), // len
+            Stack::Push(0).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[4, 4, 4]);
+    }
+
+    #[test]
+    fn select_range_cond_invalid() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(1).into(),  // len
+            Stack::Push(42).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(4, OpError::Stack(StackError::InvalidCondition(42)))) => (),
+            _ => panic!("expected invalid condition stack error"),
+        }
+    }
+
+    #[test]
+    fn select_range_len_0() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(0).into(), // len
+            Stack::Push(0).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[4, 5]);
+    }
+
+    #[test]
+    fn select_range_len_negative() {
+        let ops = &[
+            Stack::Push(-42).into(), // len
+            Stack::Push(0).into(),   // cond
+            Stack::SelectRange.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(2, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            _ => panic!("expected index out of bounds stack error"),
+        }
+    }
+
+    #[test]
+    fn select_range_len_too_big() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(2).into(), // len
+            Stack::Push(0).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(4, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            _ => panic!("expected index out of bounds stack error"),
+        }
     }
 }
