@@ -352,13 +352,12 @@ mod tests {
     fn swap_index_oob() {
         let ops = &[
             Stack::Push(3).into(),
-            Stack::Push(3).into(),
             Stack::Push(4).into(),
             Stack::Push(2).into(), // Index `2` is out of range.
             Stack::SwapIndex.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(4, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
     }
@@ -454,13 +453,14 @@ mod tests {
     fn select_range_len_too_big() {
         let ops = &[
             Stack::Push(4).into(),
+            Stack::Push(4).into(),
             Stack::Push(5).into(),
             Stack::Push(2).into(), // len
             Stack::Push(0).into(), // cond
             Stack::SelectRange.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(4, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            Err(ConstraintError::Op(5, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out of bounds stack error"),
         }
     }
