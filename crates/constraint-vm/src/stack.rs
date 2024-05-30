@@ -83,23 +83,23 @@ impl Stack {
     /// The SelectRange op implementation.
     pub(crate) fn select_range(&mut self) -> StackResult<()> {
         let cond_w = self.pop()?;
-        let len = self.pop()?;
+        let cond = bool_from_word(cond_w).ok_or(StackError::InvalidCondition(cond_w))?;
+        let len = self.pop_len()?;
         if len == 0 {
             return Ok(());
         }
-        let double = len.checked_mul(2).ok_or(StackError::IndexOutOfBounds)?;
-        self.push(double)?;
-        let selected = self.pop_len_words::<_, _, StackError>(|words| {
-            let (a, b) = words.split_at(len.try_into().map_err(|_| StackError::IndexOutOfBounds)?);
-            Ok(
-                if bool_from_word(cond_w).ok_or(StackError::InvalidCondition(cond_w))? {
-                    b.to_owned()
-                } else {
-                    a.to_owned()
-                },
-            )
-        })?;
-        self.extend(selected)?;
+        // check that `len` is at most half the stack length
+        self.len()
+            .checked_sub(len.checked_mul(2).ok_or(StackError::IndexOutOfBounds)?)
+            .ok_or(StackError::IndexOutOfBounds)?;
+
+        // stack: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N]
+        // if cond == true { copy arr_b on top of arr_a }
+        // then pop arr_b
+        let src = self.len() - (len * (1 + (!cond as usize))); // if cond == true { slice index of arr_b_0 } else { slice index of arr_a_0}
+        let dest = self.len() - (len * 2); // slice index of arr_a_0
+        self.0.copy_within(src..(src + len), dest); // copy the range at src onto arr_a
+        self.0.truncate(dest + len); // pop arr_b
         Ok(())
     }
 
@@ -352,12 +352,13 @@ mod tests {
     fn swap_index_oob() {
         let ops = &[
             Stack::Push(3).into(),
+            Stack::Push(3).into(),
             Stack::Push(4).into(),
             Stack::Push(2).into(), // Index `2` is out of range.
             Stack::SwapIndex.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            Err(ConstraintError::Op(4, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
     }
