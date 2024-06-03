@@ -20,6 +20,7 @@ criterion = { workspace = true, features = ["async_tokio"] }
 essential-hash = { workspace = true }
 rand = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand-std"] }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [features]
 tracing = ["dep:essential-hash", "dep:tracing"]
