@@ -95,8 +95,3 @@ pub struct Batch {
     /// The solutions in the batch.
     pub solutions: Vec<Solution>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// The storage layout of a stateful intent.
-pub struct StorageLayout;
