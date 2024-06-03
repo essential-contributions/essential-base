@@ -92,14 +92,16 @@ impl Stack {
         self.len()
             .checked_sub(len.checked_mul(2).ok_or(StackError::IndexOutOfBounds)?)
             .ok_or(StackError::IndexOutOfBounds)?;
-
         // stack: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N]
-        // if cond == true { copy arr_b on top of arr_a }
-        // then pop arr_b
-        let src = self.len() - (len * (1 + (!cond as usize))); // if cond == true { slice index of arr_b_0 } else { slice index of arr_a_0}
-        let dest = self.len() - (len * 2); // slice index of arr_a_0
-        self.0.copy_within(src..(src + len), dest); // copy the range at src onto arr_a
-        self.0.truncate(dest + len); // pop arr_b
+        let arr_b_index = self.len() - len;
+        if cond {
+            // copy arr_b to the space arr_a holds
+            let arr_a_index = arr_b_index - len;
+            self.0
+                .copy_within(arr_b_index..(arr_b_index + len), arr_a_index);
+        }
+        // pop the topmost range that is arr_b
+        self.0.truncate(arr_b_index);
         Ok(())
     }
 
