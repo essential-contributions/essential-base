@@ -86,9 +86,15 @@ pub enum OpError {
 /// Access operation error.
 #[derive(Debug, Error)]
 pub enum AccessError {
-    /// A decision variable index was out of bounds.
+    /// A decision variable slot was out of bounds.
     #[error("decision variable slot out of bounds")]
     DecisionSlotOutOfBounds,
+    /// A decision variable slot index was out of bounds.
+    #[error("decision variable slot index out of bounds")]
+    DecisionIndexOutOfBounds,
+    /// A decision variable length was too large.
+    #[error("the length of a decision variable slot is too large: {0}")]
+    DecisionLengthTooLarge(usize),
     /// A solution data index provided by a transient decision variable was out of bounds.
     #[error("solution data index out of bounds")]
     SolutionDataOutOfBounds,

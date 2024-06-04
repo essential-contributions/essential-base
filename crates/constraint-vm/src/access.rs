@@ -156,21 +156,40 @@ pub fn transient_data(solution: &Solution) -> TransientData {
 /// `Access::DecisionVar` implementation.
 pub(crate) fn decision_var(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
     stack.pop1_push1(|slot| {
-        let ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-        let w = resolve_decision_var(solution.data, solution.index, ix)?;
+        let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
+        let w = resolve_decision_var(solution.data, solution.index, slot_ix, 0)?;
+        Ok(w)
+    })
+}
+
+/// `Access::DecisionVarAt` implementation.
+pub(crate) fn decision_var_at(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
+    stack.pop2_push1(|slot, index| {
+        let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
+        let var_ix = usize::try_from(index).map_err(|_| AccessError::DecisionIndexOutOfBounds)?;
+        let w = resolve_decision_var(solution.data, solution.index, slot_ix, var_ix)?;
         Ok(w)
     })
 }
 
 /// `Access::DecisionVarRange` implementation.
 pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    let [slot, len] = stack.pop2()?;
-    let range = range_from_start_len(slot, len).ok_or(AccessError::DecisionSlotOutOfBounds)?;
-    for dec_var_ix in range {
-        let w = resolve_decision_var(solution.data, solution.index, dec_var_ix)?;
-        stack.push(w)?;
-    }
+    let [slot, index, len] = stack.pop3()?;
+    let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
+    let range = range_from_start_len(index, len).ok_or(AccessError::DecisionIndexOutOfBounds)?;
+    let words = resolve_decision_var_range(solution.data, solution.index, slot_ix, range)?;
+    stack.extend(words.iter().copied())?;
     Ok(())
+}
+
+/// `Access::DecisionVarLen` implementation.
+pub(crate) fn decision_var_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
+    stack.pop1_push1(|slot| {
+        let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
+        let len = resolve_decision_var_len(solution.data, solution.index, slot_ix)?;
+        let w = Word::try_from(len).map_err(|_| AccessError::DecisionLengthTooLarge(len))?;
+        Ok(w)
+    })
 }
 
 /// `Access::MutKeysLen` implementation.
@@ -334,14 +353,13 @@ pub(crate) fn this_transient_contains(
     Ok(())
 }
 
-/// Resolve the decision variable by traversing any necessary transient data.
+/// Resolve the decision variable word at a slot and index.
 ///
-/// Errors if the solution data or decision var indices are out of bounds
-/// (whether provided directly or via a transient decision var) or if a cycle
-/// occurs between transient decision variables.
+/// Errors if the solution data or decision var indices are out of bounds.
 pub(crate) fn resolve_decision_var(
     data: &[SolutionData],
     data_ix: usize,
+    slot_ix: usize,
     var_ix: usize,
 ) -> Result<Word, AccessError> {
     let solution_data = data
@@ -349,8 +367,48 @@ pub(crate) fn resolve_decision_var(
         .ok_or(AccessError::SolutionDataOutOfBounds)?;
     solution_data
         .decision_variables
+        .get(slot_ix)
+        .ok_or(AccessError::DecisionSlotOutOfBounds)?
         .get(var_ix)
         .copied()
+        .ok_or(AccessError::DecisionIndexOutOfBounds)
+}
+
+/// Resolve a range of words at a decision variable slot.
+///
+/// Errors if the solution data or decision var indices are out of bounds.
+pub(crate) fn resolve_decision_var_range(
+    data: &[SolutionData],
+    data_ix: usize,
+    slot_ix: usize,
+    var_range_ix: core::ops::Range<usize>,
+) -> Result<&[Word], AccessError> {
+    let solution_data = data
+        .get(data_ix)
+        .ok_or(AccessError::SolutionDataOutOfBounds)?;
+    solution_data
+        .decision_variables
+        .get(slot_ix)
+        .ok_or(AccessError::DecisionSlotOutOfBounds)?
+        .get(var_range_ix)
+        .ok_or(AccessError::DecisionIndexOutOfBounds)
+}
+
+/// Resolve the length of decision variable slot.
+///
+/// Errors if the solution data or decision var indices are out of bounds.
+pub(crate) fn resolve_decision_var_len(
+    data: &[SolutionData],
+    data_ix: usize,
+    slot_ix: usize,
+) -> Result<usize, AccessError> {
+    let solution_data = data
+        .get(data_ix)
+        .ok_or(AccessError::SolutionDataOutOfBounds)?;
+    solution_data
+        .decision_variables
+        .get(slot_ix)
+        .map(|slot| slot.len())
         .ok_or(AccessError::DecisionSlotOutOfBounds)
 }
 

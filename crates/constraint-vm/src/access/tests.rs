@@ -10,13 +10,292 @@ use essential_types::{
     ContentAddress, IntentAddress,
 };
 
+macro_rules! check_dec_var {
+    ($d:expr, $s:expr, $f:ident) => {{
+        let d = [SolutionData {
+            intent_to_solve: TEST_INTENT_ADDR,
+            decision_variables: $d,
+            state_mutations: Default::default(),
+            transient_data: Default::default(),
+        }];
+        let access = SolutionAccess {
+            data: &d,
+            index: 0,
+            mutable_keys: test_empty_keys(),
+            transient_data: test_transient_data(),
+        };
+        $f(access, $s)
+    }};
+}
+
 #[test]
-fn decision_var_inline() {
+fn test_decision_var() {
+    let d = vec![vec![42]];
+
+    // Empty stack.
+    let mut stack = Stack::default();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Slot out-of-bounds.
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    matches!(
+        check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
+        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+    );
+
+    // Slot index in-bounds but value is empty
+    let d = vec![vec![]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
+        OpError::Access(AccessError::DecisionIndexOutOfBounds)
+    );
+
+    // Slot index in-bounds and value is not empty
+    let d = vec![vec![42]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    assert_eq!(stack.pop().unwrap(), 42);
+
+    // Get's first word,
+    let d = vec![(0..10).collect()];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    assert_eq!(stack.pop().unwrap(), 0);
+
+    // Get's first word with multiple slots,
+    let d = vec![(0..10).collect(), (10..20).collect()];
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    assert_eq!(stack.pop().unwrap(), 10);
+}
+
+#[test]
+fn test_decision_var_at() {
+    let d = vec![vec![42]];
+
+    // Empty stack.
+    let mut stack = Stack::default();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Missing var index
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Slot out-of-bounds.
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    stack.push(0).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
+        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+    );
+
+    // Index out-of-bounds.
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(1).unwrap();
+    matches!(
+        check_dec_var!(d, &mut stack, decision_var_at).unwrap_err(),
+        OpError::Access(AccessError::DecisionIndexOutOfBounds)
+    );
+
+    // Slot index in-bounds but value is empty
+    let d = vec![vec![]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
+        OpError::Access(AccessError::DecisionIndexOutOfBounds)
+    );
+
+    // Slot index in-bounds and value is not empty
+    let d = vec![vec![42]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap();
+    assert_eq!(stack.pop().unwrap(), 42);
+
+    // Get's word,
+    let d = vec![(0..10).collect()];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(5).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap();
+    assert_eq!(stack.pop().unwrap(), 5);
+
+    // Get's word with multiple slots,
+    let d = vec![(0..10).collect(), (10..20).collect()];
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    stack.push(5).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap();
+    assert_eq!(stack.pop().unwrap(), 15);
+}
+
+#[test]
+fn test_decision_var_range() {
+    let d = vec![vec![42, 43]];
+
+    // Empty stack.
+    let mut stack = Stack::default();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Missing var index
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Missing len
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Slot out-of-bounds.
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    stack.push(0).unwrap();
+    stack.push(1).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+    );
+
+    // Index out-of-bounds.
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(2).unwrap();
+    stack.push(1).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        OpError::Access(AccessError::DecisionIndexOutOfBounds)
+    );
+
+    // Length out-of-bounds.
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    stack.push(3).unwrap();
+    matches!(
+        check_dec_var!(d, &mut stack, decision_var_range).unwrap_err(),
+        OpError::Access(AccessError::DecisionIndexOutOfBounds)
+    );
+
+    // Slot index in-bounds but value is empty
+    let d = vec![vec![]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    stack.push(1).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        OpError::Access(AccessError::DecisionIndexOutOfBounds)
+    );
+
+    // Slot index in-bounds and value is not empty
+    let d = vec![vec![42, 43]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    stack.push(2).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap();
+    assert_eq!(stack.pop().unwrap(), 43);
+    assert_eq!(stack.pop().unwrap(), 42);
+
+    // Get's range,
+    let d = vec![(0..10).collect()];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(5).unwrap();
+    stack.push(3).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap();
+    assert_eq!(*stack, vec![5, 6, 7]);
+
+    // Get's word with multiple slots,
+    let d = vec![(0..10).collect(), (10..20).collect()];
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    stack.push(5).unwrap();
+    stack.push(3).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap();
+    assert_eq!(*stack, vec![15, 16, 17]);
+}
+
+#[test]
+fn test_decision_var_len() {
+    let d = vec![vec![42, 43]];
+
+    // Empty stack.
+    let mut stack = Stack::default();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Slot out-of-bounds.
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap_err(),
+        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+    );
+
+    // Slot index in-bounds but value is empty
+    let d = vec![vec![]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap();
+    assert_eq!(stack.pop().unwrap(), 0);
+
+    // Slot index in-bounds and value is not empty
+    let d = vec![vec![42, 43]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap();
+    assert_eq!(stack.pop().unwrap(), 2);
+
+    // Get's length with multiple slots,
+    let d = vec![(0..10).collect(), (10..20).collect()];
+    let mut stack = Stack::default();
+    stack.push(1).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap();
+    assert_eq!(stack.pop().unwrap(), 10);
+}
+
+#[test]
+fn decision_var_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
                 intent_to_solve: TEST_INTENT_ADDR,
-                decision_variables: vec![42],
+                decision_variables: vec![vec![42]],
                 state_mutations: Default::default(),
                 transient_data: Default::default(),
             }],
@@ -35,12 +314,12 @@ fn decision_var_inline() {
 }
 
 #[test]
-fn decision_var_range() {
+fn decision_var_range_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
                 intent_to_solve: TEST_INTENT_ADDR,
-                decision_variables: vec![7, 8, 9],
+                decision_variables: vec![vec![7, 8, 9], vec![10, 11, 12]],
                 state_mutations: Default::default(),
                 transient_data: Default::default(),
             }],
@@ -51,7 +330,8 @@ fn decision_var_range() {
         state_slots: StateSlots::EMPTY,
     };
     let ops = &[
-        asm::Stack::Push(0).into(), // Slot index.
+        asm::Stack::Push(0).into(), // Slot.
+        asm::Stack::Push(0).into(), // Index.
         asm::Stack::Push(3).into(), // Range length.
         asm::Access::DecisionVarRange.into(),
     ];
@@ -60,12 +340,12 @@ fn decision_var_range() {
 }
 
 #[test]
-fn decision_var_slot_oob() {
+fn decision_var_slot_oob_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
                 intent_to_solve: TEST_INTENT_ADDR,
-                decision_variables: vec![42],
+                decision_variables: vec![vec![42]],
                 state_mutations: Default::default(),
                 transient_data: Default::default(),
             }],

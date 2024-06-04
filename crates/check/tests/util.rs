@@ -206,7 +206,7 @@ pub fn test_intent_42_solution_pair(
 
     // Construct the solution decision variables.
     // The first is an inline variable 42.
-    let decision_variables = vec![42];
+    let decision_variables = vec![vec![42]];
 
     // Create the solution.
     let solution = Solution {
