@@ -184,31 +184,55 @@ StateRead:
             DecisionVar:
               opcode: 0x30
               description: |
-                Access a decision variable by `slot`.
+                Access the first word in a decision variable slot by `slot`.
 
                 The slot must be in range.
 
                 Returns a decision word.
               panics:
                 - The slot is out of range.
+                - If the slot is empty.
               stack_in: [slot]
+              stack_out: [decision_word]
+            
+            DecisionVarAt:
+              opcode: 0x31
+              description: |
+                Access a word in a decision variable slot by `slot` and `index`.
+
+                The slot and index must be in range.
+
+                Returns a decision word.
+              panics:
+                - The slot is out of range.
+                - The index is out of range.
+              stack_in: [slot, index]
               stack_out: [decision_word]
 
             DecisionVarRange:
-              opcode: 0x31
+              opcode: 0x32
               description: |
-                Access a range of decision variables starting from a specified slot.
+                Access a range of decision variables slot words starting from a specified slot and index.
 
-                Returns a list of decision words with length equal to the specified range.
+                Returns a list of decision words with length equal to the specified len.
               panics:
-                - The range `slot..(slot + range)` is out of range.
-              stack_in: [slot, range]
+                - The slot is out of range.
+                - The range `index..(index + len)` is out of range.
+              stack_in: [slot, index, len]
               stack_out:
                 elem: decision_word
                 len: range
 
+            DecisionVarLen:
+              opcode: 0x33
+              description: Get the length of a specified `slot`.
+              panics:
+                - The slot is out of range.
+              stack_in: [slot]
+              stack_out: [len]
+
             State:
-              opcode: 0x32
+              opcode: 0x34
               description: |
                 Access a state variable by `slot`.
 
@@ -223,7 +247,7 @@ StateRead:
               stack_out: [state_slot_w0, ...state_slot_wN]
 
             StateRange:
-              opcode: 0x33
+              opcode: 0x35
               description: |
                 Access a range of state variables starting from a specified slot.
 
@@ -240,7 +264,7 @@ StateRead:
               stack_out: [state_word_0, ...state_word_M, state_word_0, ...state_word_N, ...]
 
             StateLen:
-              opcode: 0x34
+              opcode: 0x36
               description: |
                 Get the length of a state variable at a specified `slot`.
 
@@ -251,7 +275,7 @@ StateRead:
               stack_out: [len]
 
             StateLenRange:
-              opcode: 0x35
+              opcode: 0x37
               description: |
                 Get the lengths of a `range` of state variables starting from a specified `slot`.
 
@@ -265,7 +289,7 @@ StateRead:
                 len: range
 
             MutKeysLen:
-              opcode: 0x36
+              opcode: 0x38
               description: |
                 Get the number of mutable keys being proposed for mutation.
 
@@ -273,7 +297,7 @@ StateRead:
               stack_out: [word]
 
             MutKeysContains:
-              opcode: 0x37
+              opcode: 0x39
               description: |
                 Check if the mutable keys being proposed contain the given key.
 
@@ -282,7 +306,7 @@ StateRead:
               stack_out: [bool]
 
             ThisAddress:
-              opcode: 0x38
+              opcode: 0x3A
               description: |
                 Get the content hash of this intent.
 
@@ -290,7 +314,7 @@ StateRead:
               stack_out: [key]
 
             ThisSetAddress:
-              opcode: 0x39
+              opcode: 0x3B
               description: |
                 Get the content hash of the set of intents that this intent belongs to.
 
@@ -298,7 +322,7 @@ StateRead:
               stack_out: [key]
 
             ThisPathway:
-              opcode: 0x3A
+              opcode: 0x3C
               description: |
                 Get the pathway of this intent.
 
@@ -306,12 +330,12 @@ StateRead:
               stack_out: [in]
 
             RepeatCounter:
-              opcode: 0x3B
+              opcode: 0x3D
               description: Access the top repeat counters current value.
               stack_out: [counter_value]
 
             Transient:
-              opcode: 0x3C
+              opcode: 0x3E
               description: Get the solution data indexed by pathway and key.
               stack_in: [key_0, ...key_N, key_len, pathway]
               stack_out:
@@ -319,13 +343,13 @@ StateRead:
                 len: value_len
 
             TransientLen:
-              opcode: 0x3D
+              opcode: 0x3F
               description: Get the length of solution data indexed by pathway and key.
               stack_in: [key_0, ...key_N, key_len, pathway]
               stack_out: [len]
 
             IntentAt:
-              opcode: 0x3E
+              opcode: 0x40
               description: Get the intent at solution data pathway.
               stack_in: [pathway]
               stack_out:
@@ -341,12 +365,12 @@ StateRead:
                 ]
 
             ThisTransientLen:
-              opcode: 0x3F
+              opcode: 0x41
               description: Get the length of the transient data at this intent.
               stack_out: [len]
 
             ThisTransientContains:
-              opcode: 0x40
+              opcode: 0x42
               description: Check if the transient data at this intent contains the given key.
               stack_in: [key_0, ...key_N, key_len]
               stack_out: [bool]

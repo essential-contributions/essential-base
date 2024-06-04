@@ -247,7 +247,7 @@ fn test_intent_42_solution_pair(
                 set: set.clone(),
                 intent: ContentAddress(essential_hash::hash(intents.data.get(i).unwrap())),
             },
-            decision_variables: vec![42],
+            decision_variables: vec![vec![42]],
             state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 0],
                 value: vec![42],

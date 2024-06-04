@@ -245,7 +245,9 @@ pub fn step_op_access(
 ) -> OpResult<()> {
     match op {
         asm::Access::DecisionVar => access::decision_var(access.solution, stack),
+        asm::Access::DecisionVarAt => access::decision_var_at(access.solution, stack),
         asm::Access::DecisionVarRange => access::decision_var_range(access.solution, stack),
+        asm::Access::DecisionVarLen => access::decision_var_len(access.solution, stack),
         asm::Access::MutKeysLen => access::mut_keys_len(access.solution, stack),
         asm::Access::MutKeysContains => access::mut_keys_contains(access.solution, stack),
         asm::Access::State => access::state(access.state_slots, stack),

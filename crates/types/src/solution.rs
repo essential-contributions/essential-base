@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{IntentAddress, Key, Value, Word};
+use crate::{IntentAddress, Key, Value};
 
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
@@ -26,7 +26,7 @@ pub struct SolutionData {
     /// Which intent this input data is for.
     pub intent_to_solve: IntentAddress,
     /// The decision variables for the intent.
-    pub decision_variables: Vec<Word>,
+    pub decision_variables: Vec<Value>,
     /// The transient data being proposed.
     pub transient_data: Vec<Mutation>,
     /// The state mutations being proposed.

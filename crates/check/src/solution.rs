@@ -62,6 +62,32 @@ pub enum InvalidSolutionData {
     /// A solution data expects too many decision variables.
     #[error("data {0} expects too many decision vars {1} (limit: {MAX_DECISION_VARIABLES})")]
     TooManyDecisionVariables(usize, usize),
+    /// State mutation key too large.
+    #[error("State mutation key too large: {0}")]
+    StateMutationKeyTooLarge(KvError),
+    /// Transient data key too large.
+    #[error("Transient data key too large: {0}")]
+    TransientDataKeyTooLarge(KvError),
+    /// State mutation value too large.
+    #[error("State mutation value too large: {0}")]
+    StateMutationValueTooLarge(KvError),
+    /// Transient data value too large.
+    #[error("Transient data value too large: {0}")]
+    TransientDataValueTooLarge(KvError),
+    /// Decision variable value too large.
+    #[error("Decision variable value too large: {0}")]
+    DecVarValueTooLarge(KvError),
+}
+
+/// Error with a slot key or value.
+#[derive(Debug, Error)]
+pub enum KvError {
+    /// The key is too large.
+    #[error("key too large: {0}")]
+    KeyTooLarge(usize),
+    /// The value is too large.
+    #[error("value too large: {0}")]
+    ValueTooLarge(usize),
 }
 
 /// [`check_state_mutations`] error.
@@ -174,6 +200,10 @@ pub const MAX_SOLUTION_DATA: usize = 100;
 pub const MAX_STATE_MUTATIONS: usize = 1000;
 /// Maximum number of transient data of a solution.
 pub const MAX_TRANSIENT_DATA: usize = 1000;
+/// Maximum number of words in a slot value.
+pub const MAX_VALUE_SIZE: usize = 10_000;
+/// Maximum number of words in a slot key.
+pub const MAX_KEY_SIZE: usize = 1000;
 
 impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -197,6 +227,22 @@ pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     Ok(())
 }
 
+fn check_value_size(value: &[Word]) -> Result<(), KvError> {
+    if value.len() > MAX_VALUE_SIZE {
+        Err(KvError::ValueTooLarge(value.len()))
+    } else {
+        Ok(())
+    }
+}
+
+fn check_key_size(value: &[Word]) -> Result<(), KvError> {
+    if value.len() > MAX_KEY_SIZE {
+        Err(KvError::KeyTooLarge(value.len()))
+    } else {
+        Ok(())
+    }
+}
+
 /// Validate the solution's slice of [`SolutionData`].
 pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData> {
     // Validate solution data.
@@ -218,18 +264,19 @@ pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData
                 data.decision_variables.len(),
             ));
         }
+        for v in &data.decision_variables {
+            check_value_size(v).map_err(InvalidSolutionData::DecVarValueTooLarge)?;
+        }
     }
     Ok(())
 }
 
 /// Validate the solution's state mutations.
-pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMutations> {
+pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution> {
     // Validate state mutations.
     // Ensure that solution state mutations length is below limit length.
     if solution.state_mutations_len() > MAX_STATE_MUTATIONS {
-        return Err(InvalidStateMutations::TooMany(
-            solution.state_mutations_len(),
-        ));
+        return Err(InvalidStateMutations::TooMany(solution.state_mutations_len()).into());
     }
 
     // Ensure that no more than one mutation per slot is proposed.
@@ -240,8 +287,14 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
                 return Err(InvalidStateMutations::MultipleMutationsForSlot(
                     data.intent_to_solve.clone(),
                     mutation.key.clone(),
-                ));
+                )
+                .into());
             }
+            // Check key length.
+            check_key_size(&mutation.key).map_err(InvalidSolutionData::StateMutationKeyTooLarge)?;
+            // Check value length.
+            check_value_size(&mutation.value)
+                .map_err(InvalidSolutionData::StateMutationValueTooLarge)?;
         }
     }
 
@@ -249,11 +302,22 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidStateMuta
 }
 
 /// Validate the solution's transient data.
-pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidTransientData> {
+pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidSolution> {
     // Validate transient data.
     // Ensure that solution transient data length is below limit length.
     if solution.transient_data_len() > MAX_TRANSIENT_DATA {
-        return Err(InvalidTransientData::TooMany(solution.transient_data_len()));
+        return Err(InvalidTransientData::TooMany(solution.transient_data_len()).into());
+    }
+
+    // Ensure the lengths of keys and values are within limits.
+    for data in &solution.data {
+        for mutation in &data.transient_data {
+            // Check key length.
+            check_key_size(&mutation.key).map_err(InvalidSolutionData::TransientDataKeyTooLarge)?;
+            // Check value length.
+            check_value_size(&mutation.value)
+                .map_err(InvalidSolutionData::TransientDataValueTooLarge)?;
+        }
     }
 
     Ok(())

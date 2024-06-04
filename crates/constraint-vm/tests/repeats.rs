@@ -15,7 +15,7 @@ fn test_forall_in_asm() {
                     set: ContentAddress([0; 32]),
                     intent: ContentAddress([0; 32]),
                 },
-                decision_variables: vec![2, 4, 6, 8, 12],
+                decision_variables: vec![vec![2], vec![4], vec![6], vec![8], vec![12]],
                 state_mutations: vec![],
                 transient_data: vec![],
             }],

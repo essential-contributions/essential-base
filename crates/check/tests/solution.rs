@@ -63,7 +63,7 @@ fn too_many_decision_variables() {
     let solution = Solution {
         data: vec![SolutionData {
             intent_to_solve: test_intent_addr(),
-            decision_variables: vec![0; (solution::MAX_DECISION_VARIABLES + 1) as usize],
+            decision_variables: vec![vec![0]; (solution::MAX_DECISION_VARIABLES + 1) as usize],
             state_mutations: vec![],
             transient_data: vec![],
         }],
