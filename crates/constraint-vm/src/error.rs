@@ -95,9 +95,6 @@ pub enum AccessError {
     /// A decision variable length was too large.
     #[error("the length of a decision variable slot is too large: {0}")]
     DecisionLengthTooLarge(usize),
-    /// A solution data index provided by a transient decision variable was out of bounds.
-    #[error("solution data index out of bounds")]
-    SolutionDataOutOfBounds,
     /// A transient data index was out of bounds.
     #[error("transient data index out of bounds")]
     TransientDataOutOfBounds,
@@ -107,9 +104,15 @@ pub enum AccessError {
     /// A state slot index was out of bounds.
     #[error("state slot out of bounds")]
     StateSlotOutOfBounds,
+    /// The state mutations length was too large.
+    #[error("state mutations length is too large")]
+    StateMutationsTooLarge,
     /// A state slot delta value was invalid. Must be `0` (pre) or `1` (post).
     #[error("invalid state slot delta: expected `0` or `1`, found {0}")]
     InvalidStateSlotDelta(Word),
+    /// Pathway was out of bounds.
+    #[error("pathway is out of bounds")]
+    PathwayOutOfBounds,
 }
 
 /// ALU operation error.

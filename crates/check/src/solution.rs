@@ -475,11 +475,13 @@ where
     let mut pre_slots: Vec<Vec<Word>> = Vec::new();
     let mut post_slots: Vec<Vec<Word>> = Vec::new();
     let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+    let instance_address = constraint_vm::instance_addresses(&solution);
     let solution_access = SolutionAccess::new(
         &solution,
         solution_data_index,
         &mutable_keys,
         &transient_data,
+        &instance_address,
     );
 
     // Read pre and post states.
@@ -677,11 +679,13 @@ async fn check_intent_constraints_parallel(
             let guard = span.enter();
 
             let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+            let instance_addresses = constraint_vm::instance_addresses(&solution);
             let solution_access = SolutionAccess::new(
                 &solution,
                 solution_data_index,
                 &mutable_keys,
                 &transient_data,
+                &instance_addresses,
             );
             let access = Access {
                 solution: solution_access,
@@ -774,11 +778,13 @@ async fn calculate_utility(
         let guard = span.enter();
 
         let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+        let instance_addresses = constraint_vm::instance_addresses(&solution);
         let solution_access = SolutionAccess::new(
             &solution,
             solution_data_index,
             &mutable_keys,
             &transient_data,
+            &instance_addresses,
         );
         let access = Access {
             solution: solution_access,

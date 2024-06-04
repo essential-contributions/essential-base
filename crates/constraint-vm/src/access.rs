@@ -10,7 +10,7 @@ use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
     solution::{Mutation, Solution, SolutionData, SolutionDataIndex},
-    Key,
+    IntentAddress, Key,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -36,7 +36,7 @@ pub struct SolutionAccess<'a> {
     ///
     /// We require *all* intent solution data in order to handle transient
     /// decision variable access.
-    pub data: &'a [SolutionData],
+    pub data: &'a SolutionData,
     /// Checking is performed for one intent at a time. This index refers to
     /// the checked intent's associated solution data within `data`.
     pub index: usize,
@@ -44,6 +44,8 @@ pub struct SolutionAccess<'a> {
     pub mutable_keys: &'a HashSet<&'a [Word]>,
     /// The transient data that points to the data in another solution data index.
     pub transient_data: &'a TransientData,
+    /// Address of each instance in the solution.
+    pub instance_addresses: &'a [&'a IntentAddress],
 }
 
 /// The pre and post mutation state slot values for the intent being solved.
@@ -69,22 +71,16 @@ impl<'a> SolutionAccess<'a> {
         intent_index: SolutionDataIndex,
         mutable_keys: &'a HashSet<&[Word]>,
         transient_data: &'a TransientData,
+        instance_addresses: &'a [&'a IntentAddress],
     ) -> Self {
+        let index: usize = intent_index.into();
         Self {
-            data: &solution.data,
-            index: intent_index.into(),
+            data: &solution.data[index],
+            index,
             mutable_keys,
             transient_data,
+            instance_addresses,
         }
-    }
-
-    /// The solution data associated with the intent currently being checked.
-    ///
-    /// **Panics** in the case that `self.index` is out of range of the `self.data` slice.
-    pub fn this_data(&self) -> &SolutionData {
-        self.data
-            .get(self.index)
-            .expect("intent index out of range of solution data")
     }
 
     /// The transient data associated with the intent currently being checked.
@@ -153,11 +149,20 @@ pub fn transient_data(solution: &Solution) -> TransientData {
     transient_data
 }
 
+/// Get the instance addresses for this solution.
+pub fn instance_addresses(solution: &Solution) -> Vec<&IntentAddress> {
+    solution
+        .data
+        .iter()
+        .map(|data| &data.intent_to_solve)
+        .collect()
+}
+
 /// `Access::DecisionVar` implementation.
 pub(crate) fn decision_var(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
     stack.pop1_push1(|slot| {
         let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-        let w = resolve_decision_var(solution.data, solution.index, slot_ix, 0)?;
+        let w = resolve_decision_var(solution.data, slot_ix, 0)?;
         Ok(w)
     })
 }
@@ -167,7 +172,7 @@ pub(crate) fn decision_var_at(solution: SolutionAccess, stack: &mut Stack) -> Op
     stack.pop2_push1(|slot, index| {
         let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
         let var_ix = usize::try_from(index).map_err(|_| AccessError::DecisionIndexOutOfBounds)?;
-        let w = resolve_decision_var(solution.data, solution.index, slot_ix, var_ix)?;
+        let w = resolve_decision_var(solution.data, slot_ix, var_ix)?;
         Ok(w)
     })
 }
@@ -177,7 +182,7 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
     let [slot, index, len] = stack.pop3()?;
     let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
     let range = range_from_start_len(index, len).ok_or(AccessError::DecisionIndexOutOfBounds)?;
-    let words = resolve_decision_var_range(solution.data, solution.index, slot_ix, range)?;
+    let words = resolve_decision_var_range(solution.data, slot_ix, range)?;
     stack.extend(words.iter().copied())?;
     Ok(())
 }
@@ -186,7 +191,7 @@ pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) ->
 pub(crate) fn decision_var_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
     stack.pop1_push1(|slot| {
         let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-        let len = resolve_decision_var_len(solution.data, solution.index, slot_ix)?;
+        let len = resolve_decision_var_len(solution.data, slot_ix)?;
         let w = Word::try_from(len).map_err(|_| AccessError::DecisionLengthTooLarge(len))?;
         Ok(w)
     })
@@ -199,7 +204,7 @@ pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpRes
             .mutable_keys
             .len()
             .try_into()
-            .map_err(|_| AccessError::SolutionDataOutOfBounds)?,
+            .map_err(|_| AccessError::StateMutationsTooLarge)?,
     )?;
     Ok(())
 }
@@ -268,7 +273,7 @@ pub(crate) fn this_set_address(data: &SolutionData, stack: &mut Stack) -> OpResu
 pub(crate) fn this_pathway(index: usize, stack: &mut Stack) -> OpResult<()> {
     let index: Word = index
         .try_into()
-        .map_err(|_| AccessError::SolutionDataOutOfBounds)?;
+        .map_err(|_| AccessError::PathwayOutOfBounds)?;
     Ok(stack.push(index)?)
 }
 
@@ -310,14 +315,12 @@ pub(crate) fn transient_len(stack: &mut Stack, solution: SolutionAccess) -> OpRe
     Ok(stack.push(length)?)
 }
 
-pub(crate) fn intent_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult<()> {
+pub(crate) fn intent_at(stack: &mut Stack, addresses: &[&IntentAddress]) -> OpResult<()> {
     let pathway = stack.pop()?;
-    let pathway = usize::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
-    let address = data
+    let pathway = usize::try_from(pathway).map_err(|_| AccessError::PathwayOutOfBounds)?;
+    let address = addresses
         .get(pathway)
-        .ok_or(StackError::IndexOutOfBounds)?
-        .intent_to_solve
-        .clone();
+        .ok_or(AccessError::PathwayOutOfBounds)?;
     let set_address = word_4_from_u8_32(address.set.0);
     let intent_address = word_4_from_u8_32(address.intent.0);
     stack.extend(set_address)?;
@@ -357,16 +360,11 @@ pub(crate) fn this_transient_contains(
 ///
 /// Errors if the solution data or decision var indices are out of bounds.
 pub(crate) fn resolve_decision_var(
-    data: &[SolutionData],
-    data_ix: usize,
+    data: &SolutionData,
     slot_ix: usize,
     var_ix: usize,
 ) -> Result<Word, AccessError> {
-    let solution_data = data
-        .get(data_ix)
-        .ok_or(AccessError::SolutionDataOutOfBounds)?;
-    solution_data
-        .decision_variables
+    data.decision_variables
         .get(slot_ix)
         .ok_or(AccessError::DecisionSlotOutOfBounds)?
         .get(var_ix)
@@ -378,16 +376,11 @@ pub(crate) fn resolve_decision_var(
 ///
 /// Errors if the solution data or decision var indices are out of bounds.
 pub(crate) fn resolve_decision_var_range(
-    data: &[SolutionData],
-    data_ix: usize,
+    data: &SolutionData,
     slot_ix: usize,
     var_range_ix: core::ops::Range<usize>,
 ) -> Result<&[Word], AccessError> {
-    let solution_data = data
-        .get(data_ix)
-        .ok_or(AccessError::SolutionDataOutOfBounds)?;
-    solution_data
-        .decision_variables
+    data.decision_variables
         .get(slot_ix)
         .ok_or(AccessError::DecisionSlotOutOfBounds)?
         .get(var_range_ix)
@@ -398,15 +391,10 @@ pub(crate) fn resolve_decision_var_range(
 ///
 /// Errors if the solution data or decision var indices are out of bounds.
 pub(crate) fn resolve_decision_var_len(
-    data: &[SolutionData],
-    data_ix: usize,
+    data: &SolutionData,
     slot_ix: usize,
 ) -> Result<usize, AccessError> {
-    let solution_data = data
-        .get(data_ix)
-        .ok_or(AccessError::SolutionDataOutOfBounds)?;
-    solution_data
-        .decision_variables
+    data.decision_variables
         .get(slot_ix)
         .map(|slot| slot.len())
         .ok_or(AccessError::DecisionSlotOutOfBounds)

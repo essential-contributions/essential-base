@@ -212,7 +212,7 @@ where
                 OpKind::Sync(op) => step_op_sync(op, self.access, vm),
                 OpKind::Async(op) => {
                     // Async op takes ownership of the VM and returns it upon future completion.
-                    let set_addr = self.access.solution.this_data().intent_to_solve.set.clone();
+                    let set_addr = self.access.solution.data.intent_to_solve.set.clone();
                     let pc = vm.pc;
                     let future = match step_op_async(op, set_addr, self.state_read, vm) {
                         Err(err) => {

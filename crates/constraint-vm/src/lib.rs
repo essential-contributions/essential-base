@@ -34,8 +34,8 @@
 #![deny(missing_docs, unsafe_code)]
 
 pub use access::{
-    mut_keys, mut_keys_set, mut_keys_slices, transient_data, Access, SolutionAccess,
-    StateSlotSlice, StateSlots, TransientData,
+    instance_addresses, mut_keys, mut_keys_set, mut_keys_slices, transient_data, Access,
+    SolutionAccess, StateSlotSlice, StateSlots, TransientData,
 };
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
@@ -254,13 +254,13 @@ pub fn step_op_access(
         asm::Access::StateRange => access::state_range(access.state_slots, stack),
         asm::Access::StateLen => access::state_len(access.state_slots, stack),
         asm::Access::StateLenRange => access::state_len_range(access.state_slots, stack),
-        asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
-        asm::Access::ThisSetAddress => access::this_set_address(access.solution.this_data(), stack),
+        asm::Access::ThisAddress => access::this_address(access.solution.data, stack),
+        asm::Access::ThisSetAddress => access::this_set_address(access.solution.data, stack),
         asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
         asm::Access::Transient => access::transient(stack, access.solution),
         asm::Access::TransientLen => access::transient_len(stack, access.solution),
-        asm::Access::IntentAt => access::intent_at(stack, access.solution.data),
+        asm::Access::IntentAt => access::intent_at(stack, access.solution.instance_addresses),
         asm::Access::ThisTransientLen => {
             access::this_transient_len(stack, access.solution.this_transient_data())
         }
@@ -401,20 +401,21 @@ pub(crate) mod test_util {
         INSTANCE.get_or_init(|| HashMap::with_capacity(0))
     }
 
-    pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
-        static INSTANCE: once_cell::sync::OnceCell<[SolutionData; 1]> =
+    pub(crate) fn test_intent_addresses_arr() -> &'static [&'static IntentAddress] {
+        static INSTANCE: once_cell::sync::OnceCell<[&IntentAddress; 1]> =
             once_cell::sync::OnceCell::new();
-        INSTANCE.get_or_init(|| [TEST_SOLUTION_DATA])
+        INSTANCE.get_or_init(|| [&TEST_INTENT_ADDR])
     }
 
     pub(crate) fn test_solution_access() -> &'static SolutionAccess<'static> {
         static INSTANCE: once_cell::sync::OnceCell<SolutionAccess> =
             once_cell::sync::OnceCell::new();
         INSTANCE.get_or_init(|| SolutionAccess {
-            data: test_solution_data_arr(),
+            data: &TEST_SOLUTION_DATA,
             index: 0,
             mutable_keys: test_empty_keys(),
             transient_data: test_transient_data(),
+            instance_addresses: test_intent_addresses_arr(),
         })
     }
 
