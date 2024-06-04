@@ -62,31 +62,25 @@ pub enum InvalidSolutionData {
     /// A solution data expects too many decision variables.
     #[error("data {0} expects too many decision vars {1} (limit: {MAX_DECISION_VARIABLES})")]
     TooManyDecisionVariables(usize, usize),
-    /// State mutation key too large.
-    #[error("State mutation key too large: {0}")]
-    StateMutationKeyTooLarge(KvError),
-    /// Transient data key too large.
-    #[error("Transient data key too large: {0}")]
-    TransientDataKeyTooLarge(KvError),
-    /// State mutation value too large.
-    #[error("State mutation value too large: {0}")]
-    StateMutationValueTooLarge(KvError),
-    /// Transient data value too large.
-    #[error("Transient data value too large: {0}")]
-    TransientDataValueTooLarge(KvError),
+    /// State mutation entry error.
+    #[error("Invalid state mutation entry: {0}")]
+    StateMutationEntry(KvError),
+    /// Transient data entry error.
+    #[error("Invalid transient data entry: {0}")]
+    TransientDataEntry(KvError),
     /// Decision variable value too large.
-    #[error("Decision variable value too large: {0}")]
-    DecVarValueTooLarge(KvError),
+    #[error("Decision variable value len {0} exceeds limit {MAX_VALUE_SIZE}")]
+    DecVarValueTooLarge(usize),
 }
 
 /// Error with a slot key or value.
 #[derive(Debug, Error)]
 pub enum KvError {
     /// The key is too large.
-    #[error("key too large: {0}")]
+    #[error("key with length {0} exceeds limit {MAX_KEY_SIZE}")]
     KeyTooLarge(usize),
     /// The value is too large.
-    #[error("value too large: {0}")]
+    #[error("value with length {0} exceeds limit {MAX_VALUE_SIZE}")]
     ValueTooLarge(usize),
 }
 
@@ -265,7 +259,7 @@ pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData
             ));
         }
         for v in &data.decision_variables {
-            check_value_size(v).map_err(InvalidSolutionData::DecVarValueTooLarge)?;
+            check_value_size(v).map_err(|_| InvalidSolutionData::DecVarValueTooLarge(v.len()))?;
         }
     }
     Ok(())
@@ -291,10 +285,9 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
                 .into());
             }
             // Check key length.
-            check_key_size(&mutation.key).map_err(InvalidSolutionData::StateMutationKeyTooLarge)?;
+            check_key_size(&mutation.key).map_err(InvalidSolutionData::StateMutationEntry)?;
             // Check value length.
-            check_value_size(&mutation.value)
-                .map_err(InvalidSolutionData::StateMutationValueTooLarge)?;
+            check_value_size(&mutation.value).map_err(InvalidSolutionData::StateMutationEntry)?;
         }
     }
 
@@ -313,10 +306,9 @@ pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidSolution> 
     for data in &solution.data {
         for mutation in &data.transient_data {
             // Check key length.
-            check_key_size(&mutation.key).map_err(InvalidSolutionData::TransientDataKeyTooLarge)?;
+            check_key_size(&mutation.key).map_err(InvalidSolutionData::TransientDataEntry)?;
             // Check value length.
-            check_value_size(&mutation.value)
-                .map_err(InvalidSolutionData::TransientDataValueTooLarge)?;
+            check_value_size(&mutation.value).map_err(InvalidSolutionData::TransientDataEntry)?;
         }
     }
 
