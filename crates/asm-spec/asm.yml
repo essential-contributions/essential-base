@@ -62,15 +62,28 @@ StateRead:
               stack_in: [a, b, cond]
               stack_out: [b]
 
-            Repeat:
+            SelectRange:
               opcode: 0x08
+              description: |
+                Conditionally keep one of the top two ranges on the stack.
+
+                If condition is `true`, the top range is kept.
+                
+                The ranges must be of equal length.
+                The ranges must be stacked sequentially.
+                Here `N` is `len -1`.
+              stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len, cond]
+              stack_out: [arr_b_0, ..arr_b_N]
+
+            Repeat:
+              opcode: 0x09
               description: |
                 Repeat a section of code the number of times.
                 Takes a boolean to either count from 0 up or from the number of repeats down to 0.
               stack_in: [num_repeats, count_up_bool]
 
             RepeatEnd:
-              opcode: 0x09
+              opcode: 0x0A
               description: |
                 Increment or decrements the top counter on the repeat stack.
                 If the counter is counting up and `counter == limit - 1`

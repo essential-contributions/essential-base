@@ -80,6 +80,31 @@ impl Stack {
         Ok(())
     }
 
+    /// The SelectRange op implementation.
+    pub(crate) fn select_range(&mut self) -> StackResult<()> {
+        let cond_w = self.pop()?;
+        let cond = bool_from_word(cond_w).ok_or(StackError::InvalidCondition(cond_w))?;
+        let len = self.pop_len()?;
+        if len == 0 {
+            return Ok(());
+        }
+        // check that `len` is at most half the stack length
+        self.len()
+            .checked_sub(len.checked_mul(2).ok_or(StackError::IndexOutOfBounds)?)
+            .ok_or(StackError::IndexOutOfBounds)?;
+        // stack: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N]
+        let arr_b_index = self.len() - len;
+        if cond {
+            // copy arr_b to the space arr_a holds
+            let arr_a_index = arr_b_index - len;
+            self.0
+                .copy_within(arr_b_index..(arr_b_index + len), arr_a_index);
+        }
+        // pop the topmost range that is arr_b
+        self.0.truncate(arr_b_index);
+        Ok(())
+    }
+
     /// A wrapper around `Vec::pop`, producing an error in the case that the stack is empty.
     pub fn pop(&mut self) -> StackResult<Word> {
         self.0.pop().ok_or(StackError::Empty)
@@ -349,5 +374,96 @@ mod tests {
         ];
         let stack = exec_ops(ops, *test_access()).unwrap();
         assert_eq!(&stack[..], &[4]);
+    }
+
+    #[test]
+    fn select_range_cond_1() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(3).into(), // len
+            Stack::Push(1).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[5, 5, 5]);
+    }
+
+    #[test]
+    fn select_range_cond_0() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(5).into(),
+            Stack::Push(3).into(), // len
+            Stack::Push(0).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[4, 4, 4]);
+    }
+
+    #[test]
+    fn select_range_cond_invalid() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(1).into(),  // len
+            Stack::Push(42).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(4, OpError::Stack(StackError::InvalidCondition(42)))) => (),
+            _ => panic!("expected invalid condition stack error"),
+        }
+    }
+
+    #[test]
+    fn select_range_len_0() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(0).into(), // len
+            Stack::Push(0).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        let stack = exec_ops(ops, *test_access()).unwrap();
+        assert_eq!(&stack[..], &[4, 5]);
+    }
+
+    #[test]
+    fn select_range_len_negative() {
+        let ops = &[
+            Stack::Push(-42).into(), // len
+            Stack::Push(0).into(),   // cond
+            Stack::SelectRange.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(2, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            _ => panic!("expected index out of bounds stack error"),
+        }
+    }
+
+    #[test]
+    fn select_range_len_too_big() {
+        let ops = &[
+            Stack::Push(4).into(),
+            Stack::Push(4).into(),
+            Stack::Push(5).into(),
+            Stack::Push(2).into(), // len
+            Stack::Push(0).into(), // cond
+            Stack::SelectRange.into(),
+        ];
+        match eval_ops(ops, *test_access()) {
+            Err(ConstraintError::Op(5, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            _ => panic!("expected index out of bounds stack error"),
+        }
     }
 }
