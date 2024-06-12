@@ -37,3 +37,4 @@ tempfile = "3.9.0"
 thiserror = "1"
 tokio = { version = "1.36", default-features = false, features = ["macros", "test-util"] }
 tracing = {version = "0.1", features = ["attributes"]}
+tracing-subscriber = "0.3.18"
