@@ -24,10 +24,7 @@
 #![deny(unsafe_code)]
 
 use essential_hash::hash;
-use essential_types::{
-    convert::{bytes_from_word, word_4_from_u8_32, word_8_from_u8_64, word_from_bytes},
-    Hash, Signature, Signed, Word,
-};
+use essential_types::{Hash, Signature, Signed};
 pub use secp256k1;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
@@ -35,6 +32,7 @@ use secp256k1::{
 };
 use serde::Serialize;
 
+pub mod encode;
 pub mod intent_set;
 
 /// Sign over data with secret key using secp256k1 curve.
@@ -120,52 +118,4 @@ pub fn recover_from_message(
     let secp = Secp256k1::new();
     let public_key = secp.recover_ecdsa(message, &recoverable_signature)?;
     Ok(public_key)
-}
-
-/// Encode a secp256k1 public key into 5 words.
-pub fn encode_public_key(pk: &PublicKey) -> [Word; 5] {
-    let [start @ .., end] = pk.serialize();
-    let start = word_4_from_u8_32(start);
-    let mut end_word = [0u8; 8];
-    end_word[7] = end;
-    let end_word = word_from_bytes(end_word);
-    let mut out = [0; 5];
-    out[..4].copy_from_slice(&start);
-    out[4] = end_word;
-    out
-}
-
-/// Encode a secp256k1 public key into 40 bytes.
-/// This is word aligned.
-pub fn encode_public_key_as_bytes(pk: &PublicKey) -> [u8; 40] {
-    let mut out = [0; 40];
-    let words = encode_public_key(pk);
-    for (i, word) in words.iter().enumerate() {
-        let bytes = bytes_from_word(*word);
-        out[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
-    }
-    out
-}
-
-/// Encode a secp256k1 recoverable signature into 9 words.
-pub fn encode_signature(sig: &RecoverableSignature) -> [Word; 9] {
-    let (rec_id, sig) = sig.serialize_compact();
-    let rec_id = rec_id.to_i32();
-    let rec_id = Word::from(rec_id);
-    let sig = word_8_from_u8_64(sig);
-    let mut out = [0; 9];
-    out[..8].copy_from_slice(&sig);
-    out[8] = rec_id;
-    out
-}
-
-/// Encode a secp256k1 recoverable signature into 72 bytes.
-pub fn encode_signature_as_bytes(sig: &RecoverableSignature) -> [u8; 72] {
-    let mut out = [0; 72];
-    let words = encode_signature(sig);
-    for (i, word) in words.iter().enumerate() {
-        let bytes = bytes_from_word(*word);
-        out[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
-    }
-    out
 }

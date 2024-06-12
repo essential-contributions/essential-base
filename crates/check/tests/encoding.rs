@@ -79,15 +79,15 @@ async fn test_encoding_sig_and_pub_key() {
     };
 
     let (sk, pk) = util::random_keypair([0; 32]);
-    let encoded_pk = essential_sign::encode_public_key(&pk);
-    let encoded_pk_bytes = essential_sign::encode_public_key_as_bytes(&pk);
+    let encoded_pk = essential_sign::encode::public_key(&pk);
+    let encoded_pk_bytes = essential_sign::encode::public_key_as_bytes(&pk);
     let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
     hasher.update(encoded_pk_bytes);
     let hash: Hash = hasher.finalize().into();
 
     let secp = secp256k1::Secp256k1::new();
     let sig = secp.sign_ecdsa_recoverable(&secp256k1::Message::from_digest(hash), &sk);
-    let encoded_sig = essential_sign::encode_signature(&sig);
+    let encoded_sig = essential_sign::encode::signature(&sig);
 
     let mut decision_variables = vec![];
     decision_variables.extend(encoded_pk.iter().map(|&i| vec![i]));

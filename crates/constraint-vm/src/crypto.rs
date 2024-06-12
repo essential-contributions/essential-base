@@ -26,6 +26,7 @@ pub(crate) fn sha256(stack: &mut Stack) -> OpResult<()> {
     Ok(())
 }
 
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 /// `Crypto::VerifyEd25519` implementation.
 pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -38,12 +39,17 @@ pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
     let pubkey = VerifyingKey::from_bytes(&pubkey_bytes).map_err(CryptoError::Ed25519)?;
     let signature_bytes = u8_64_from_word_8(signature_words);
     let signature = Signature::from_bytes(&signature_bytes);
+
+    #[cfg(feature = "tracing")]
+    tracing::trace!("{:?}, {:?}", signature, pubkey);
+
     let valid = pubkey.verify(&data, &signature).is_ok();
     let word = Word::from(valid);
     stack.push(word)?;
     Ok(())
 }
 
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
     use secp256k1::{
         ecdsa::{RecoverableSignature, RecoveryId},
@@ -66,6 +72,9 @@ pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
     let recoverable_signature = RecoverableSignature::from_compact(&signature_bytes, recovery_id)
         .map_err(CryptoError::Secp256k1)?;
 
+    #[cfg(feature = "tracing")]
+    tracing::trace!("{:?}", recoverable_signature);
+
     // Parse the message hash.
     let message_hash = u8_32_from_word_4(message_hash);
     let message = Message::from_digest(message_hash);
@@ -74,6 +83,8 @@ pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
     let secp = Secp256k1::new();
     match secp.recover_ecdsa(&message, &recoverable_signature) {
         Ok(public_key) => {
+            #[cfg(feature = "tracing")]
+            tracing::trace!("{:?}", public_key);
             // Serialize the public key.
             // Note the public key is 33 bytes long.
             let [public_key @ .., end] = public_key.serialize();
