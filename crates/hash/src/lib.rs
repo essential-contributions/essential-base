@@ -4,7 +4,7 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
-use essential_types::{ContentAddress, Hash};
+use essential_types::{convert::bytes_from_word, ContentAddress, Hash, Word};
 use serde::Serialize;
 use sha2::Digest;
 
@@ -35,4 +35,16 @@ pub fn hash<T: Serialize>(t: &T) -> Hash {
 /// Commonly useful for solutions, intents and intent sets.
 pub fn content_addr<T: Serialize>(t: &T) -> ContentAddress {
     ContentAddress(hash(t))
+}
+
+/// Hash words in the same way that `Crypto::Sha256` does.
+pub fn hash_words(words: &[Word]) -> Hash {
+    let data = words
+        .iter()
+        .copied()
+        .flat_map(bytes_from_word)
+        .collect::<Vec<_>>();
+    let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+    hasher.update(&data);
+    hasher.finalize().into()
 }

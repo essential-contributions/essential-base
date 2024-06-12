@@ -32,6 +32,7 @@ use secp256k1::{
 };
 use serde::Serialize;
 
+pub mod encode;
 pub mod intent_set;
 
 /// Sign over data with secret key using secp256k1 curve.

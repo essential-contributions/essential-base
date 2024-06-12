@@ -1,8 +1,8 @@
 [package]
-name = "essential-check"
 description = "Core logic related to validating Essential state transitions."
-version = "0.1.0"
 edition.workspace = true
+name = "essential-check"
+version = "0.1.0"
 
 [dependencies]
 essential-constraint-vm = { workspace = true }
@@ -20,10 +20,17 @@ criterion = { workspace = true, features = ["async_tokio"] }
 essential-hash = { workspace = true }
 rand = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand-std"] }
+sha2 = { workspace = true }
+tracing-subscriber.workspace = true
 
 [features]
-tracing = ["dep:essential-hash", "dep:tracing"]
+tracing = [
+    "dep:essential-hash",
+    "dep:tracing",
+    "essential-constraint-vm/tracing",
+    "essential-state-read-vm/tracing",
+]
 
 [[bench]]
-name = "check_intents"
 harness = false
+name = "check_intents"
