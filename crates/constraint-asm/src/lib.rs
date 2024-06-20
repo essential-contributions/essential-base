@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn opcode_roundtrip_u8() {
-        for byte in 0..=core::u8::MAX {
+        for byte in 0..=u8::MAX {
             if let Ok(opcode) = Opcode::try_from(byte) {
                 println!("{byte:02X}: {opcode:?}");
                 assert_eq!(u8::from(opcode), byte);
