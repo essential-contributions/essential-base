@@ -2,11 +2,10 @@
 //!
 //! Serializes the signature as a sequence of 65 bytes (64 for the signature, 1 for the ID).
 //!
-//! Human readable serialization formats are serialized as a 65-byte, base64-encoded string.
+//! Human readable serialization formats are serialized as a 65-byte, upper hex string.
 
-pub use super::hash::{deserialize, serialize, BASE64};
+pub use super::hash::{deserialize, serialize};
 use crate::Signature;
-use base64::Engine;
 use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 
 impl Serialize for Signature {
@@ -16,7 +15,7 @@ impl Serialize for Signature {
     {
         if serializer.is_human_readable() {
             let bytes: [u8; 65] = self.clone().into();
-            let string = BASE64.encode(bytes);
+            let string = hex::encode_upper(bytes);
             string.serialize(serializer)
         } else {
             let mut seq = serializer.serialize_seq(Some(self.0.len() + 1))?;

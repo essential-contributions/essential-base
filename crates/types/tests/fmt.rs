@@ -21,7 +21,10 @@ fn content_address() {
 
     // `fmt::Display`
     let ca_string = format!("{ca}");
-    assert_eq!(&ca_string, "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8");
+    assert_eq!(
+        &ca_string,
+        "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F"
+    );
 
     // `str::FromStr`
     let ca2: ContentAddress = ca_string.parse().unwrap();
@@ -55,7 +58,7 @@ fn signature() {
     let sig_string = format!("{sig}");
     assert_eq!(
         &sig_string,
-        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-PwM"
+        "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F03"
     );
 
     // `str::FromStr`
