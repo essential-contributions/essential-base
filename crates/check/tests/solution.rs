@@ -1,27 +1,27 @@
 use constraint_vm::asm::Op;
-use essential_check::{intent, solution};
+use essential_check::{predicate, solution};
 use essential_constraint_vm as constraint_vm;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
-    intent::{Directive, Intent},
+    predicate::{Directive, Predicate},
     solution::{Mutation, Solution, SolutionData},
-    ContentAddress, IntentAddress, Word,
+    ContentAddress, PredicateAddress, Word,
 };
 use std::sync::Arc;
-use util::{empty_solution, intent_addr, random_keypair, State};
+use util::{empty_solution, predicate_addr, random_keypair, State};
 
 pub mod util;
 
-fn test_intent_addr() -> IntentAddress {
-    IntentAddress {
-        set: ContentAddress([0; 32]),
-        intent: ContentAddress([0; 32]),
+fn test_predicate_addr() -> PredicateAddress {
+    PredicateAddress {
+        contract: ContentAddress([0; 32]),
+        predicate: ContentAddress([0; 32]),
     }
 }
 
 fn test_solution_data() -> SolutionData {
     SolutionData {
-        intent_to_solve: test_intent_addr(),
+        predicate_to_solve: test_predicate_addr(),
         decision_variables: vec![],
         state_mutations: vec![],
         transient_data: vec![],
@@ -62,7 +62,7 @@ fn too_many_solution_data() {
 fn too_many_decision_variables() {
     let solution = Solution {
         data: vec![SolutionData {
-            intent_to_solve: test_intent_addr(),
+            predicate_to_solve: test_predicate_addr(),
             decision_variables: vec![vec![0]; (solution::MAX_DECISION_VARIABLES + 1) as usize],
             state_mutations: vec![],
             transient_data: vec![],
@@ -79,7 +79,7 @@ fn too_many_decision_variables() {
 fn too_many_state_mutations() {
     let solution = Solution {
         data: vec![SolutionData {
-            intent_to_solve: test_intent_addr(),
+            predicate_to_solve: test_predicate_addr(),
             decision_variables: vec![],
             state_mutations: (0..(solution::MAX_STATE_MUTATIONS + 1))
                 .map(test_mutation)
@@ -98,7 +98,7 @@ fn too_many_state_mutations() {
 fn multiple_mutations_for_slot() {
     let solution = Solution {
         data: vec![SolutionData {
-            intent_to_solve: test_intent_addr(),
+            predicate_to_solve: test_predicate_addr(),
             decision_variables: vec![],
             state_mutations: vec![
                 Mutation {
@@ -113,7 +113,7 @@ fn multiple_mutations_for_slot() {
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
         solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::MultipleMutationsForSlot(addr, key))
-            if addr == test_intent_addr() && key == [0; 4]
+            if addr == test_predicate_addr() && key == [0; 4]
     ));
 }
 
@@ -121,7 +121,7 @@ fn multiple_mutations_for_slot() {
 fn too_many_transient_data() {
     let solution = Solution {
         data: vec![SolutionData {
-            intent_to_solve: test_intent_addr(),
+            predicate_to_solve: test_predicate_addr(),
             decision_variables: vec![],
             state_mutations: vec![],
             transient_data: (0..(solution::MAX_TRANSIENT_DATA + 1))
@@ -136,47 +136,49 @@ fn too_many_transient_data() {
     ));
 }
 
-// Tests an intent for setting slot 0 to 42 against its associated solution.
+// Tests a predicate for contractting slot 0 to 42 against its associated solution.
 #[tokio::test]
-async fn check_intent_42_with_solution() {
-    let (intents, solution) = util::test_intent_42_solution_pair(1, [0; 32]);
+async fn check_predicate_42_with_solution() {
+    let (predicates, solution) = util::test_predicate_42_solution_pair(1, [0; 32]);
 
-    // First, validate both intents and solution.
-    intent::check_signed_set(&intents).unwrap();
+    // First, validate both predicates and solution.
+    predicate::check_signed_contract(&predicates).unwrap();
     solution::check(&solution).unwrap();
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.set));
+    pre_state.deploy_namespace(essential_hash::contract_addr::from_contract(
+        &predicates.contract,
+    ));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 
-    // There's only one intent to solve.
-    let intent_addr = intent_addr(&intents, 0);
-    let intent = Arc::new(intents.set[0].clone());
-    let get_intent = |addr: &IntentAddress| {
-        assert_eq!(&intent_addr, addr);
-        intent.clone()
+    // There's only one predicate to solve.
+    let predicate_addr = predicate_addr(&predicates, 0);
+    let predicate = Arc::new(predicates.contract[0].clone());
+    let get_predicate = |addr: &PredicateAddress| {
+        assert_eq!(&predicate_addr, addr);
+        predicate.clone()
     };
 
     // Run the check, and ensure util and gas aren't 0.
-    let (util, gas) = solution::check_intents(
+    let (util, gas) = solution::check_predicates(
         &pre_state,
         &post_state,
         Arc::new(solution),
-        get_intent,
-        Arc::new(solution::CheckIntentConfig::default()),
+        get_predicate,
+        Arc::new(solution::CheckPredicateConfig::default()),
     )
     .await
     .unwrap();
 
-    // Util should be 1 - only one solved intent.
+    // Util should be 1 - only one solved predicate.
     assert_eq!(util, 1.0);
     assert!(gas > 0);
 }
 
 #[tokio::test]
-async fn intent_with_multiple_state_reads_and_slots() {
+async fn predicate_with_multiple_state_reads_and_slots() {
     let read_three_slots = state_read_vm::asm::to_bytes([
         state_read_vm::asm::Stack::Push(3).into(),
         state_read_vm::asm::StateSlots::AllocSlots.into(),
@@ -190,7 +192,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
         state_read_vm::asm::Stack::Push(2).into(), // Num keys to read
         state_read_vm::asm::Stack::Push(1).into(), // Destination slot
         state_read_vm::asm::StateRead::KeyRange,
-        state_read_vm::asm::ControlFlow::Halt.into(),
+        state_read_vm::asm::TotalControlFlow::Halt.into(),
     ])
     .collect();
     let read_two_slots = state_read_vm::asm::to_bytes([
@@ -201,7 +203,7 @@ async fn intent_with_multiple_state_reads_and_slots() {
         state_read_vm::asm::Stack::Push(2).into(), // Num keys to read
         state_read_vm::asm::Stack::Push(0).into(), // Destination slot
         state_read_vm::asm::StateRead::KeyRange,
-        state_read_vm::asm::ControlFlow::Halt.into(),
+        state_read_vm::asm::TotalControlFlow::Halt.into(),
     ])
     .collect();
 
@@ -255,20 +257,20 @@ async fn intent_with_multiple_state_reads_and_slots() {
     constraints.extend(c);
     constraints.push(constraint_vm::asm::Pred::And.into());
 
-    let intent = Intent {
+    let predicate = Predicate {
         state_read: vec![read_three_slots, read_two_slots],
         constraints: vec![constraint_vm::asm::to_bytes(constraints).collect()],
         directive: Directive::Satisfy,
     };
 
     let (sk, _pk) = random_keypair([1; 32]);
-    let intents = essential_sign::intent_set::sign(vec![intent], &sk);
-    let intent_addr = util::intent_addr(&intents, 0);
+    let predicates = essential_sign::contract::sign(vec![predicate].into(), &sk);
+    let predicate_addr = util::predicate_addr(&predicates, 0);
 
     // Create the solution.
     let solution = Solution {
         data: vec![SolutionData {
-            intent_to_solve: intent_addr,
+            predicate_to_solve: predicate_addr,
             decision_variables: Default::default(),
             state_mutations: vec![
                 Mutation {
@@ -296,36 +298,38 @@ async fn intent_with_multiple_state_reads_and_slots() {
         }],
     };
 
-    // First, validate both intents and solution.
-    intent::check_signed_set(&intents).unwrap();
+    // First, validate both predicates and solution.
+    predicate::check_signed_contract(&predicates).unwrap();
     solution::check(&solution).unwrap();
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.set));
+    pre_state.deploy_namespace(essential_hash::contract_addr::from_contract(
+        &predicates.contract,
+    ));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 
-    // There's only one intent to solve.
-    let intent_addr = util::intent_addr(&intents, 0);
-    let intent = Arc::new(intents.set[0].clone());
-    let get_intent = |addr: &IntentAddress| {
-        assert_eq!(&intent_addr, addr);
-        intent.clone()
+    // There's only one predicate to solve.
+    let predicate_addr = util::predicate_addr(&predicates, 0);
+    let predicate = Arc::new(predicates.contract[0].clone());
+    let get_predicate = |addr: &PredicateAddress| {
+        assert_eq!(&predicate_addr, addr);
+        predicate.clone()
     };
 
     // Run the check, and ensure util and gas aren't 0.
-    let (util, gas) = solution::check_intents(
+    let (util, gas) = solution::check_predicates(
         &pre_state,
         &post_state,
         Arc::new(solution),
-        get_intent,
-        Arc::new(solution::CheckIntentConfig::default()),
+        get_predicate,
+        Arc::new(solution::CheckPredicateConfig::default()),
     )
     .await
     .unwrap();
 
-    // Util should be 1 - only one solved intent.
+    // Util should be 1 - only one solved predicate.
     assert_eq!(util, 1.0);
     assert!(gas > 0);
 }

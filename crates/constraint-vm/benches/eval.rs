@@ -4,7 +4,7 @@ use asm::Op;
 use criterion::{criterion_group, criterion_main, Criterion};
 use essential_constraint_asm as asm;
 use essential_constraint_vm::{eval_bytecode_iter, Access, SolutionAccess, StateSlots};
-use essential_types::{solution::SolutionData, ContentAddress, IntentAddress};
+use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 pub fn bench(c: &mut Criterion) {
     let mutable_keys = HashSet::with_capacity(0);
@@ -12,9 +12,9 @@ pub fn bench(c: &mut Criterion) {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
-                intent_to_solve: IntentAddress {
-                    set: ContentAddress([0; 32]),
-                    intent: ContentAddress([0; 32]),
+                predicate_to_solve: PredicateAddress {
+                    contract: ContentAddress([0; 32]),
+                    predicate: ContentAddress([0; 32]),
                 },
                 decision_variables: vec![],
                 state_mutations: vec![],

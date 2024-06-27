@@ -31,8 +31,9 @@ pub trait StateRead {
     type Future: Future<Output = Result<Vec<Vec<Word>>, Self::Error>> + Unpin;
 
     /// Read the given number of values from state at the given key associated
-    /// with the given intent set address.
-    fn key_range(&self, set_addr: ContentAddress, key: Key, num_values: usize) -> Self::Future;
+    /// with the given contract address.
+    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_values: usize)
+        -> Self::Future;
 }
 
 /// A future representing the asynchronous `StateRead` (or `StateReadExtern`) operation.
@@ -74,7 +75,7 @@ where
 /// `StateRead::KeyRange` operation.
 pub fn key_range<'vm, S>(
     state_read: &S,
-    set_addr: &ContentAddress,
+    contract_addr: &ContentAddress,
     vm: &'vm mut Vm,
 ) -> OpAsyncResult<StateReadFuture<'vm, S>, S::Error>
 where
@@ -82,7 +83,7 @@ where
 {
     let slot_index = vm.stack.pop()?;
     let slot_index = usize::try_from(slot_index).map_err(|_| StackError::IndexOutOfBounds)?;
-    let future = read_key_range(state_read, set_addr, vm)?;
+    let future = read_key_range(state_read, contract_addr, vm)?;
     Ok(StateReadFuture {
         future,
         slot_index,
@@ -111,7 +112,7 @@ where
 /// Read the length and key from the top of the stack and read the associated words from state.
 fn read_key_range<S>(
     state_read: &S,
-    set_addr: &ContentAddress,
+    contract_addr: &ContentAddress,
     vm: &mut Vm,
 ) -> OpAsyncResult<S::Future, S::Error>
 where
@@ -122,10 +123,10 @@ where
     let key = vm
         .stack
         .pop_len_words::<_, _, StackError>(|words| Ok(words.to_vec()))?;
-    Ok(state_read.key_range(set_addr.clone(), key, num_keys))
+    Ok(state_read.key_range(contract_addr.clone(), key, num_keys))
 }
 
-/// Read the length, key and external set address from the top of the stack and
+/// Read the length, key and external contract address from the top of the stack and
 /// read the associated words from state.
 fn read_key_range_ext<S>(state_read: &S, vm: &mut Vm) -> OpAsyncResult<S::Future, S::Error>
 where
@@ -136,8 +137,8 @@ where
     let key = vm
         .stack
         .pop_len_words::<_, _, StackError>(|words| Ok(words.to_vec()))?;
-    let set_addr = ContentAddress(u8_32_from_word_4(vm.stack.pop4()?));
-    Ok(state_read.key_range(set_addr, key, num_keys))
+    let contract_addr = ContentAddress(u8_32_from_word_4(vm.stack.pop4()?));
+    Ok(state_read.key_range(contract_addr, key, num_keys))
 }
 
 /// Write the given values to mutable state slots.

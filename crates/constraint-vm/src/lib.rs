@@ -1,10 +1,10 @@
 //! The essential constraint checking implementation.
 //!
-//! ## Checking Intents
+//! ## Checking Predicates
 //!
-//! The primary entrypoint for this crate is the [`check_intent`] function
-//! which allows for checking a set of constraints associated with a single
-//! intent against some provided solution data and state slot mutations in
+//! The primary entrypoint for this crate is the [`check_predicate`] function
+//! which allows for checking a contract of constraints associated with a single
+//! predicate against some provided solution data and state slot mutations in
 //! parallel.
 //!
 //! ## Checking Individual Constraints
@@ -70,18 +70,18 @@ mod repeat;
 mod stack;
 mod total_control_flow;
 
-/// Check whether the constraints of a single intent are met for the given
+/// Check whether the constraints of a single predicate are met for the given
 /// solution data and state slot mutations. All constraints are checked in
 /// parallel.
 ///
 /// In the case that one or more constraints fail or are unsatisfied, the
-/// whole set of failed/unsatisfied constraint indices are returned within the
+/// whole contract of failed/unsatisfied constraint indices are returned within the
 /// [`CheckError`][error::CheckError] type.
 ///
-/// The intent is considered to be satisfied if this function returns `Ok(())`.
-pub fn check_intent(intent: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
+/// The predicate is considered to be satisfied if this function returns `Ok(())`.
+pub fn check_predicate(predicate: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
     use rayon::{iter::Either, prelude::*};
-    let (failed, unsatisfied): (Vec<_>, Vec<_>) = intent
+    let (failed, unsatisfied): (Vec<_>, Vec<_>) = predicate
         .par_iter()
         .map(|bytecode| eval_bytecode_iter(bytecode.iter().copied(), access))
         .enumerate()
@@ -255,12 +255,14 @@ pub fn step_op_access(
         asm::Access::StateLen => access::state_len(access.state_slots, stack),
         asm::Access::StateLenRange => access::state_len_range(access.state_slots, stack),
         asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
-        asm::Access::ThisSetAddress => access::this_set_address(access.solution.this_data(), stack),
+        asm::Access::ThisContractAddress => {
+            access::this_contract_address(access.solution.this_data(), stack)
+        }
         asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
         asm::Access::Transient => access::transient(stack, access.solution),
         asm::Access::TransientLen => access::transient_len(stack, access.solution),
-        asm::Access::IntentAt => access::intent_at(stack, access.solution.data),
+        asm::Access::PredicateAt => access::predicate_at(stack, access.solution.data),
         asm::Access::ThisTransientLen => {
             access::this_transient_len(stack, access.solution.this_transient_data())
         }
@@ -339,6 +341,7 @@ pub fn step_on_total_control_flow(
     match op {
         asm::TotalControlFlow::JumpForwardIf => total_control_flow::jump_forward_if(stack, pc),
         asm::TotalControlFlow::HaltIf => total_control_flow::halt_if(stack),
+        asm::TotalControlFlow::Halt => Ok(Some(ProgramControlFlow::Halt)),
     }
 }
 
@@ -371,18 +374,18 @@ pub(crate) mod test_util {
     use types::{solution::SolutionDataIndex, Key};
 
     use crate::{
-        types::{solution::SolutionData, ContentAddress, IntentAddress},
+        types::{solution::SolutionData, ContentAddress, PredicateAddress},
         *,
     };
 
     pub(crate) const TEST_SET_CA: ContentAddress = ContentAddress([0xFF; 32]);
-    pub(crate) const TEST_INTENT_CA: ContentAddress = ContentAddress([0xAA; 32]);
-    pub(crate) const TEST_INTENT_ADDR: IntentAddress = IntentAddress {
-        set: TEST_SET_CA,
-        intent: TEST_INTENT_CA,
+    pub(crate) const TEST_PREDICATE_CA: ContentAddress = ContentAddress([0xAA; 32]);
+    pub(crate) const TEST_PREDICATE_ADDR: PredicateAddress = PredicateAddress {
+        contract: TEST_SET_CA,
+        predicate: TEST_PREDICATE_CA,
     };
     pub(crate) const TEST_SOLUTION_DATA: SolutionData = SolutionData {
-        intent_to_solve: TEST_INTENT_ADDR,
+        predicate_to_solve: TEST_PREDICATE_ADDR,
         decision_variables: vec![],
         state_mutations: vec![],
         transient_data: vec![],

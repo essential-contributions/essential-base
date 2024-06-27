@@ -15,7 +15,7 @@ async fn alloc() {
     let ops = &[
         asm::Stack::Push(len).into(),
         asm::StateSlots::AllocSlots.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -38,7 +38,7 @@ async fn len() {
         asm::Stack::Push(len).into(),
         asm::StateSlots::AllocSlots.into(),
         asm::StateSlots::Length.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -64,7 +64,7 @@ async fn clear() {
         asm::Stack::Push(1).into(),
         asm::Stack::Push(0).into(),
         asm::StateSlots::Store.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -81,7 +81,7 @@ async fn clear() {
     let ops = &[
         asm::Stack::Push(0).into(),
         asm::StateSlots::Clear.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.pc = 0;
     vm.exec_ops(
@@ -120,7 +120,7 @@ async fn clear_range() {
         asm::Stack::Push(1).into(),
         asm::Stack::Push(3).into(),
         asm::StateSlots::Store.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -141,7 +141,7 @@ async fn clear_range() {
         asm::Stack::Push(1).into(),
         asm::Stack::Push(2).into(),
         asm::StateSlots::ClearRange.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.pc = 0;
     vm.exec_ops(
@@ -175,7 +175,7 @@ async fn length() {
         asm::Stack::Push(0).into(),
         asm::StateSlots::Store.into(),
         asm::StateSlots::Length.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -202,7 +202,7 @@ async fn load() {
         asm::StateSlots::Store.into(),
         asm::Stack::Push(0).into(), // Load the value at index 0
         asm::StateSlots::Load.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -228,7 +228,7 @@ async fn store() {
         asm::Stack::Push(2).into(),
         asm::Stack::Push(1).into(),
         asm::StateSlots::Store.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -248,7 +248,7 @@ async fn load_index_oob() {
     let ops = &[
         asm::Stack::Push(0).into(),
         asm::StateSlots::Load.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let res = vm
         .exec_ops(
@@ -276,7 +276,7 @@ async fn store_index_oob() {
         asm::Stack::Push(1).into(),
         asm::Stack::Push(0).into(),
         asm::StateSlots::Store.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let res = vm
         .exec_ops(
@@ -303,7 +303,7 @@ async fn alloc_overflow() {
     let ops = &[
         asm::Stack::Push(overflow_cap).into(),
         asm::StateSlots::AllocSlots.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let res = vm
         .exec_ops(
@@ -348,7 +348,7 @@ async fn store_word() {
         asm::Stack::Push(0).into(),
         asm::Stack::Push(27).into(),
         asm::StateSlots::StoreWord.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -377,7 +377,7 @@ async fn store_word_oob() {
         asm::Stack::Push(2).into(),
         asm::Stack::Push(42).into(),
         asm::StateSlots::StoreWord.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let res = vm
         .exec_ops(
@@ -411,7 +411,7 @@ async fn load_word() {
         asm::Stack::Push(0).into(), // Load the slot at index 0
         asm::Stack::Push(1).into(), // Load the word at index 1
         asm::StateSlots::LoadWord.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -440,7 +440,7 @@ async fn load_word_oob() {
         asm::Stack::Push(0).into(), // Load the slot at index 0
         asm::Stack::Push(2).into(), // Load the word at index 1
         asm::StateSlots::LoadWord.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let res = vm
         .exec_ops(
@@ -474,7 +474,7 @@ async fn value_len() {
         asm::StateSlots::Store.into(),
         asm::Stack::Push(0).into(), // Get the length of the value at index 0
         asm::StateSlots::ValueLen.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,

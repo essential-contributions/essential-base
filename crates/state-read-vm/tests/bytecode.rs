@@ -28,7 +28,7 @@ fn mapped_from_op_results() {
         Ok(asm::Alu::Mul.into()),
         Ok(asm::Stack::Push(42).into()),
         Ok(asm::Pred::Eq.into()),
-        Ok(asm::ControlFlow::Halt.into()),
+        Ok(asm::TotalControlFlow::Halt.into()),
     ];
     let mapped: Result<BytecodeMapped, ()> = results.iter().cloned().collect();
     mapped.unwrap();
@@ -42,7 +42,7 @@ fn mapped_from_bytes() {
         asm::Alu::Mul.into(),
         asm::Stack::Push(42).into(),
         asm::Pred::Eq.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let bytes: Vec<_> = asm::to_bytes(ops.iter().copied()).collect();
 

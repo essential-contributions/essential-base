@@ -23,27 +23,15 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
-use essential_hash::hash;
-use essential_types::{Hash, Signature, Signed};
+use essential_types::{Hash, Signature};
 pub use secp256k1;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, PublicKey, Secp256k1, SecretKey,
 };
-use serde::Serialize;
 
+pub mod contract;
 pub mod encode;
-pub mod intent_set;
-
-/// Sign over data with secret key using secp256k1 curve.
-///
-/// This first hashes the given data with [`essential_hash::hash`], then
-/// produces a signature over the hash using [`sign_hash`].
-pub fn sign<T: Serialize>(data: T, sk: &SecretKey) -> Signed<T> {
-    let hash = hash(&data);
-    let signature = sign_hash(hash, sk);
-    Signed { data, signature }
-}
 
 /// Sign directly over a hash with the given secret key using `secp256k1`.
 ///
@@ -65,15 +53,6 @@ fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
     Signature(sig, rec_id.to_i32().try_into().unwrap())
 }
 
-/// Verify signature against data.
-///
-/// This first hashes the `Signed.data` field with [`essential_hash::hash`] then
-/// calls `verify_hash` with the given signature.
-pub fn verify<T: Serialize>(signed: &Signed<T>) -> Result<(), secp256k1::Error> {
-    let hash = hash(&signed.data);
-    verify_hash(hash, &signed.signature)
-}
-
 /// Verify a signature over the given hash.
 ///
 /// This treats the given hash as a digest for a [`Message`] that is verified
@@ -89,15 +68,6 @@ fn verify_message(msg: &Message, signature: &Signature) -> Result<(), secp256k1:
     let secp = Secp256k1::new();
     let sig = secp256k1::ecdsa::Signature::from_compact(&signature.0)?;
     secp.verify_ecdsa(msg, &sig, &pk)
-}
-
-/// Recover the [`PublicKey`] from the given signed data.
-///
-/// This first hashes the given `Signed.data` with [`essential_hash::hash`],
-/// then calls [`recover_hash`] with the given signature.
-pub fn recover<T: Serialize>(signed: Signed<T>) -> Result<PublicKey, secp256k1::Error> {
-    let hash = hash(&signed.data);
-    recover_hash(hash, &signed.signature)
 }
 
 /// Recover the [`PublicKey`] from the signed hash.

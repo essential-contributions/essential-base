@@ -8,7 +8,7 @@ use essential_types::{convert::bytes_from_word, ContentAddress, Hash, Word};
 use serde::Serialize;
 use sha2::Digest;
 
-pub mod intent_set_addr;
+pub mod contract_addr;
 
 /// Serialize data for hashing using postcard.
 ///
@@ -32,7 +32,7 @@ pub fn hash<T: Serialize>(t: &T) -> Hash {
 
 /// Shorthand for hashing the given value in order to produce its content address.
 ///
-/// Commonly useful for solutions, intents and intent sets.
+/// Commonly useful for solutions, predicates and contracts.
 pub fn content_addr<T: Serialize>(t: &T) -> ContentAddress {
     ContentAddress(hash(t))
 }

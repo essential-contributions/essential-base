@@ -10,9 +10,9 @@ use crate::{
         SolutionAccess, StateRead, StateSlotSlice, StateSlots,
     },
     types::{
-        intent::{Directive, Intent},
+        predicate::{Directive, Predicate},
         solution::{Solution, SolutionData, SolutionDataIndex},
-        IntentAddress, Key, Word,
+        Key, PredicateAddress, Word,
     },
 };
 use constraint_vm::TransientData;
@@ -24,9 +24,9 @@ use tokio::task::JoinSet;
 #[cfg(feature = "tracing")]
 use tracing::Instrument;
 
-/// Configuration options passed to [`check_intent`].
+/// Configuration options passed to [`check_predicate`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-pub struct CheckIntentConfig {
+pub struct CheckPredicateConfig {
     /// Whether or not to wait and collect all failures after a single state
     /// read or constraint fails.
     ///
@@ -95,7 +95,7 @@ pub enum InvalidStateMutations {
     PathwayOutOfRangeOfSolutionData(u16),
     /// Discovered multiple mutations to the same slot.
     #[error("attempt to apply multiple mutations to the same slot: {0:?} {1:?}")]
-    MultipleMutationsForSlot(IntentAddress, Key),
+    MultipleMutationsForSlot(PredicateAddress, Key),
 }
 
 /// [`check_transient_data`] error.
@@ -106,12 +106,12 @@ pub enum InvalidTransientData {
     TooMany(usize),
 }
 
-/// [`check_intents`] error.
+/// [`check_predicates`] error.
 #[derive(Debug, Error)]
-pub enum IntentsError<E> {
-    /// One or more solution data failed their associated intent checks.
+pub enum PredicatesError<E> {
+    /// One or more solution data failed their associated predicate checks.
     #[error("{0}")]
-    Failed(#[from] IntentErrors<E>),
+    Failed(#[from] PredicateErrors<E>),
     /// One or more tasks failed to join.
     #[error("one or more spawned tasks failed to join: {0}")]
     Join(#[from] tokio::task::JoinError),
@@ -123,13 +123,13 @@ pub enum IntentsError<E> {
     GasOverflowed,
 }
 
-/// Intent checking failed for the solution data at the given indices.
+/// Predicate checking failed for the solution data at the given indices.
 #[derive(Debug, Error)]
-pub struct IntentErrors<E>(pub Vec<(SolutionDataIndex, IntentError<E>)>);
+pub struct PredicateErrors<E>(pub Vec<(SolutionDataIndex, PredicateError<E>)>);
 
-/// [`check_intent`] error.
+/// [`check_predicate`] error.
 #[derive(Debug, Error)]
-pub enum IntentError<E> {
+pub enum PredicateError<E> {
     /// Failed to parse ops from bytecode during bytecode mapping.
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
@@ -138,23 +138,23 @@ pub enum IntentError<E> {
     StateRead(#[from] StateReadError<E>),
     /// Constraint checking failed.
     #[error("constraint checking failed: {0}")]
-    Constraints(#[from] IntentConstraintsError),
+    Constraints(#[from] PredicateConstraintsError),
 }
 
 /// The number of decision variables provided by the solution data differs to
-/// the number expected by the intent.
+/// the number expected by the predicate.
 #[derive(Debug, Error)]
-#[error("number of solution data decision variables ({data}) differs from intent ({intent})")]
+#[error("number of solution data decision variables ({data}) differs from predicate ({predicate})")]
 pub struct InvalidDecisionVariablesLength {
     /// Number of decision variables provided by solution data.
     pub data: usize,
-    /// Number of decision variables expected by the solution data's associated intent.
-    pub intent: u32,
+    /// Number of decision variables expected by the solution data's associated predicate.
+    pub predicate: u32,
 }
 
-/// [`check_intent_constraints`] error.
+/// [`check_predicate_constraints`] error.
 #[derive(Debug, Error)]
-pub enum IntentConstraintsError {
+pub enum PredicateConstraintsError {
     /// Constraint checking failed.
     #[error("check failed: {0}")]
     Check(#[from] constraint_vm::error::CheckError),
@@ -172,7 +172,7 @@ pub type Utility = f64;
 /// `calculate_utility` error.
 #[derive(Debug, Error)]
 pub enum UtilityError {
-    /// The range specified by the intent's directive is invalid.
+    /// The range specified by the predicate's directive is invalid.
     #[error("the range specified by the directive [{0}..{1}] is invalid")]
     InvalidDirectiveRange(Word, Word),
     /// The stack returned from directive execution is invalid.
@@ -199,9 +199,9 @@ pub const MAX_VALUE_SIZE: usize = 10_000;
 /// Maximum number of words in a slot key.
 pub const MAX_KEY_SIZE: usize = 1000;
 
-impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
+impl<E: fmt::Display> fmt::Display for PredicateErrors<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("intent checking failed for one or more solution data:\n")?;
+        f.write_str("predicate checking failed for one or more solution data:\n")?;
         for (ix, err) in &self.0 {
             f.write_str(&format!("  {ix}: {err}\n"))?;
         }
@@ -210,7 +210,7 @@ impl<E: fmt::Display> fmt::Display for IntentErrors<E> {
 }
 
 /// Validate a solution, to the extent it can be validated without reference to
-/// its associated intents.
+/// its associated predicates.
 ///
 /// This includes solution data and state mutations.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(&solution.data)), err))]
@@ -279,7 +279,7 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
         for mutation in &data.state_mutations {
             if !mut_keys.insert(&mutation.key) {
                 return Err(InvalidStateMutations::MultipleMutationsForSlot(
-                    data.intent_to_solve.clone(),
+                    data.predicate_to_solve.clone(),
                     mutation.key.clone(),
                 )
                 .into());
@@ -315,35 +315,35 @@ pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidSolution> 
     Ok(())
 }
 
-/// Checks all of a solution's `SolutionData` against its associated intents.
+/// Checks all of a solution's `SolutionData` against its associated predicates.
 ///
 /// For each of the solution's `data` elements, a single task is spawned that
-/// reads the pre and post state slots for the associated intent with access to
+/// reads the pre and post state slots for the associated predicate with access to
 /// the given `pre_state` and `post_state`, then checks all constraints over the
 /// resulting pre and post state slots.
 ///
-/// **NOTE:** This assumes that the given `Solution` and all `Intent`s
+/// **NOTE:** This assumes that the given `Solution` and all `Predicate`s
 /// have already been independently validated using
 /// [`solution::check`][crate::solution::check] and
-/// [`intent::check`][crate::intent::check] respectively.
+/// [`predicate::check`][crate::predicate::check] respectively.
 ///
 /// ## Arguments
 ///
 /// - `pre_state` must provide access to state *prior to* mutations being applied.
 /// - `post_state` must provide access to state *post* mutations being applied.
-/// - `get_intent` provides immediate access to an intent associated with the given
-///   solution. Calls to `intent` must complete immediately. All necessary
-///   intents are assumed to have been read from storage and validated ahead of time.
+/// - `get_predicate` provides immediate access to a predicate associated with the given
+///   solution. Calls to `predicate` must complete immediately. All necessary
+///   predicates are assumed to have been read from storage and validated ahead of time.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
-pub async fn check_intents<SA, SB>(
+pub async fn check_predicates<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    get_intent: impl Fn(&IntentAddress) -> Arc<Intent>,
-    config: Arc<CheckIntentConfig>,
-) -> Result<(Utility, Gas), IntentsError<SA::Error>>
+    get_predicate: impl Fn(&PredicateAddress) -> Arc<Predicate>,
+    config: Arc<CheckPredicateConfig>,
+) -> Result<(Utility, Gas), PredicatesError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
     SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
@@ -357,12 +357,12 @@ where
     let transient_data: Arc<TransientData> =
         Arc::new(essential_constraint_vm::transient_data(&solution));
     // Read pre and post states then check constraints.
-    let mut set: JoinSet<(_, Result<_, IntentError<SA::Error>>)> = JoinSet::new();
+    let mut set: JoinSet<(_, Result<_, PredicateError<SA::Error>>)> = JoinSet::new();
     for (solution_data_index, data) in solution.data.iter().enumerate() {
         let solution_data_index: SolutionDataIndex = solution_data_index
             .try_into()
             .expect("solution data index already validated");
-        let intent = get_intent(&data.intent_to_solve);
+        let predicate = get_predicate(&data.predicate_to_solve);
         let solution = solution.clone();
         let transient_data = transient_data.clone();
         let pre_state: SA = pre_state.clone();
@@ -372,11 +372,11 @@ where
         let future = async move {
             let pre_state = pre_state;
             let post_state = post_state;
-            let res = check_intent(
+            let res = check_predicate(
                 &pre_state,
                 &post_state,
                 solution,
-                intent,
+                predicate,
                 solution_data_index,
                 &config,
                 transient_data,
@@ -406,43 +406,43 @@ where
                 if config.collect_all_failures {
                     continue;
                 } else {
-                    return Err(IntentErrors(failed).into());
+                    return Err(PredicateErrors(failed).into());
                 }
             }
         };
         utility += u;
 
         if utility == f64::INFINITY {
-            return Err(IntentsError::UtilityOverflowed);
+            return Err(PredicatesError::UtilityOverflowed);
         }
 
         total_gas = total_gas
             .checked_add(g)
-            .ok_or(IntentsError::GasOverflowed)?;
+            .ok_or(PredicatesError::GasOverflowed)?;
     }
 
-    // If any intents failed, return an error.
+    // If any predicates failed, return an error.
     if !failed.is_empty() {
-        return Err(IntentErrors(failed).into());
+        return Err(PredicateErrors(failed).into());
     }
 
     Ok((utility, total_gas))
 }
 
-/// Checks a solution against a single intent using the solution data at the given index.
+/// Checks a solution against a single predicate using the solution data at the given index.
 ///
 /// Reads all pre and post state slots into memory, then checks all constraints.
 ///
-/// **NOTE:** This assumes that the given `Solution` and `Intent` have been
+/// **NOTE:** This assumes that the given `Solution` and `Predicate` have been
 /// independently validated using [`solution::check`][crate::solution::check]
-/// and [`intent::check`][crate::intent::check] respectively.
+/// and [`predicate::check`][crate::predicate::check] respectively.
 ///
 /// ## Arguments
 ///
 /// - `pre_state` must provide access to state *prior to* mutations being applied.
 /// - `post_state` must provide access to state *post* mutations being applied.
 /// - `solution_data_index` represents the data within `solution.data` that claims
-///   to solve this intent.
+///   to solve this predicate.
 ///
 /// Returns the utility score of the solution alongside the total gas spent.
 #[cfg_attr(
@@ -455,15 +455,15 @@ where
         ),
     ),
 )]
-pub async fn check_intent<SA, SB>(
+pub async fn check_predicate<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    intent: Arc<Intent>,
+    predicate: Arc<Predicate>,
     solution_data_index: SolutionDataIndex,
-    config: &CheckIntentConfig,
+    config: &CheckPredicateConfig,
     transient_data: Arc<TransientData>,
-) -> Result<(Utility, Gas), IntentError<SA::Error>>
+) -> Result<(Utility, Gas), PredicateError<SA::Error>>
 where
     SA: StateRead + Sync,
     SB: StateRead<Error = SA::Error> + Sync,
@@ -483,7 +483,7 @@ where
     );
 
     // Read pre and post states.
-    for (state_read_index, state_read) in intent.state_read.iter().enumerate() {
+    for (state_read_index, state_read) in predicate.state_read.iter().enumerate() {
         #[cfg(not(feature = "tracing"))]
         let _ = state_read_index;
 
@@ -537,10 +537,10 @@ where
     }
 
     // Check constraints.
-    let utility = check_intent_constraints(
+    let utility = check_predicate_constraints(
         solution,
         solution_data_index,
-        intent.clone(),
+        predicate.clone(),
         Arc::from(pre_slots.into_boxed_slice()),
         Arc::from(post_slots.into_boxed_slice()),
         config,
@@ -582,23 +582,23 @@ where
 }
 
 /// Checks if the given solution data at the given index satisfies the
-/// constraints of the given intent.
+/// constraints of the given predicate.
 ///
-/// Returns the utility of the solution for the given intent.
+/// Returns the utility of the solution for the given predicate.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, "check"))]
-pub async fn check_intent_constraints(
+pub async fn check_predicate_constraints(
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
-    intent: Arc<Intent>,
+    predicate: Arc<Predicate>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
-    config: &CheckIntentConfig,
+    config: &CheckPredicateConfig,
     transient_data: Arc<TransientData>,
-) -> Result<Utility, IntentConstraintsError> {
-    match check_intent_constraints_parallel(
+) -> Result<Utility, PredicateConstraintsError> {
+    match check_predicate_constraints_parallel(
         solution.clone(),
         solution_data_index,
-        intent.clone(),
+        predicate.clone(),
         pre_slots.clone(),
         post_slots.clone(),
         config,
@@ -613,7 +613,7 @@ pub async fn check_intent_constraints(
             match calculate_utility(
                 solution,
                 solution_data_index,
-                intent.clone(),
+                predicate.clone(),
                 pre_slots,
                 post_slots,
                 transient_data,
@@ -640,21 +640,21 @@ pub async fn check_intent_constraints(
     }
 }
 
-/// Check intents in parallel without sleeping any threads.
-async fn check_intent_constraints_parallel(
+/// Check predicates in parallel without sleeping any threads.
+async fn check_predicate_constraints_parallel(
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
-    intent: Arc<Intent>,
+    predicate: Arc<Predicate>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
-    config: &CheckIntentConfig,
+    config: &CheckPredicateConfig,
     transient_data: Arc<TransientData>,
-) -> Result<(), IntentConstraintsError> {
-    let mut handles = Vec::with_capacity(intent.constraints.len());
+) -> Result<(), PredicateConstraintsError> {
+    let mut handles = Vec::with_capacity(predicate.constraints.len());
 
     // Spawn each constraint onto a rayon thread and
     // check them in parallel.
-    for ix in 0..intent.constraints.len() {
+    for ix in 0..predicate.constraints.len() {
         // Spawn this sync code onto a rayon thread.
         // This is a non-blocking operation.
         let (tx, rx) = tokio::sync::oneshot::channel();
@@ -665,7 +665,7 @@ async fn check_intent_constraints_parallel(
         let transient_data = transient_data.clone();
         let pre_slots = pre_slots.clone();
         let post_slots = post_slots.clone();
-        let intent = intent.clone();
+        let predicate = predicate.clone();
 
         #[cfg(feature = "tracing")]
         let span = tracing::Span::current();
@@ -691,7 +691,7 @@ async fn check_intent_constraints_parallel(
                 },
             };
             let res = constraint_vm::eval_bytecode_iter(
-                intent
+                predicate
                     .constraints
                     .get(ix)
                     .expect("Safe due to above len check")
@@ -745,18 +745,18 @@ async fn check_intent_constraints_parallel(
     Ok(())
 }
 
-/// Calculates utility of solution for intent.
+/// Calculates utility of solution for predicate.
 ///
 /// Returns utility.
 async fn calculate_utility(
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
-    intent: Arc<Intent>,
+    predicate: Arc<Predicate>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
     transient_data: Arc<TransientData>,
 ) -> Result<Utility, UtilityError> {
-    match &intent.directive {
+    match &predicate.directive {
         Directive::Satisfy => return Ok(1.0),
         Directive::Maximize(_) | Directive::Minimize(_) => (),
     }
@@ -788,7 +788,7 @@ async fn calculate_utility(
             },
         };
         // Extract the directive code.
-        let code = match intent.directive {
+        let code = match predicate.directive {
             Directive::Maximize(ref code) | Directive::Minimize(ref code) => code,
             _ => unreachable!("As this is already checked above"),
         };

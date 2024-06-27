@@ -8,9 +8,10 @@ use core::time::Duration;
 use schemars::JsonSchema;
 use solution::Solution;
 
+pub mod contract;
 pub mod convert;
 pub mod fmt;
-pub mod intent;
+pub mod predicate;
 pub mod serde;
 pub mod solution;
 
@@ -46,34 +47,24 @@ pub struct Signature(
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// Content address of an intent or set of intents.
+/// Content address of a predicate or contract.
 pub struct ContentAddress(pub Hash);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// Address of a persistent intent.
-pub struct IntentAddress {
-    /// Content address of the set of intents with which this intent was deployed.
+/// Address of a predicate.
+pub struct PredicateAddress {
+    /// Content address of the contract with which this predicate was deployed.
     ///
-    /// This is equal to `essential_hash::content_addr(intent_addresses)`,
-    /// where `intent_addresses` is a `&[ContentAddress]` sorted by the
+    /// This is equal to `essential_hash::content_addr(predicate_addresses)`,
+    /// where `predicate_addresses` is a `&[ContentAddress]` sorted by the
     /// `ContentAddress` `Ord` implementation.
-    pub set: ContentAddress,
-    /// Content address of the intent.
+    pub contract: ContentAddress,
+    /// Content address of the predicate.
     ///
-    /// This is equal to `essential_hash::content_addr(intent)` where `intent`
-    /// is a [`&Intent`][intent::Intent].
-    pub intent: ContentAddress,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A signed piece of data.
-pub struct Signed<T> {
-    /// The data that is signed.
-    pub data: T,
-    /// The signature over the data.
-    pub signature: Signature,
+    /// This is equal to `essential_hash::content_addr(predicate)` where `predicate`
+    /// is a [`&Predicate`][predicate::Predicate].
+    pub predicate: ContentAddress,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

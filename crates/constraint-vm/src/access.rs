@@ -20,74 +20,74 @@ mod tests;
 /// Transient data map.
 pub type TransientData = HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>>;
 
-/// All necessary solution data and state access required to check an individual intent.
+/// All necessary solution data and state access required to check an individual predicate.
 #[derive(Clone, Copy, Debug)]
 pub struct Access<'a> {
-    /// All necessary solution data access required to check an individual intent.
+    /// All necessary solution data access required to check an individual predicate.
     pub solution: SolutionAccess<'a>,
-    /// The pre and post mutation state slot values for the intent being solved.
+    /// The pre and post mutation state slot values for the predicate being solved.
     pub state_slots: StateSlots<'a>,
 }
 
-/// All necessary solution data access required to check an individual intent.
+/// All necessary solution data access required to check an individual predicate.
 #[derive(Clone, Copy, Debug)]
 pub struct SolutionAccess<'a> {
-    /// The input data for each intent being solved within the solution.
+    /// The input data for each predicate being solved within the solution.
     ///
-    /// We require *all* intent solution data in order to handle transient
+    /// We require *all* predicate solution data in order to handle transient
     /// decision variable access.
     pub data: &'a [SolutionData],
-    /// Checking is performed for one intent at a time. This index refers to
-    /// the checked intent's associated solution data within `data`.
+    /// Checking is performed for one predicate at a time. This index refers to
+    /// the checked predicate's associated solution data within `data`.
     pub index: usize,
-    /// The keys being proposed for mutation for the intent.
+    /// The keys being proposed for mutation for the predicate.
     pub mutable_keys: &'a HashSet<&'a [Word]>,
     /// The transient data that points to the data in another solution data index.
     pub transient_data: &'a TransientData,
 }
 
-/// The pre and post mutation state slot values for the intent being solved.
+/// The pre and post mutation state slot values for the predicate being solved.
 #[derive(Clone, Copy, Debug)]
 pub struct StateSlots<'a> {
-    /// Intent state slot values before the solution's mutations are applied.
+    /// Predicate state slot values before the solution's mutations are applied.
     pub pre: &'a StateSlotSlice,
-    /// Intent state slot values after the solution's mutations are applied.
+    /// Predicate state slot values after the solution's mutations are applied.
     pub post: &'a StateSlotSlice,
 }
 
-/// The state slots declared within the intent.
+/// The state slots declared within the predicate.
 pub type StateSlotSlice = [Vec<Word>];
 
 impl<'a> SolutionAccess<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
-    /// the intent at the given index within the given solution.
+    /// the predicate at the given index within the given solution.
     ///
-    /// This constructor assumes that the given mutable keys set is correct
+    /// This constructor assumes that the given mutable keys contract is correct
     /// for this solution. It is not checked by this function for performance.
     pub fn new(
         solution: &'a Solution,
-        intent_index: SolutionDataIndex,
+        predicate_index: SolutionDataIndex,
         mutable_keys: &'a HashSet<&[Word]>,
         transient_data: &'a TransientData,
     ) -> Self {
         Self {
             data: &solution.data,
-            index: intent_index.into(),
+            index: predicate_index.into(),
             mutable_keys,
             transient_data,
         }
     }
 
-    /// The solution data associated with the intent currently being checked.
+    /// The solution data associated with the predicate currently being checked.
     ///
     /// **Panics** in the case that `self.index` is out of range of the `self.data` slice.
     pub fn this_data(&self) -> &SolutionData {
         self.data
             .get(self.index)
-            .expect("intent index out of range of solution data")
+            .expect("predicate index out of range of solution data")
     }
 
-    /// The transient data associated with the intent currently being checked.
+    /// The transient data associated with the predicate currently being checked.
     pub fn this_transient_data(&self) -> Option<&HashMap<Key, Vec<Word>>> {
         self.transient_data.get(&(self.index as SolutionDataIndex))
     }
@@ -102,7 +102,7 @@ impl<'a> StateSlots<'a> {
 }
 
 /// A helper for collecting all mutable keys that are proposed for mutation for
-/// the intent at the given index.
+/// the predicate at the given index.
 ///
 /// Specifically, assists in calculating the `mut_keys_len` for
 /// `SolutionAccess`, as this is equal to the `.count()` of the returned iterator.
@@ -111,9 +111,9 @@ impl<'a> StateSlots<'a> {
 /// mutations to the same key, the same key will be yielded multiple times.
 pub fn mut_keys(
     solution: &Solution,
-    intent_index: SolutionDataIndex,
+    predicate_index: SolutionDataIndex,
 ) -> impl Iterator<Item = &Key> {
-    solution.data[intent_index as usize]
+    solution.data[predicate_index as usize]
         .state_mutations
         .iter()
         .map(|m| &m.key)
@@ -122,17 +122,17 @@ pub fn mut_keys(
 /// Get the mutable keys as slices
 pub fn mut_keys_slices(
     solution: &Solution,
-    intent_index: SolutionDataIndex,
+    predicate_index: SolutionDataIndex,
 ) -> impl Iterator<Item = &[Word]> {
-    solution.data[intent_index as usize]
+    solution.data[predicate_index as usize]
         .state_mutations
         .iter()
         .map(|m| m.key.as_ref())
 }
 
-/// Get the set of mutable keys for this intent.
-pub fn mut_keys_set(solution: &Solution, intent_index: SolutionDataIndex) -> HashSet<&[Word]> {
-    mut_keys_slices(solution, intent_index).collect()
+/// Get the contract of mutable keys for this predicate.
+pub fn mut_keys_set(solution: &Solution, predicate_index: SolutionDataIndex) -> HashSet<&[Word]> {
+    mut_keys_slices(solution, predicate_index).collect()
 }
 
 /// Create a transient data map from the solution.
@@ -252,14 +252,14 @@ pub(crate) fn state_len_range(slots: StateSlots, stack: &mut Stack) -> OpResult<
 
 /// `Access::ThisAddress` implementation.
 pub(crate) fn this_address(data: &SolutionData, stack: &mut Stack) -> OpResult<()> {
-    let words = word_4_from_u8_32(data.intent_to_solve.intent.0);
+    let words = word_4_from_u8_32(data.predicate_to_solve.predicate.0);
     stack.extend(words)?;
     Ok(())
 }
 
-/// `Access::ThisSetAddress` implementation.
-pub(crate) fn this_set_address(data: &SolutionData, stack: &mut Stack) -> OpResult<()> {
-    let words = word_4_from_u8_32(data.intent_to_solve.set.0);
+/// `Access::ThisContractAddress` implementation.
+pub(crate) fn this_contract_address(data: &SolutionData, stack: &mut Stack) -> OpResult<()> {
+    let words = word_4_from_u8_32(data.predicate_to_solve.contract.0);
     stack.extend(words)?;
     Ok(())
 }
@@ -310,18 +310,18 @@ pub(crate) fn transient_len(stack: &mut Stack, solution: SolutionAccess) -> OpRe
     Ok(stack.push(length)?)
 }
 
-pub(crate) fn intent_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult<()> {
+pub(crate) fn predicate_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult<()> {
     let pathway = stack.pop()?;
     let pathway = usize::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
     let address = data
         .get(pathway)
         .ok_or(StackError::IndexOutOfBounds)?
-        .intent_to_solve
+        .predicate_to_solve
         .clone();
-    let set_address = word_4_from_u8_32(address.set.0);
-    let intent_address = word_4_from_u8_32(address.intent.0);
-    stack.extend(set_address)?;
-    stack.extend(intent_address)?;
+    let contract_address = word_4_from_u8_32(address.contract.0);
+    let predicate_address = word_4_from_u8_32(address.predicate.0);
+    stack.extend(contract_address)?;
+    stack.extend(predicate_address)?;
     Ok(())
 }
 

@@ -216,7 +216,7 @@ mod tests {
     fn roundtrip_no_args() {
         let ops: Vec<Op> = vec![
             Access::ThisAddress.into(),
-            Access::ThisSetAddress.into(),
+            Access::ThisContractAddress.into(),
             Stack::Swap.into(),
             Stack::Dup.into(),
             Crypto::Sha256.into(),

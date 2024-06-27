@@ -4,7 +4,7 @@
 
 use essential_constraint_vm::TransientData;
 use essential_state_read_vm::{
-    types::{solution::SolutionData, ContentAddress, IntentAddress, Key, Word},
+    types::{solution::SolutionData, ContentAddress, Key, PredicateAddress, Word},
     Access, SolutionAccess, StateRead, StateSlots,
 };
 use std::{
@@ -14,13 +14,13 @@ use std::{
 use thiserror::Error;
 
 pub const TEST_SET_CA: ContentAddress = ContentAddress([0xFF; 32]);
-pub const TEST_INTENT_CA: ContentAddress = ContentAddress([0xAA; 32]);
-pub const TEST_INTENT_ADDR: IntentAddress = IntentAddress {
-    set: TEST_SET_CA,
-    intent: TEST_INTENT_CA,
+pub const TEST_PREDICATE_CA: ContentAddress = ContentAddress([0xAA; 32]);
+pub const TEST_PREDICATE_ADDR: PredicateAddress = PredicateAddress {
+    contract: TEST_SET_CA,
+    predicate: TEST_PREDICATE_CA,
 };
 pub const TEST_SOLUTION_DATA: SolutionData = SolutionData {
-    intent_to_solve: TEST_INTENT_ADDR,
+    predicate_to_solve: TEST_PREDICATE_ADDR,
     decision_variables: vec![],
     state_mutations: vec![],
     transient_data: vec![],
@@ -65,7 +65,7 @@ pub(crate) fn test_access() -> &'static Access<'static> {
 pub struct State(BTreeMap<ContentAddress, BTreeMap<Key, Vec<Word>>>);
 
 #[derive(Debug, Error)]
-#[error("no value for the given intent set, key pair")]
+#[error("no value for the given contract, key pair")]
 pub struct InvalidStateRead;
 
 pub type Kv = (Key, Vec<Word>);
@@ -75,9 +75,10 @@ impl State {
     pub const EMPTY: Self = State(BTreeMap::new());
 
     // Shorthand test state constructor.
-    pub fn new(sets: Vec<(ContentAddress, Vec<Kv>)>) -> Self {
+    pub fn new(contracts: Vec<(ContentAddress, Vec<Kv>)>) -> Self {
         State(
-            sets.into_iter()
+            contracts
+                .into_iter()
                 .map(|(addr, vec)| {
                     let map: BTreeMap<_, _> = vec.into_iter().collect();
                     (addr, map)
@@ -86,20 +87,20 @@ impl State {
         )
     }
 
-    // Update the value at the given key within the given intent set address.
-    pub fn set(&mut self, set_addr: ContentAddress, key: &Key, value: Vec<Word>) {
-        let set = self.0.entry(set_addr).or_default();
+    // Update the value at the given key within the given contract address.
+    pub fn set(&mut self, contract_addr: ContentAddress, key: &Key, value: Vec<Word>) {
+        let contract = self.0.entry(contract_addr).or_default();
         if value.is_empty() {
-            set.remove(key);
+            contract.remove(key);
         } else {
-            set.insert(key.clone(), value);
+            contract.insert(key.clone(), value);
         }
     }
 
     /// Retrieve a key range.
     pub fn key_range(
         &self,
-        set_addr: ContentAddress,
+        contract_addr: ContentAddress,
         mut key: Key,
         num_words: usize,
     ) -> Result<Vec<Vec<Word>>, InvalidStateRead> {
@@ -121,7 +122,7 @@ impl State {
         let mut words = vec![];
         for _ in 0..num_words {
             let opt = self
-                .get(&set_addr)
+                .get(&contract_addr)
                 .ok_or(InvalidStateRead)?
                 .get(&key)
                 .cloned()
@@ -143,7 +144,7 @@ impl core::ops::Deref for State {
 impl StateRead for State {
     type Error = InvalidStateRead;
     type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
-    fn key_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
-        future::ready(self.key_range(set_addr, key, num_words))
+    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
+        future::ready(self.key_range(contract_addr, key, num_words))
     }
 }

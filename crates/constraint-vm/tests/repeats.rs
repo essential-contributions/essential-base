@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use essential_constraint_asm as asm;
 use essential_constraint_vm::{eval_ops, Access, SolutionAccess, StateSlots};
-use essential_types::{solution::SolutionData, ContentAddress, IntentAddress};
+use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 #[test]
 fn test_forall_in_asm() {
@@ -11,9 +11,9 @@ fn test_forall_in_asm() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
-                intent_to_solve: IntentAddress {
-                    set: ContentAddress([0; 32]),
-                    intent: ContentAddress([0; 32]),
+                predicate_to_solve: PredicateAddress {
+                    contract: ContentAddress([0; 32]),
+                    predicate: ContentAddress([0; 32]),
                 },
                 decision_variables: vec![vec![2], vec![4], vec![6], vec![8], vec![12]],
                 state_mutations: vec![],
@@ -63,9 +63,9 @@ fn test_fold_filter_in_asm() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
-                intent_to_solve: IntentAddress {
-                    set: ContentAddress([0; 32]),
-                    intent: ContentAddress([0; 32]),
+                predicate_to_solve: PredicateAddress {
+                    contract: ContentAddress([0; 32]),
+                    predicate: ContentAddress([0; 32]),
                 },
                 decision_variables: vec![],
                 state_mutations: vec![],

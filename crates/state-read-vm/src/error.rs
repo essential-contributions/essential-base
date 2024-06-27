@@ -74,9 +74,9 @@ pub enum OpSyncError {
     /// An error occurred during a `Constraint` operation.
     #[error("constraint operation error: {0}")]
     Constraint(#[from] constraint::error::OpError),
-    /// An error occurred during a `ControlFlow` operation.
+    /// An error occurred during a `TotalControlFlow` operation.
     #[error("control flow operation error: {0}")]
-    ControlFlow(#[from] ControlFlowError),
+    TotalControlFlow(#[from] ControlFlowError),
     /// An error occurred during a `StateSlots` operation.
     #[error("state slots operation error: {0}")]
     StateSlots(#[from] StateSlotsError),
@@ -102,7 +102,7 @@ pub enum OpAsyncError<E> {
     PcOverflow,
 }
 
-/// Errors occuring during `ControlFlow` operation.
+/// Errors occuring during `TotalControlFlow` operation.
 #[derive(Debug, Error)]
 pub enum ControlFlowError {
     /// A `JumpIf` operation encountered an invalid condition.

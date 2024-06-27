@@ -9,32 +9,35 @@ use essential_constraint_vm as constraint_vm;
 use essential_state_read_vm as state_read_vm;
 use essential_state_read_vm::StateRead;
 use essential_types::{
-    intent::{Directive, Intent},
+    contract::{Contract, SignedContract},
+    predicate::{Directive, Predicate},
     solution::{Mutation, Solution, SolutionData},
-    ContentAddress, IntentAddress, Key, Signed, Word,
+    ContentAddress, Key, PredicateAddress, Word,
 };
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 pub fn bench(c: &mut Criterion) {
-    let config = Arc::new(essential_check::solution::CheckIntentConfig::default());
+    let config = Arc::new(essential_check::solution::CheckPredicateConfig::default());
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
 
     for i in [1, 10, 100, 1000, 10_000] {
-        let (intents, solution, intents_map) = create(i);
-        let get_intent = |addr: &IntentAddress| intents_map.get(addr).cloned().unwrap();
+        let (predicates, solution, predicates_map) = create(i);
+        let get_predicate = |addr: &PredicateAddress| predicates_map.get(addr).cloned().unwrap();
         let mut pre_state = State::EMPTY;
-        pre_state.deploy_namespace(essential_hash::intent_set_addr::from_intents(&intents.data));
+        pre_state.deploy_namespace(essential_hash::contract_addr::from_contract(
+            &predicates.contract,
+        ));
         let mut post_state = pre_state.clone();
         post_state.apply_mutations(&solution);
         c.bench_function(&format!("check_42_{}", i), |b| {
             b.to_async(&runtime).iter(|| {
-                essential_check::solution::check_intents(
+                essential_check::solution::check_predicates(
                     &pre_state,
                     &post_state,
                     solution.clone(),
-                    get_intent,
+                    get_predicate,
                     config.clone(),
                 )
             });
@@ -49,26 +52,26 @@ criterion_main!(benches);
 fn create(
     amount: usize,
 ) -> (
-    Signed<Vec<Intent>>,
+    SignedContract,
     Arc<Solution>,
-    HashMap<IntentAddress, Arc<Intent>>,
+    HashMap<PredicateAddress, Arc<Predicate>>,
 ) {
-    let (intents, solution) = test_intent_42_solution_pair(amount, [0; 32]);
-    let set = intent_set_addr(&intents);
-    let intents_map: HashMap<_, _> = intents
-        .data
+    let (predicates, solution) = test_predicate_42_solution_pair(amount, [0; 32]);
+    let contract = contract_addr(&predicates);
+    let predicates_map: HashMap<_, _> = predicates
+        .contract
         .iter()
-        .map(|intent| {
+        .map(|predicate| {
             (
-                IntentAddress {
-                    set: set.clone(),
-                    intent: ContentAddress(essential_hash::hash(&intent)),
+                PredicateAddress {
+                    contract: contract.clone(),
+                    predicate: ContentAddress(essential_hash::hash(&predicate)),
                 },
-                Arc::new(intent.clone()),
+                Arc::new(predicate.clone()),
             )
         })
         .collect();
-    (intents, Arc::new(solution), intents_map)
+    (predicates, Arc::new(solution), predicates_map)
 }
 
 #[derive(Clone, Debug)]
@@ -81,9 +84,10 @@ impl State {
     pub const EMPTY: Self = State(BTreeMap::new());
 
     // Shorthand test state constructor.
-    pub fn new(sets: Vec<(ContentAddress, Vec<Kv>)>) -> Self {
+    pub fn new(contracts: Vec<(ContentAddress, Vec<Kv>)>) -> Self {
         State(
-            sets.into_iter()
+            contracts
+                .into_iter()
                 .map(|(addr, vec)| {
                     let map: BTreeMap<_, _> = vec.into_iter().collect();
                     (addr, map)
@@ -92,24 +96,24 @@ impl State {
         )
     }
 
-    // Update the value at the given key within the given intent set address.
-    pub fn set(&mut self, set_addr: ContentAddress, key: &Key, value: Vec<Word>) {
-        let set = self.0.entry(set_addr).or_default();
+    // Update the value at the given key within the given contract address.
+    pub fn set(&mut self, contract_addr: ContentAddress, key: &Key, value: Vec<Word>) {
+        let contract = self.0.entry(contract_addr).or_default();
         if value.is_empty() {
-            set.remove(key);
+            contract.remove(key);
         } else {
-            set.insert(key.clone(), value);
+            contract.insert(key.clone(), value);
         }
     }
 
-    pub fn deploy_namespace(&mut self, set_addr: ContentAddress) {
-        self.0.entry(set_addr).or_default();
+    pub fn deploy_namespace(&mut self, contract_addr: ContentAddress) {
+        self.0.entry(contract_addr).or_default();
     }
 
     /// Retrieve a word range.
     pub fn key_range(
         &self,
-        set_addr: ContentAddress,
+        contract_addr: ContentAddress,
         mut key: Key,
         num_words: usize,
     ) -> Result<Vec<Vec<Word>>, String> {
@@ -127,16 +131,16 @@ impl State {
             None
         }
 
-        // If the intent does not exist yet, assume `None`s as though intent hasn't been deployed yet?
-        let set = match self.get(&set_addr) {
+        // If the predicate does not exist yet, assume `None`s as though predicate hasn't been deployed yet?
+        let contract = match self.get(&contract_addr) {
             None => return Err("".to_string()),
-            Some(set) => set,
+            Some(contract) => contract,
         };
 
         // Collect the words.
         let mut words = vec![];
         for _ in 0..num_words {
-            let opt = set.get(&key).cloned().unwrap_or_default();
+            let opt = contract.get(&key).cloned().unwrap_or_default();
             words.push(opt);
             key = next_key(key).ok_or("".to_string())?;
         }
@@ -148,7 +152,7 @@ impl State {
         for data in &solution.data {
             for mutation in &data.state_mutations {
                 self.set(
-                    data.intent_to_solve.set.clone(),
+                    data.predicate_to_solve.contract.clone(),
                     &mutation.key,
                     mutation.value.clone(),
                 );
@@ -167,13 +171,13 @@ impl core::ops::Deref for State {
 impl StateRead for State {
     type Error = String;
     type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
-    fn key_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
-        future::ready(self.key_range(set_addr, key, num_words))
+    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
+        future::ready(self.key_range(contract_addr, key, num_words))
     }
 }
 
-fn test_intent_42(entropy: Word) -> Intent {
-    Intent {
+fn test_predicate_42(entropy: Word) -> Predicate {
+    Predicate {
         // State read program to read state slot 0.
         state_read: vec![state_read_vm::asm::to_bytes([
             state_read_vm::asm::Stack::Push(1).into(),
@@ -186,7 +190,7 @@ fn test_intent_42(entropy: Word) -> Intent {
             state_read_vm::asm::Stack::Push(1).into(),
             state_read_vm::asm::Stack::Push(0).into(),
             state_read_vm::asm::StateRead::KeyRange,
-            state_read_vm::asm::ControlFlow::Halt.into(),
+            state_read_vm::asm::TotalControlFlow::Halt.into(),
         ])
         .collect()],
         // Program to check pre-mutation value is None and
@@ -219,8 +223,8 @@ fn test_intent_42(entropy: Word) -> Intent {
     }
 }
 
-fn intent_set_addr(intents: &Signed<Vec<Intent>>) -> ContentAddress {
-    essential_hash::intent_set_addr::from_intents(&intents.data)
+fn contract_addr(contract: &SignedContract) -> ContentAddress {
+    essential_hash::contract_addr::from_contract(&contract.contract)
 }
 
 fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
@@ -230,22 +234,25 @@ fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
     secp.generate_keypair(&mut rng)
 }
 
-fn test_intent_42_solution_pair(
+fn test_predicate_42_solution_pair(
     amount: usize,
     keypair_seed: [u8; 32],
-) -> (Signed<Vec<Intent>>, Solution) {
-    // Create the test intent, ensure its decision_variables match, and sign.
-    let intents: Vec<_> = (0..amount).map(|i| test_intent_42(i as Word)).collect();
+) -> (SignedContract, Solution) {
+    // Create the test predicate, ensure its decision_variables match, and sign.
+    let predicates: Vec<_> = (0..amount).map(|i| test_predicate_42(i as Word)).collect();
+    let contract = Contract::without_salt(predicates);
     let (sk, _pk) = random_keypair(keypair_seed);
-    let intents = essential_sign::sign(intents, &sk);
+    let signed_contract = essential_sign::contract::sign(contract, &sk);
 
-    let set = intent_set_addr(&intents);
+    let contract_addr = contract_addr(&signed_contract);
 
     let data = (0..amount)
         .map(|i| SolutionData {
-            intent_to_solve: IntentAddress {
-                set: set.clone(),
-                intent: ContentAddress(essential_hash::hash(intents.data.get(i).unwrap())),
+            predicate_to_solve: PredicateAddress {
+                contract: contract_addr.clone(),
+                predicate: ContentAddress(essential_hash::hash(
+                    signed_contract.contract.get(i).unwrap(),
+                )),
             },
             decision_variables: vec![vec![42]],
             state_mutations: vec![Mutation {
@@ -258,5 +265,5 @@ fn test_intent_42_solution_pair(
 
     let solution = Solution { data };
 
-    (intents, solution)
+    (signed_contract, solution)
 }

@@ -455,7 +455,6 @@ dependencies = [
  "hex",
  "rand",
  "secp256k1",
- "serde",
 ]
 
 [[package]]

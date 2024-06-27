@@ -321,25 +321,25 @@ StateRead:
             ThisAddress:
               opcode: 0x3A
               description: |
-                Get the content hash of this intent.
+                Get the content hash of this predicate.
 
                 This operation returns a list of words with a length of 4, representing the hash.
               stack_out: [key]
 
-            ThisSetAddress:
+            ThisContractAddress:
               opcode: 0x3B
               description: |
-                Get the content hash of the set of intents that this intent belongs to.
+                Get the content hash of the contract this predicate belongs to.
 
-                This operation returns a list of words with a length of 4, representing the set's hash.
+                This operation returns a list of words with a length of 4, representing the contract's hash.
               stack_out: [key]
 
             ThisPathway:
               opcode: 0x3C
               description: |
-                Get the pathway of this intent.
+                Get the pathway of this predicate.
 
-                This operation returns the index of the solution data currently being used to check this intent.
+                This operation returns the index of the solution data currently being used to check this predicate.
               stack_out: [in]
 
             RepeatCounter:
@@ -361,30 +361,30 @@ StateRead:
               stack_in: [key_0, ...key_N, key_len, pathway]
               stack_out: [len]
 
-            IntentAt:
+            PredicateAt:
               opcode: 0x40
-              description: Get the intent at solution data pathway.
+              description: Get the predicate at solution data pathway.
               stack_in: [pathway]
               stack_out:
                 [
-                  set_key_0,
-                  set_key_1,
-                  set_key_2,
-                  set_key_3,
-                  intent_key_0,
-                  intent_key_1,
-                  intent_key_2,
-                  intent_key_3,
+                  contract_key_0,
+                  contract_key_1,
+                  contract_key_2,
+                  contract_key_3,
+                  predicate_key_0,
+                  predicate_key_1,
+                  predicate_key_2,
+                  predicate_key_3,
                 ]
 
             ThisTransientLen:
               opcode: 0x41
-              description: Get the length of the transient data at this intent.
+              description: Get the length of the transient data at this predicate.
               stack_out: [len]
 
             ThisTransientContains:
               opcode: 0x42
-              description: Check if the transient data at this intent contains the given key.
+              description: Check if the transient data at this predicate contains the given key.
               stack_in: [key_0, ...key_N, key_len]
               stack_out: [bool]
 
@@ -446,17 +446,22 @@ StateRead:
         TotalControlFlow:
           description: Control flow operations that keep the program total.
           group:
-            HaltIf:
+            Halt:
               opcode: 0x60
+              description: End the execution of the program.
+
+            HaltIf:
+              opcode: 0x61
               description: Halt the program if the value is true.
               stack_in: [value]
 
             JumpForwardIf:
-              opcode: 0x61
+              opcode: 0x63
               description: Jump forward the given number of instructions if the value is true.
               panics:
                 - The jump is out of bounds.
                 - The jump is negative.
+                - The jump distance is zero.
               stack_in: [n_instruction, condition]
 
         Temporary:
@@ -488,33 +493,16 @@ StateRead:
                 - Index is out of bounds.
               stack_in: [index, value]
 
-    ControlFlow:
-      description: Operations for controlling the flow of the program.
-      group:
-        Halt:
-          opcode: 0x80
-          description: End the execution of the program and return the keys and memory.
-
-        Jump:
-          opcode: 0x81
-          description: Jump to the given address.
-          stack_in: [address]
-
-        JumpIf:
-          opcode: 0x82
-          description: Jump to the given address if the value is true.
-          stack_in: [address, value]
-
     StateSlots:
       description: Operations for controlling mutable state slots.
       group:
         AllocSlots:
-          opcode: 0x90
+          opcode: 0x80
           description: Allocate new slots to the end of the memory.
           stack_in: [size]
 
         Load:
-          opcode: 0x91
+          opcode: 0x81
           description: |
             Load the value at the index of a slot onto the stack.
 
@@ -527,14 +515,14 @@ StateRead:
             len: value_len
 
         Store:
-          opcode: 0x92
+          opcode: 0x82
           description: Store the value at the index of state slots.
           panics:
             - Index is out of bounds.
           stack_in: [value_word_0, ...value_word_len, len, index]
 
         LoadWord:
-          opcode: 0x93
+          opcode: 0x83
           description: |
             Load the word at the index of the value at
             the slot onto the stack.
@@ -544,7 +532,7 @@ StateRead:
           stack_out: [Value_word]
 
         StoreWord:
-          opcode: 0x94
+          opcode: 0x84
           description: |
             Store the word at the index of the value
             at the slot.
@@ -553,32 +541,32 @@ StateRead:
           stack_in: [slot, index, word]
 
         Clear:
-          opcode: 0x95
+          opcode: 0x85
           description: Clear the value at the index.
           panics:
             - Index is out of bounds.
           stack_in: [index]
 
         ClearRange:
-          opcode: 0x96
+          opcode: 0x86
           description: Clear a range of values.
           panics:
             - The range is out of bounds.
           stack_in: [index, amount]
 
         Length:
-          opcode: 0x97
+          opcode: 0x87
           description: Get the current length of the memory.
           stack_out: [length]
 
         ValueLen:
-          opcode: 0x98
+          opcode: 0x88
           description: Get the current length of a given value at the index.
           stack_in: [index]
           stack_out: [length]
 
     KeyRange:
-      opcode: 0xA0
+      opcode: 0x90
       description: |
         Read a range of values at each key from state starting at the key
         into state slots starting at the slot index.
@@ -590,7 +578,7 @@ StateRead:
       stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]
 
     KeyRangeExtern:
-      opcode: 0xA1
+      opcode: 0x91
       description: |
         Read a range of values at each key from external state starting at the key
         into state slots starting at the slot index.

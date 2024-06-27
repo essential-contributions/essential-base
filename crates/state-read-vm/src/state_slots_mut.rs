@@ -7,7 +7,7 @@ use crate::{asm::Word, OpSyncResult, StateSlotsError, StateSlotsResult, Vm};
 /// A type representing the VM's mutable state slots.
 ///
 /// `StateSlots` is a thin wrapper around a `Vec<Vec<Word>>`. The `Vec` mutable methods
-/// are intentionally not exposed in order to maintain close control over capacity.
+/// are predicateionally not exposed in order to maintain close control over capacity.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StateSlotsMut(Vec<Vec<Word>>);
 

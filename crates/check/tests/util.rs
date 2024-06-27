@@ -4,11 +4,12 @@ use essential_check::{
     state_read_vm,
     state_read_vm::StateRead,
     types::{
-        intent::{self, Directive, Intent},
+        predicate::{Directive, Predicate},
         solution::{Mutation, Solution, SolutionData},
-        ContentAddress, IntentAddress, Key, Word,
+        ContentAddress, Key, PredicateAddress, Word,
     },
 };
+use essential_types::contract::{self, Contract};
 use std::{
     collections::BTreeMap,
     future::{self, Ready},
@@ -20,7 +21,7 @@ use thiserror::Error;
 pub struct State(BTreeMap<ContentAddress, BTreeMap<Key, Vec<Word>>>);
 
 #[derive(Debug, Error)]
-#[error("no value for the given intent set, key pair")]
+#[error("no value for the given contract, key pair")]
 pub struct InvalidStateRead;
 
 pub type Kv = (Key, Vec<Word>);
@@ -30,9 +31,10 @@ impl State {
     pub const EMPTY: Self = State(BTreeMap::new());
 
     // Shorthand test state constructor.
-    pub fn new(sets: Vec<(ContentAddress, Vec<Kv>)>) -> Self {
+    pub fn new(contracts: Vec<(ContentAddress, Vec<Kv>)>) -> Self {
         State(
-            sets.into_iter()
+            contracts
+                .into_iter()
                 .map(|(addr, vec)| {
                     let map: BTreeMap<_, _> = vec.into_iter().collect();
                     (addr, map)
@@ -41,24 +43,24 @@ impl State {
         )
     }
 
-    // Update the value at the given key within the given intent set address.
-    pub fn set(&mut self, set_addr: ContentAddress, key: &Key, value: Vec<Word>) {
-        let set = self.0.entry(set_addr).or_default();
+    // Update the value at the given key within the given contract address.
+    pub fn set(&mut self, contract_addr: ContentAddress, key: &Key, value: Vec<Word>) {
+        let contract = self.0.entry(contract_addr).or_default();
         if value.is_empty() {
-            set.remove(key);
+            contract.remove(key);
         } else {
-            set.insert(key.clone(), value);
+            contract.insert(key.clone(), value);
         }
     }
 
-    pub fn deploy_namespace(&mut self, set_addr: ContentAddress) {
-        self.0.entry(set_addr).or_default();
+    pub fn deploy_namespace(&mut self, contract_addr: ContentAddress) {
+        self.0.entry(contract_addr).or_default();
     }
 
     /// Retrieve a word range.
     pub fn key_range(
         &self,
-        set_addr: ContentAddress,
+        contract_addr: ContentAddress,
         mut key: Key,
         num_words: usize,
     ) -> Result<Vec<Vec<Word>>, InvalidStateRead> {
@@ -76,16 +78,16 @@ impl State {
             None
         }
 
-        // If the intent does not exist yet, assume `None`s as though intent hasn't been deployed yet?
-        let set = match self.get(&set_addr) {
+        // If the predicate does not exist yet, assume `None`s as though predicate hasn't been deployed yet?
+        let contract = match self.get(&contract_addr) {
             None => return Err(InvalidStateRead),
-            Some(set) => set,
+            Some(contract) => contract,
         };
 
         // Collect the words.
         let mut words = vec![];
         for _ in 0..num_words {
-            let opt = set.get(&key).cloned().unwrap_or_default();
+            let opt = contract.get(&key).cloned().unwrap_or_default();
             words.push(opt);
             key = next_key(key).ok_or(InvalidStateRead)?;
         }
@@ -97,7 +99,7 @@ impl State {
         for data in &solution.data {
             for mutation in data.state_mutations.iter() {
                 self.set(
-                    data.intent_to_solve.set.clone(),
+                    data.predicate_to_solve.contract.clone(),
                     &mutation.key,
                     mutation.value.clone(),
                 );
@@ -116,8 +118,8 @@ impl core::ops::Deref for State {
 impl StateRead for State {
     type Error = InvalidStateRead;
     type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
-    fn key_range(&self, set_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
-        future::ready(self.key_range(set_addr, key, num_words))
+    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
+        future::ready(self.key_range(contract_addr, key, num_words))
     }
 }
 
@@ -127,12 +129,16 @@ pub fn empty_solution() -> Solution {
     }
 }
 
-pub fn empty_intent() -> Intent {
-    Intent {
+pub fn empty_predicate() -> Predicate {
+    Predicate {
         state_read: Default::default(),
         constraints: Default::default(),
         directive: Directive::Satisfy,
     }
+}
+
+pub fn empty_contract() -> Contract {
+    Contract::without_salt(vec![empty_predicate()])
 }
 
 pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
@@ -142,9 +148,9 @@ pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
     secp.generate_keypair(&mut rng)
 }
 
-// A simple intent that expects the value of previously unset state slot with index 0 to be 42.
-pub fn test_intent_42(entropy: Word) -> Intent {
-    Intent {
+// A simple predicate that expects the value of previously uncontract state slot with index 0 to be 42.
+pub fn test_predicate_42(entropy: Word) -> Predicate {
+    Predicate {
         // State read program to read state slot 0.
         state_read: vec![state_read_vm::asm::to_bytes([
             state_read_vm::asm::Stack::Push(1).into(),
@@ -157,7 +163,7 @@ pub fn test_intent_42(entropy: Word) -> Intent {
             state_read_vm::asm::Stack::Push(1).into(),
             state_read_vm::asm::Stack::Push(0).into(),
             state_read_vm::asm::StateRead::KeyRange,
-            state_read_vm::asm::ControlFlow::Halt.into(),
+            state_read_vm::asm::TotalControlFlow::Halt.into(),
         ])
         .collect()],
         // Program to check pre-mutation value is None and
@@ -182,27 +188,27 @@ pub fn test_intent_42(entropy: Word) -> Intent {
     }
 }
 
-pub fn intent_set_addr(intents: &intent::SignedSet) -> ContentAddress {
-    essential_hash::intent_set_addr::from_intents(&intents.set)
+pub fn contract_addr(predicates: &contract::SignedContract) -> ContentAddress {
+    essential_hash::contract_addr::from_contract(&predicates.contract)
 }
 
-pub fn intent_addr(intents: &intent::SignedSet, ix: usize) -> IntentAddress {
-    IntentAddress {
-        set: intent_set_addr(intents),
-        intent: ContentAddress(essential_hash::hash(&intents.set[ix])),
+pub fn predicate_addr(predicates: &contract::SignedContract, ix: usize) -> PredicateAddress {
+    PredicateAddress {
+        contract: contract_addr(predicates),
+        predicate: ContentAddress(essential_hash::hash(&predicates.contract[ix])),
     }
 }
 
-// Creates a test `Intent` along with a `Solution` that solves it.
-pub fn test_intent_42_solution_pair(
+// Creates a test `Predicate` along with a `Solution` that solves it.
+pub fn test_predicate_42_solution_pair(
     entropy: Word,
     keypair_seed: [u8; 32],
-) -> (intent::SignedSet, Solution) {
-    // Create the test intent, ensure its decision_variables match, and sign.
-    let intent = test_intent_42(entropy);
+) -> (contract::SignedContract, Solution) {
+    // Create the test predicate, ensure its decision_variables match, and sign.
+    let predicate = test_predicate_42(entropy);
     let (sk, _pk) = random_keypair(keypair_seed);
-    let intents = essential_sign::intent_set::sign(vec![intent], &sk);
-    let intent_addr = intent_addr(&intents, 0);
+    let predicates = essential_sign::contract::sign(vec![predicate].into(), &sk);
+    let predicate_addr = predicate_addr(&predicates, 0);
 
     // Construct the solution decision variables.
     // The first is an inline variable 42.
@@ -211,7 +217,7 @@ pub fn test_intent_42_solution_pair(
     // Create the solution.
     let solution = Solution {
         data: vec![SolutionData {
-            intent_to_solve: intent_addr,
+            predicate_to_solve: predicate_addr,
             decision_variables,
             state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 0],
@@ -221,5 +227,5 @@ pub fn test_intent_42_solution_pair(
         }],
     };
 
-    (intents, solution)
+    (predicates, solution)
 }

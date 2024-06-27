@@ -33,4 +33,4 @@ tracing = [
 
 [[bench]]
 harness = false
-name = "check_intents"
+name = "check_contract"
