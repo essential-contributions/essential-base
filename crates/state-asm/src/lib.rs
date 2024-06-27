@@ -99,18 +99,6 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_args_interspersed() {
-        let ops: Vec<Op> = vec![
-            Stack::Push(0x1234567812345678).into(),
-            ControlFlow::Jump.into(),
-            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-            ControlFlow::Halt.into(),
-            Stack::Push(0x1234567812345678).into(),
-        ];
-        roundtrip(ops);
-    }
-
-    #[test]
     fn roundtrip_no_args() {
         let ops: Vec<Op> = vec![
             StateSlots::Store.into(),

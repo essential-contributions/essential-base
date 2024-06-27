@@ -163,7 +163,7 @@ pub fn test_predicate_42(entropy: Word) -> Predicate {
             state_read_vm::asm::Stack::Push(1).into(),
             state_read_vm::asm::Stack::Push(0).into(),
             state_read_vm::asm::StateRead::KeyRange,
-            state_read_vm::asm::ControlFlow::Halt.into(),
+            state_read_vm::asm::TotalControlFlow::Halt.into(),
         ])
         .collect()],
         // Program to check pre-mutation value is None and

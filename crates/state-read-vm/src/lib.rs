@@ -46,7 +46,6 @@ pub use future::ExecFuture;
 pub use state_read::StateRead;
 pub use state_slots_mut::StateSlotsMut;
 
-mod ctrl_flow;
 pub mod error;
 mod future;
 mod state_read;
@@ -100,8 +99,6 @@ pub(crate) enum OpKind {
 pub(crate) enum OpSync {
     /// All operations available to the constraint checker.
     Constraint(asm::Constraint),
-    /// Operations for controlling the flow of the program.
-    ControlFlow(asm::ControlFlow),
     /// Operations for interacting with mutable state slots.
     StateSlots(asm::StateSlots),
 }
@@ -261,7 +258,6 @@ impl From<Op> for OpKind {
     fn from(op: Op) -> Self {
         match op {
             Op::Constraint(op) => OpKind::Sync(OpSync::Constraint(op)),
-            Op::ControlFlow(op) => OpKind::Sync(OpSync::ControlFlow(op)),
             Op::StateSlots(op) => OpKind::Sync(OpSync::StateSlots(op)),
             Op::KeyRange => OpKind::Async(OpAsync::StateReadKeyRange),
             Op::KeyRangeExtern => OpKind::Async(OpAsync::StateReadKeyRangeExt),
@@ -298,23 +294,11 @@ pub(crate) fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncRes
                 None => (),
             }
         }
-        OpSync::ControlFlow(op) => return step_op_ctrl_flow(op, vm).map_err(From::from),
         OpSync::StateSlots(op) => step_op_state_slots(op, &mut *vm)?,
     }
     // Every operation besides control flow steps forward program counter by 1.
     let new_pc = vm.pc.checked_add(1).ok_or(OpSyncError::PcOverflow)?;
     Ok(Some(new_pc))
-}
-
-/// Step forward state reading by the given control flow operation.
-///
-/// Returns a `bool` indicating whether or not to continue execution.
-pub(crate) fn step_op_ctrl_flow(op: asm::ControlFlow, vm: &mut Vm) -> OpSyncResult<Option<usize>> {
-    match op {
-        asm::ControlFlow::Jump => ctrl_flow::jump(vm).map(Some).map_err(From::from),
-        asm::ControlFlow::JumpIf => ctrl_flow::jump_if(vm).map(Some),
-        asm::ControlFlow::Halt => Ok(None),
-    }
 }
 
 /// Step forward state reading by the given state slot operation.

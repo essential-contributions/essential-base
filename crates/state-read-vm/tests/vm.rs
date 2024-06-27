@@ -19,7 +19,7 @@ async fn no_yield() {
         asm::Stack::Push(6).into(),
         asm::Stack::Push(7).into(),
         asm::Alu::Mul.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
     let spent = vm
@@ -45,7 +45,7 @@ async fn yield_per_op() {
         asm::Stack::Push(6).into(),
         asm::Stack::Push(7).into(),
         asm::Alu::Mul.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     // Force the VM to yield after every op to test behaviour.
     let op_gas_cost = |_op: &_| GasLimit::DEFAULT_PER_YIELD;
@@ -87,7 +87,7 @@ async fn continue_execution() {
         asm::Stack::Push(6).into(),
         asm::Stack::Push(7).into(),
         asm::Alu::Mul.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
     let spent = vm
@@ -109,7 +109,7 @@ async fn continue_execution() {
     let ops = &[
         asm::Stack::Push(6).into(),
         asm::Alu::Div.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     let spent = vm
         .exec_ops(
@@ -134,7 +134,7 @@ async fn exec_method_behaviours_match() {
         asm::Stack::Push(6).into(),
         asm::Stack::Push(7).into(),
         asm::Alu::Mul.into(),
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
 
     // Execute the ops using `exec_ops`.
@@ -238,7 +238,7 @@ async fn read_pre_post_state_and_check_constraints() {
         asm::Stack::Push(3).into(), // Num words
         asm::Stack::Push(0).into(), // Slot index
         asm::StateRead::KeyRange,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
 
     // Execute the program.

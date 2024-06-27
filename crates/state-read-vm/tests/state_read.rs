@@ -36,7 +36,7 @@ async fn state_read_3_42s() {
         asm::Stack::Push(num_words).into(),
         asm::Stack::Push(0).into(), // slot index
         asm::StateRead::KeyRange,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
@@ -70,7 +70,7 @@ async fn state_read_some_none_some() {
         asm::Stack::Push(num_words).into(),
         asm::Stack::Push(0).into(), // slot index
         asm::StateRead::KeyRange,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
@@ -108,7 +108,7 @@ async fn state_read_ext() {
         asm::Stack::Push(num_words).into(),
         asm::Stack::Push(0).into(), // slot index
         asm::StateRead::KeyRangeExtern,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -145,7 +145,7 @@ async fn state_read_ext_nones() {
         asm::Stack::Push(num_words).into(),
         asm::Stack::Push(0).into(), // slot index
         asm::StateRead::KeyRangeExtern,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
         ops,
@@ -190,7 +190,7 @@ async fn state_read_various_size_values() {
         asm::Stack::Push(num_values).into(),
         asm::Stack::Push(0).into(), // slot index
         asm::StateRead::KeyRange,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
@@ -239,7 +239,7 @@ async fn state_read_various_key_sizes() {
         asm::Stack::Push(2).into(), // num keys
         asm::Stack::Push(3).into(), // slot index
         asm::StateRead::KeyRange,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
@@ -273,7 +273,7 @@ async fn state_read_slot_index_overflow() {
         asm::Stack::Push(1).into(), // num keys
         asm::Stack::Push(1).into(), // slot index
         asm::StateRead::KeyRange,
-        asm::ControlFlow::Halt.into(),
+        asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await

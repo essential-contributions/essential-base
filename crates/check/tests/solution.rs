@@ -192,7 +192,7 @@ async fn predicate_with_multiple_state_reads_and_slots() {
         state_read_vm::asm::Stack::Push(2).into(), // Num keys to read
         state_read_vm::asm::Stack::Push(1).into(), // Destination slot
         state_read_vm::asm::StateRead::KeyRange,
-        state_read_vm::asm::ControlFlow::Halt.into(),
+        state_read_vm::asm::TotalControlFlow::Halt.into(),
     ])
     .collect();
     let read_two_slots = state_read_vm::asm::to_bytes([
@@ -203,7 +203,7 @@ async fn predicate_with_multiple_state_reads_and_slots() {
         state_read_vm::asm::Stack::Push(2).into(), // Num keys to read
         state_read_vm::asm::Stack::Push(0).into(), // Destination slot
         state_read_vm::asm::StateRead::KeyRange,
-        state_read_vm::asm::ControlFlow::Halt.into(),
+        state_read_vm::asm::TotalControlFlow::Halt.into(),
     ])
     .collect();
 
