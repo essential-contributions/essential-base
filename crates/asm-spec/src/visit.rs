@@ -69,7 +69,7 @@ pub fn ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     ops_filtered(tree, |_| true, f)
 }
 
-/// Recursively visit only the sebset of op groups related to constraint execution.
+/// Recursively visit only the subset of op groups related to constraint execution.
 pub fn constraint_groups(tree: &Tree, f: &mut impl FnMut(&[String], &Group)) {
     // Find the constraint group and only apply `f` to it and its children.
     groups(tree, &mut |name, group| {
@@ -80,7 +80,7 @@ pub fn constraint_groups(tree: &Tree, f: &mut impl FnMut(&[String], &Group)) {
     });
 }
 
-/// Recursively visit only the sebset of operations related to constraint execution.
+/// Recursively visit only the subset of operations related to constraint execution.
 pub fn constraint_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     // Find the constraint group and only apply `f` to it and its children.
     groups(tree, &mut |names, group| {

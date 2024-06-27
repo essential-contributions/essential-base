@@ -1,5 +1,5 @@
 //! # Predicates
-//! Types needed to represent an predicate.
+//! Types needed to represent a predicate.
 
 use crate::{serde::bytecode, ConstraintBytecode, StateReadBytecode};
 use serde::{Deserialize, Serialize};

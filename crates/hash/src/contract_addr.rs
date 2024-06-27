@@ -5,23 +5,6 @@
 //! more information on the requirements behind the contract content address.
 
 use essential_types::{contract::Contract, ContentAddress, Hash};
-use serde::Serialize;
-
-#[derive(Serialize)]
-struct ContractAddrRef<'a> {
-    predicate_addrs: &'a mut [ContentAddress],
-    salt: Hash,
-}
-
-impl<'a> ContractAddrRef<'a> {
-    fn new(predicate_addrs: &'a mut [ContentAddress], salt: Hash) -> Self {
-        predicate_addrs.sort();
-        Self {
-            predicate_addrs,
-            salt,
-        }
-    }
-}
 
 /// Shorthand for the common case of producing an contract address from an
 /// iterator yielding references to [`Predicate`]s.
@@ -30,7 +13,7 @@ impl<'a> ContractAddrRef<'a> {
 /// using [`from_predicate_addrs`] or [`from_predicate_addrs_slice`].
 pub fn from_contract(contract: &Contract) -> ContentAddress {
     let predicate_addrs = contract.predicates.iter().map(crate::content_addr);
-    from_predicate_addrs(predicate_addrs, contract.salt)
+    from_predicate_addrs(predicate_addrs, &contract.salt)
 }
 
 /// Given the predicate content address for each predicate in the contract, produce the
@@ -43,7 +26,7 @@ pub fn from_contract(contract: &Contract) -> ContentAddress {
 /// slice, consider [`from_predicate_addrs_slice`].
 pub fn from_predicate_addrs(
     predicate_addrs: impl IntoIterator<Item = ContentAddress>,
-    salt: Hash,
+    salt: &Hash,
 ) -> ContentAddress {
     let mut predicate_addrs: Vec<_> = predicate_addrs.into_iter().collect();
     from_predicate_addrs_slice(&mut predicate_addrs, salt)
@@ -57,7 +40,8 @@ pub fn from_predicate_addrs(
 /// of the content addresses does not matter).
 pub fn from_predicate_addrs_slice(
     predicate_addrs: &mut [ContentAddress],
-    salt: Hash,
+    salt: &Hash,
 ) -> ContentAddress {
-    crate::content_addr(&ContractAddrRef::new(predicate_addrs, salt))
+    predicate_addrs.sort();
+    crate::content_addr(&(predicate_addrs, salt))
 }

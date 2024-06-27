@@ -5,7 +5,7 @@ StateRead:
       description: |
         All operations available to the constraint checker.
 
-        Note that this is a sebset of the operations available to state read execution.
+        Note that this is a subset of the operations available to state read execution.
       group:
         Stack:
           description: Operations related to stack manipulation.

@@ -21,7 +21,7 @@ pub struct Solution {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// The data the solver is required to provide to solve an predicate.
+/// The data the solver is required to provide to solve a predicate.
 pub struct SolutionData {
     /// Which predicate this input data is for.
     pub predicate_to_solve: PredicateAddress,

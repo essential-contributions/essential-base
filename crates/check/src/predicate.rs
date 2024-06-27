@@ -34,7 +34,7 @@ pub enum InvalidContract {
     Predicate(usize, InvalidPredicate),
 }
 
-/// [`check`] error indicating part of an predicate was invalid.
+/// [`check`] error indicating part of a predicate was invalid.
 #[derive(Debug, Error)]
 pub enum InvalidPredicate {
     /// The predicate's slots are invalid.
@@ -115,21 +115,21 @@ pub enum InvalidConstraint {
 
 /// Maximum number of predicates in a contract.
 pub const MAX_PREDICATES: usize = 100;
-/// Maximum number of state read programs of an predicate.
+/// Maximum number of state read programs of a predicate.
 pub const MAX_STATE_READS: usize = 100;
-/// Maximum size of state read programs of an predicate in bytes.
+/// Maximum size of state read programs of a predicate in bytes.
 pub const MAX_STATE_READ_SIZE_IN_BYTES: usize = 10_000;
-/// Maximum number of constraint check programs of an predicate.
+/// Maximum number of constraint check programs of a predicate.
 pub const MAX_CONSTRAINTS: usize = 100;
-/// Maximum size of constraint check programs of an predicate in bytes.
+/// Maximum size of constraint check programs of a predicate in bytes.
 pub const MAX_CONSTRAINT_SIZE_IN_BYTES: usize = 10_000;
-/// Maximum number of decision variables of the slots of an predicate.
+/// Maximum number of decision variables of the slots of a predicate.
 pub const MAX_DECISION_VARIABLES: u32 = 100;
-/// Maximum number of state slots of an predicate.
+/// Maximum number of state slots of a predicate.
 pub const MAX_NUM_STATE_SLOTS: usize = 1000;
-/// Maximum length of state slots of an predicate.
+/// Maximum length of state slots of a predicate.
 pub const MAX_STATE_LEN: u32 = 1000;
-/// Maximum size of directive of an predicate.
+/// Maximum size of directive of a predicate.
 pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 
 /// Validate a signed contract of predicates.
@@ -167,7 +167,7 @@ pub fn check(predicate: &Predicate) -> Result<(), InvalidPredicate> {
     Ok(())
 }
 
-/// Validate an predicate's directive.
+/// Validate a predicate's directive.
 pub fn check_directive(directive: &Directive) -> Result<(), InvalidDirective> {
     if let Directive::Maximize(program) | Directive::Minimize(program) = directive {
         if program.len() > MAX_DIRECTIVE_SIZE {
@@ -177,7 +177,7 @@ pub fn check_directive(directive: &Directive) -> Result<(), InvalidDirective> {
     Ok(())
 }
 
-/// Validate an predicate's state read bytecode.
+/// Validate a predicate's state read bytecode.
 pub fn check_state_reads(state_reads: &[StateReadBytecode]) -> Result<(), InvalidStateReads> {
     if state_reads.len() > MAX_STATE_READS {
         return Err(InvalidStateReads::TooMany(state_reads.len()));
@@ -196,7 +196,7 @@ pub fn check_state_read(state_read: &[u8]) -> Result<(), InvalidStateRead> {
     Ok(())
 }
 
-/// Validate an predicate's constraint bytecode.
+/// Validate a predicate's constraint bytecode.
 pub fn check_constraints(constraints: &[ConstraintBytecode]) -> Result<(), InvalidConstraints> {
     if constraints.len() > MAX_CONSTRAINTS {
         return Err(InvalidConstraints::TooManyConstraints(constraints.len()));

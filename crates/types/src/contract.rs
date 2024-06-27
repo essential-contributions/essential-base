@@ -42,11 +42,6 @@ impl Contract {
             ..Default::default()
         }
     }
-
-    /// Turn the contract into its inner parts.
-    pub fn into_inner(self) -> (Vec<Predicate>, Hash) {
-        (self.predicates, self.salt)
-    }
 }
 
 impl From<Vec<Predicate>> for Contract {
@@ -55,12 +50,6 @@ impl From<Vec<Predicate>> for Contract {
             predicates,
             ..Default::default()
         }
-    }
-}
-
-impl From<Contract> for Vec<Predicate> {
-    fn from(contract: Contract) -> Self {
-        contract.predicates
     }
 }
 

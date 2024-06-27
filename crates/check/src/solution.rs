@@ -331,7 +331,7 @@ pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidSolution> 
 ///
 /// - `pre_state` must provide access to state *prior to* mutations being applied.
 /// - `post_state` must provide access to state *post* mutations being applied.
-/// - `get_predicate` provides immediate access to an predicate associated with the given
+/// - `get_predicate` provides immediate access to a predicate associated with the given
 ///   solution. Calls to `predicate` must complete immediately. All necessary
 ///   predicates are assumed to have been read from storage and validated ahead of time.
 ///

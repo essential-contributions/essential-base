@@ -136,7 +136,7 @@ fn too_many_transient_data() {
     ));
 }
 
-// Tests an predicate for contractting slot 0 to 42 against its associated solution.
+// Tests a predicate for contractting slot 0 to 42 against its associated solution.
 #[tokio::test]
 async fn check_predicate_42_with_solution() {
     let (predicates, solution) = util::test_predicate_42_solution_pair(1, [0; 32]);
