@@ -149,7 +149,7 @@ async fn jump_if_back() {
     // After 5 total iterations, the result should be 2^5.
     assert_eq!(
         spent,
-        2 /*setup*/ + 13 * nth_power as u64 /*loop*/ + 3 /*cleanup*/
+        2 /*contractup*/ + 13 * nth_power as u64 /*loop*/ + 3 /*cleanup*/
     );
     assert_eq!(&vm.stack[..], &[2i64.pow(nth_power as u32)]);
 }

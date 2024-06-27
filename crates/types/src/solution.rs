@@ -1,9 +1,9 @@
 //! # Solutions
-//! Data types that are used to create solutions to intents.
+//! Data types that are used to create solutions to predicates.
 
 use serde::{Deserialize, Serialize};
 
-use crate::{IntentAddress, Key, Value};
+use crate::{Key, PredicateAddress, Value};
 
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
@@ -13,19 +13,19 @@ pub type SolutionDataIndex = u16;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A solution to intents.
+/// A solution to predicates.
 pub struct Solution {
-    /// The input data for each intent.
+    /// The input data for each predicate.
     pub data: Vec<SolutionData>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// The data the solver is required to provide to solve an intent.
+/// The data the solver is required to provide to solve an predicate.
 pub struct SolutionData {
-    /// Which intent this input data is for.
-    pub intent_to_solve: IntentAddress,
-    /// The decision variables for the intent.
+    /// Which predicate this input data is for.
+    pub predicate_to_solve: PredicateAddress,
+    /// The decision variables for the predicate.
     pub decision_variables: Vec<Value>,
     /// The transient data being proposed.
     pub transient_data: Vec<Mutation>,
@@ -39,7 +39,7 @@ pub struct SolutionData {
 pub struct Mutation {
     /// Key to data.
     pub key: Key,
-    /// Value to set the key to.
+    /// Value to contract the key to.
     /// Empty value means the value is being deleted.
     pub value: Value,
 }

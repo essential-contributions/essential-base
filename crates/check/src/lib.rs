@@ -1,19 +1,19 @@
-//! Core logic for validating [`Intent`][crate::types::intent::Intent]s,
+//! Core logic for validating [`Predicate`][crate::types::predicate::Predicate]s,
 //! [`Solution`][crate::types::solution::Solution]s and
-//! [`SolutionData`][crate::types::solution::SolutionData] against associated intents.
+//! [`SolutionData`][crate::types::solution::SolutionData] against associated predicates.
 //!
-//! Typical usage is to first validate intents and solutions independently in
-//! full prior to validating against one another with `solution::check_intents`.
+//! Typical usage is to first validate predicates and solutions independently in
+//! full prior to validating against one another with `solution::check_predicates`.
 //!
-//! ## Intent Validation
+//! ## Predicate Validation
 //!
-//! - [`intent::check_signed_set`] validates a signed set of intents.
-//! - [`intent::check_set`] validates a set of intents.
-//! - [`intent::check`] validate an individual intent.
-//! - [`intent::check_slots`] validate an intent's slots.
-//! - [`intent::check_directive`] validate an intent's directive.
-//! - [`intent::check_state_reads`] validate an intent's state read bytecode.
-//! - [`intent::check_constraints`] validate an intent's constraint bytecode.
+//! - [`predicate::check_signed_contract`] validates a signed contract.
+//! - [`predicate::check_contract`] validates a contract.
+//! - [`predicate::check`] validate an individual predicate.
+//! - [`predicate::check_slots`] validate an predicate's slots.
+//! - [`predicate::check_directive`] validate an predicate's directive.
+//! - [`predicate::check_state_reads`] validate an predicate's state read bytecode.
+//! - [`predicate::check_constraints`] validate an predicate's constraint bytecode.
 //!
 //! ## Solution Validation
 //!
@@ -21,11 +21,11 @@
 //! - [`solution::check_data`] validates a solution's data slice.
 //! - [`solution::check_state_mutations`] validates a solution's state mutation slice.
 //!
-//! ## Solution + Intent Validation
+//! ## Solution + Predicate Validation
 //!
-//! - [`solution::check_intents`] validates a solution's data against their associated intents.
-//! - [`solution::check_intent`] validates a single solution data against an associated intent.
-//! - [`solution::check_intent_constraints`] the intent constraint checking part of solution
+//! - [`solution::check_predicates`] validates a solution's data against their associated predicates.
+//! - [`solution::check_predicate`] validates a single solution data against an associated predicate.
+//! - [`solution::check_predicate_constraints`] the predicate constraint checking part of solution
 //!   data validation.
 //! - [`solution::check_decision_variable_lengths`] checks the expected number of
 //!   decision variables.
@@ -42,5 +42,5 @@ pub use essential_state_read_vm as state_read_vm;
 #[doc(inline)]
 pub use essential_types as types;
 
-pub mod intent;
+pub mod predicate;
 pub mod solution;

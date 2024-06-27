@@ -95,7 +95,7 @@ pub(crate) enum OpKind {
     Async(OpAsync),
 }
 
-/// The set of operations performed synchronously.
+/// The contract of operations performed synchronously.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub(crate) enum OpSync {
     /// All operations available to the constraint checker.
@@ -106,7 +106,7 @@ pub(crate) enum OpSync {
     StateSlots(asm::StateSlots),
 }
 
-/// The set of operations that are performed asynchronously.
+/// The contract of operations that are performed asynchronously.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub(crate) enum OpAsync {
     /// Read a range of values from state starting at the key.

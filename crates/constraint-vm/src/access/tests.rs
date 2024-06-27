@@ -7,13 +7,13 @@ use crate::{
 };
 use essential_types::{
     solution::{Mutation, Solution},
-    ContentAddress, IntentAddress,
+    ContentAddress, PredicateAddress,
 };
 
 macro_rules! check_dec_var {
     ($d:expr, $s:expr, $f:ident) => {{
         let d = [SolutionData {
-            intent_to_solve: TEST_INTENT_ADDR,
+            predicate_to_solve: TEST_PREDICATE_ADDR,
             decision_variables: $d,
             state_mutations: Default::default(),
             transient_data: Default::default(),
@@ -294,7 +294,7 @@ fn decision_var_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
-                intent_to_solve: TEST_INTENT_ADDR,
+                predicate_to_solve: TEST_PREDICATE_ADDR,
                 decision_variables: vec![vec![42]],
                 state_mutations: Default::default(),
                 transient_data: Default::default(),
@@ -318,7 +318,7 @@ fn decision_var_range_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
-                intent_to_solve: TEST_INTENT_ADDR,
+                predicate_to_solve: TEST_PREDICATE_ADDR,
                 decision_variables: vec![vec![7, 8, 9], vec![10, 11, 12]],
                 state_mutations: Default::default(),
                 transient_data: Default::default(),
@@ -344,7 +344,7 @@ fn decision_var_slot_oob_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
-                intent_to_solve: TEST_INTENT_ADDR,
+                predicate_to_solve: TEST_PREDICATE_ADDR,
                 decision_variables: vec![vec![42]],
                 state_mutations: Default::default(),
                 transient_data: Default::default(),
@@ -368,18 +368,18 @@ fn decision_var_slot_oob_ops() {
 
 #[test]
 fn mut_keys_len() {
-    // The intent that we're checking.
-    let intent_addr = TEST_INTENT_ADDR;
+    // The predicate that we're checking.
+    let predicate_addr = TEST_PREDICATE_ADDR;
 
-    // An example solution with some state mutations proposed for the intent
+    // An example solution with some state mutations proposed for the predicate
     // at index `1`.
     let solution = Solution {
         data: vec![
-            // Solution data for some other intent.
+            // Solution data for some other predicate.
             SolutionData {
-                intent_to_solve: IntentAddress {
-                    set: ContentAddress([0x13; 32]),
-                    intent: ContentAddress([0x31; 32]),
+                predicate_to_solve: PredicateAddress {
+                    contract: ContentAddress([0x13; 32]),
+                    predicate: ContentAddress([0x31; 32]),
                 },
                 decision_variables: vec![],
                 state_mutations: vec![Mutation {
@@ -388,9 +388,9 @@ fn mut_keys_len() {
                 }],
                 transient_data: Default::default(),
             },
-            // Solution data for the intent we're checking.
+            // Solution data for the predicate we're checking.
             SolutionData {
-                intent_to_solve: intent_addr.clone(),
+                predicate_to_solve: predicate_addr.clone(),
                 decision_variables: vec![],
                 state_mutations: vec![
                     Mutation {
@@ -409,19 +409,19 @@ fn mut_keys_len() {
                 transient_data: Default::default(),
             },
         ],
-        // All state mutations, 3 of which point to the intent we're solving.
+        // All state mutations, 3 of which point to the predicate we're solving.
     };
 
-    // The intent we're solving is the second intent, i.e. index `1`.
-    let intent_index = 1;
+    // The predicate we're solving is the second predicate, i.e. index `1`.
+    let predicate_index = 1;
 
-    let mutable_keys = mut_keys_set(&solution, intent_index);
+    let mutable_keys = mut_keys_set(&solution, predicate_index);
 
     // Construct access to the parts of the solution that we need for checking.
     let access = Access {
         solution: SolutionAccess::new(
             &solution,
-            intent_index,
+            predicate_index,
             &mutable_keys,
             test_transient_data(),
         ),
@@ -657,15 +657,15 @@ fn state_is_some_range_post_mutation() {
 fn this_address() {
     let ops = &[asm::Access::ThisAddress.into()];
     let stack = exec_ops(ops, *test_access()).unwrap();
-    let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.intent.0);
+    let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.predicate.0);
     assert_eq!(&stack[..], expected_words);
 }
 
 #[test]
-fn this_set_address() {
-    let ops = &[asm::Access::ThisSetAddress.into()];
+fn this_contract_address() {
+    let ops = &[asm::Access::ThisContractAddress.into()];
     let stack = exec_ops(ops, *test_access()).unwrap();
-    let expected_words = word_4_from_u8_32(TEST_INTENT_ADDR.set.0);
+    let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.contract.0);
     assert_eq!(&stack[..], expected_words);
 }
 
@@ -718,12 +718,12 @@ fn transient_len() {
 }
 
 #[test]
-fn intent_at() {
+fn predicate_at() {
     let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
         .into_iter()
         .collect();
     let data = [SolutionData {
-        intent_to_solve: TEST_INTENT_ADDR,
+        predicate_to_solve: TEST_PREDICATE_ADDR,
         decision_variables: vec![],
         state_mutations: vec![],
         transient_data: vec![],
@@ -737,12 +737,12 @@ fn intent_at() {
         },
         state_slots: StateSlots::EMPTY,
     };
-    let ops = &[asm::Stack::Push(0).into(), asm::Access::IntentAt.into()];
+    let ops = &[asm::Stack::Push(0).into(), asm::Access::PredicateAt.into()];
     let stack = exec_ops(ops, access).unwrap();
-    let intent = data[0].intent_to_solve.clone();
+    let predicate = data[0].predicate_to_solve.clone();
     let mut expected = vec![];
-    expected.extend(word_4_from_u8_32(intent.set.0));
-    expected.extend(word_4_from_u8_32(intent.intent.0));
+    expected.extend(word_4_from_u8_32(predicate.contract.0));
+    expected.extend(word_4_from_u8_32(predicate.predicate.0));
     assert_eq!(&stack[..], expected);
 }
 
@@ -752,7 +752,7 @@ fn this_transient_len() {
         .into_iter()
         .collect();
     let data = [SolutionData {
-        intent_to_solve: TEST_INTENT_ADDR,
+        predicate_to_solve: TEST_PREDICATE_ADDR,
         decision_variables: vec![],
         state_mutations: vec![],
         transient_data: vec![],
@@ -777,7 +777,7 @@ fn this_transient_contains() {
         .into_iter()
         .collect();
     let data = [SolutionData {
-        intent_to_solve: TEST_INTENT_ADDR,
+        predicate_to_solve: TEST_PREDICATE_ADDR,
         decision_variables: vec![],
         state_mutations: vec![],
         transient_data: vec![],

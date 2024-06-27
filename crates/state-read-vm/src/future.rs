@@ -212,9 +212,15 @@ where
                 OpKind::Sync(op) => step_op_sync(op, self.access, vm),
                 OpKind::Async(op) => {
                     // Async op takes ownership of the VM and returns it upon future completion.
-                    let set_addr = self.access.solution.this_data().intent_to_solve.set.clone();
+                    let contract_addr = self
+                        .access
+                        .solution
+                        .this_data()
+                        .predicate_to_solve
+                        .contract
+                        .clone();
                     let pc = vm.pc;
-                    let future = match step_op_async(op, set_addr, self.state_read, vm) {
+                    let future = match step_op_async(op, contract_addr, self.state_read, vm) {
                         Err(err) => {
                             let err = StateReadError::Op(pc, err.into());
                             return Poll::Ready(Err(err));
@@ -317,7 +323,7 @@ where
 /// Returns a future representing the completion of the operation.
 fn step_op_async<'a, S>(
     op: OpAsync,
-    set_addr: ContentAddress,
+    contract_addr: ContentAddress,
     state_read: &'a S,
     vm: &'a mut Vm,
 ) -> OpAsyncResult<StepOpAsyncFuture<'a, S>, S::Error>
@@ -326,7 +332,7 @@ where
 {
     match op {
         OpAsync::StateReadKeyRange => {
-            let future = state_read::key_range(state_read, &set_addr, &mut *vm)?;
+            let future = state_read::key_range(state_read, &contract_addr, &mut *vm)?;
             Ok(StepOpAsyncFuture::StateRead(future))
         }
         OpAsync::StateReadKeyRangeExt => {

@@ -116,7 +116,7 @@ mod tests {
             StateSlots::Store.into(),
             Access::ThisAddress.into(),
             StateSlots::Load.into(),
-            Access::ThisSetAddress.into(),
+            Access::ThisContractAddress.into(),
             StateSlots::Length.into(),
         ];
         roundtrip(ops);

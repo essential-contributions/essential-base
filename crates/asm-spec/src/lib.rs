@@ -9,7 +9,7 @@ pub mod visit;
 /// The raw YAML specification string.
 pub const ASM_YAML: &str = include_str!("./../asm.yml");
 
-/// The special name of the op group that describes the subset of operations
+/// The special name of the op group that describes the sebset of operations
 /// specific to constraint checker execution.
 pub const CONSTRAINT_GROUP_NAME: &str = "Constraint";
 

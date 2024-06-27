@@ -82,7 +82,7 @@ async fn yield_per_op() {
 async fn continue_execution() {
     let mut vm = Vm::default();
 
-    // Execute first set of ops.
+    // Execute first contract of ops.
     let ops = &[
         asm::Stack::Push(6).into(),
         asm::Stack::Push(7).into(),
@@ -187,21 +187,21 @@ async fn exec_method_behaviours_match() {
 // post state, and checking the constraints afterwards.
 #[tokio::test]
 async fn read_pre_post_state_and_check_constraints() {
-    let intent_addr = TEST_INTENT_ADDR;
+    let predicate_addr = TEST_PREDICATE_ADDR;
 
     // In the pre-state, we have [Some(40), None, Some(42)].
     let pre_state = State::new(vec![(
-        intent_addr.set.clone(),
+        predicate_addr.contract.clone(),
         vec![(vec![0, 0, 0, 0], vec![40]), (vec![0, 0, 0, 2], vec![42])],
     )]);
 
     // The full solution that we're checking.
     let solution = Solution {
         data: vec![SolutionData {
-            intent_to_solve: intent_addr.clone(),
+            predicate_to_solve: predicate_addr.clone(),
             decision_variables: vec![],
             transient_data: vec![],
-            // We have one mutation that sets a missing value to 41.
+            // We have one mutation that contracts a missing value to 41.
             state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 1],
                 value: vec![41],
@@ -209,16 +209,16 @@ async fn read_pre_post_state_and_check_constraints() {
         }],
     };
 
-    // The index of the solution data associated with the intent we're solving.
-    let intent_index = 0;
+    // The index of the solution data associated with the predicate we're solving.
+    let predicate_index = 0;
 
-    let mutable_keys = mut_keys_set(&solution, intent_index);
+    let mutable_keys = mut_keys_set(&solution, predicate_index);
 
     // Construct access to the necessary solution data for the VM.
     let mut access = Access {
         solution: SolutionAccess::new(
             &solution,
-            intent_index,
+            predicate_index,
             &mutable_keys,
             test_transient_data(),
         ),
@@ -253,9 +253,9 @@ async fn read_pre_post_state_and_check_constraints() {
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
     for data in &solution.data {
-        let set_addr = &data.intent_to_solve.set;
+        let contract_addr = &data.predicate_to_solve.contract;
         for Mutation { key, value } in &data.state_mutations {
-            post_state.set(set_addr.clone(), key, value.clone());
+            post_state.set(contract_addr.clone(), key, value.clone());
         }
     }
 
@@ -316,7 +316,7 @@ async fn read_pre_post_state_and_check_constraints() {
         ])
         .collect(),
     ];
-    constraint::check_intent(constraints, access).unwrap();
+    constraint::check_predicate(constraints, access).unwrap();
 
     // Constraints pass - we're free to apply the updated state!
 }

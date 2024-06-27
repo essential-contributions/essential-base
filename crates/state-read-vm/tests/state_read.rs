@@ -11,7 +11,12 @@ use util::*;
 async fn state_read_3_42s() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.solution.this_data().intent_to_solve.set.clone(),
+        access
+            .solution
+            .this_data()
+            .predicate_to_solve
+            .contract
+            .clone(),
         vec![
             (vec![0, 0, 0, 0], vec![42]),
             (vec![0, 0, 0, 1], vec![42]),
@@ -44,7 +49,12 @@ async fn state_read_3_42s() {
 async fn state_read_some_none_some() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.solution.this_data().intent_to_solve.set.clone(),
+        access
+            .solution
+            .this_data()
+            .predicate_to_solve
+            .contract
+            .clone(),
         vec![(vec![0, 0, 0, 0], vec![42]), (vec![0, 0, 0, 2], vec![42])],
     )]);
     let mut vm = Vm::default();
@@ -71,9 +81,9 @@ async fn state_read_some_none_some() {
 
 #[tokio::test]
 async fn state_read_ext() {
-    let ext_set_addr = ContentAddress([0x12; 32]);
+    let ext_contract_addr = ContentAddress([0x12; 32]);
     let state = State::new(vec![(
-        ext_set_addr.clone(),
+        ext_contract_addr.clone(),
         vec![
             (vec![1, 2, 3, 4], vec![40]),
             (vec![1, 2, 3, 5], vec![41]),
@@ -82,7 +92,7 @@ async fn state_read_ext() {
     )]);
     let mut vm = Vm::default();
     let num_words = 3;
-    let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_set_addr.0);
+    let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(num_words).into(),
         asm::StateSlots::AllocSlots.into(),
@@ -115,11 +125,11 @@ async fn state_read_ext() {
 
 #[tokio::test]
 async fn state_read_ext_nones() {
-    let ext_set_addr = ContentAddress([0x12; 32]);
-    let state = State::new(vec![(ext_set_addr.clone(), vec![])]);
+    let ext_contract_addr = ContentAddress([0x12; 32]);
+    let state = State::new(vec![(ext_contract_addr.clone(), vec![])]);
     let mut vm = Vm::default();
     let num_words = 3;
-    let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_set_addr.0);
+    let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(num_words).into(),
         asm::StateSlots::AllocSlots.into(),
@@ -154,7 +164,12 @@ async fn state_read_ext_nones() {
 async fn state_read_various_size_values() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.solution.this_data().intent_to_solve.set.clone(),
+        access
+            .solution
+            .this_data()
+            .predicate_to_solve
+            .contract
+            .clone(),
         vec![
             (vec![0, 0, 0, 0], vec![0; 2]),
             (vec![0, 0, 0, 1], vec![1; 22]),
@@ -191,7 +206,12 @@ async fn state_read_various_size_values() {
 async fn state_read_various_key_sizes() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.solution.this_data().intent_to_solve.set.clone(),
+        access
+            .solution
+            .this_data()
+            .predicate_to_solve
+            .contract
+            .clone(),
         vec![
             (vec![0], vec![0; 2]),
             (vec![0, 1], vec![7; 6]),
@@ -236,7 +256,12 @@ async fn state_read_various_key_sizes() {
 async fn state_read_slot_index_overflow() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.solution.this_data().intent_to_solve.set.clone(),
+        access
+            .solution
+            .this_data()
+            .predicate_to_solve
+            .contract
+            .clone(),
         vec![(vec![0], vec![0; 2])],
     )]);
     let mut vm = Vm::default();

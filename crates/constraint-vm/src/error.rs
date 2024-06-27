@@ -10,7 +10,7 @@ use thiserror::Error;
 /// Shorthand for a `Result` where the error type is a `CheckError`.
 pub type CheckResult<T> = Result<T, CheckError>;
 
-/// Intent checking error.
+/// Predicate checking error.
 #[derive(Debug, Error)]
 pub enum CheckError {
     /// Errors occurred while executing one or more constraints.
