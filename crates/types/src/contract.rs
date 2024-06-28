@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{predicate::Predicate, Hash, Signature};
+use crate::{predicate::Predicate, serde::hash, Hash, Signature};
 
 /// A contract of predicates whose content address has been signed.
 ///
@@ -30,6 +30,10 @@ pub struct SignedContract {
 pub struct Contract {
     /// The contract of predicates.
     pub predicates: Vec<Predicate>,
+    #[serde(
+        serialize_with = "hash::serialize",
+        deserialize_with = "hash::deserialize"
+    )]
     /// The salt used to make the contract unique.
     pub salt: Hash,
 }
