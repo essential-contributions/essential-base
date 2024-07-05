@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{predicate::Predicate, serde::hash, Hash, Signature};
 
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
+
 /// A contract of predicates whose content address has been signed.
 ///
 /// For a shorthand constructor, see the downstream
@@ -26,6 +29,7 @@ pub struct SignedContract {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// A contract of predicates.
 pub struct Contract {
     /// The contract of predicates.
