@@ -24,7 +24,7 @@ The foundational crates that the rest of the Essential ecosystem is built upon.
 ### Assembly
 - [Assembly specification](./crates/asm-spec/asm.yml) The full list of operations that the Essential VMs support.
 - [essential-asm-gen](./crates/asm-gen/README.md) Proc-macro for generating ASM types from spec.
-- [essential-asm-spec](./crates/asm-gen/README.md) Parses the assembly yaml.
+- [essential-asm-spec](./crates/asm-spec/README.md) Parses the assembly yaml.
 - [essential-constraint-asm](./crates/constraint-asm/README.md) Assembly operations for the constraint VM.
 - [essential-state-asm](./crates/state-asm/README.md) Assembly operations for the state read VM.
 

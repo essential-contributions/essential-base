@@ -1,4 +1,4 @@
-# essential=state-asm
+# essential-state-asm
 
 [![Crates.io][crates-badge]][crates-url]
 [![Documentation][docs-badge]][docs-url]
