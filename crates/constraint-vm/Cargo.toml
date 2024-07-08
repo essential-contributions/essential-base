@@ -1,8 +1,12 @@
 [package]
 name = "essential-constraint-vm"
 version = "0.1.0"
-edition = "2021"
 description = "The Essential constraint checking VM"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 ed25519-dalek = { workspace = true }

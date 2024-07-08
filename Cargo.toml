@@ -4,6 +4,10 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
+authors = ["Essential Contributions <contact@essentialcontributions.com>"]
+homepage = "https://essential.builders/"
+license = "Apache-2.0"
+repository = "https://github.com/essential-contributions/essential-base"
 
 [workspace.dependencies]
 criterion = "0.5"

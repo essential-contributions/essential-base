@@ -3,5 +3,9 @@ name = "essential-lock"
 description = "A minimal crate containing Essential's locking method that is safe to use in async code"
 version = "0.1.0"
 edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]

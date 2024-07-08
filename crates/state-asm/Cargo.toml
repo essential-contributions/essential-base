@@ -1,7 +1,12 @@
 [package]
-edition.workspace = true
 name = "essential-state-asm"
 version = "0.1.0"
+description = "Assembly operations for the Essential state read VM"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 essential-asm-gen.workspace = true

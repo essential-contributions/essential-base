@@ -1,7 +1,12 @@
 [package]
 name = "essential-state-read-vm"
 version = "0.1.0"
-edition = "2021"
+description = "The Essential state reading VM"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 essential-constraint-vm = { workspace = true }

@@ -1,7 +1,12 @@
 [package]
 name = "essential-sign"
 version = "0.1.0"
+description = "Public key cryptography for the Essential ecosystem"
 edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 essential-hash = { workspace = true }

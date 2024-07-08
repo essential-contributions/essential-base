@@ -1,8 +1,12 @@
 [package]
 description = "Core logic related to validating Essential state transitions."
-edition.workspace = true
 name = "essential-check"
 version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 essential-constraint-vm = { workspace = true }
