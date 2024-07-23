@@ -59,8 +59,9 @@ jobs:
         with:
           registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           dry-run: ${{ github.event_name != 'push' }}
-      - name: if my-crate published
-        if: fromJSON(steps.publish-crates.outputs.published).*
+          ignore-unpublished-changes: true
+      - name: List published crates
+        if: ${{ steps.publish-crates.outputs.published != '' }}
         run: |
           LIST="${{ join(fromJSON(steps.publish-crates.outputs.published).*.name, ', ') }}"
           echo "Published crates: $LIST"
