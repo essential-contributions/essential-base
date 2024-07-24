@@ -26,10 +26,9 @@ jobs:
           - command: test --all-features --locked --all
     steps:
     - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        target: wasm32-unknown-unknown
+        targets: wasm32-unknown-unknown
     - uses: Swatinem/rust-cache@v2
     - run: cargo ${{ matrix.command }}
 
@@ -39,9 +38,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+    - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo install --version "0.1.1" cargo-toml-lint
     - run: git ls-files | grep Cargo.toml$ | xargs --verbose -n 1 cargo-toml-lint
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: 
+      [
+        cargo,
+        cargo-toml-lint,
+      ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: katyo/publish-crates@v2
+        id: publish-crates
+        with:
+          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          dry-run: ${{ github.event_name != 'push' }}
+          ignore-unpublished-changes: true
+      - name: List published crates
+        if: ${{ steps.publish-crates.outputs.published != '' }}
+        run: |
+          LIST="${{ join(fromJSON(steps.publish-crates.outputs.published).*.name, ', ') }}"
+          echo "Published crates: $LIST"
