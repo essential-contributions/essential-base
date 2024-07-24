@@ -1,6 +1,6 @@
 [package]
 name = "essential-state-asm"
-version = "0.1.0"
+version = "0.2.0"
 description = "Assembly operations for the Essential state read VM"
 edition.workspace = true
 authors.workspace = true

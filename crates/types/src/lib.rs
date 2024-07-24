@@ -75,14 +75,6 @@ pub struct Block {
     pub number: u64,
     /// The timestamp of the block.
     pub timestamp: Duration,
-    /// The batch of solutions.
-    pub batch: Batch,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A batch of solutions
-pub struct Batch {
-    /// The solutions in the batch.
+    /// The solutions in the the block.
     pub solutions: Vec<Solution>,
 }
