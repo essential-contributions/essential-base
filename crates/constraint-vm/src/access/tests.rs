@@ -367,7 +367,7 @@ fn decision_var_slot_oob_ops() {
 }
 
 #[test]
-fn mut_keys_len() {
+fn mut_keys_push_eq() {
     // The predicate that we're checking.
     let predicate_addr = TEST_PREDICATE_ADDR;
 
@@ -428,13 +428,28 @@ fn mut_keys_len() {
         state_slots: StateSlots::EMPTY,
     };
 
-    // Check that there are actually 3 mutations.
-    let expected_mut_keys_len = 3;
-
     // We're only going to execute the `MutKeysLen` op to check the expected value.
-    let ops = &[asm::Access::MutKeysLen.into()];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[expected_mut_keys_len]);
+    let mut expected_set = vec![];
+    for key in solution.data[predicate_index as usize]
+        .state_mutations
+        .iter()
+        .map(|m| &m.key)
+    {
+        expected_set.extend(key.iter().copied());
+        expected_set.push(key.len() as Word);
+    }
+    expected_set.push(expected_set.len() as Word);
+
+    let mut ops = expected_set
+        .into_iter()
+        .map(asm::Stack::Push)
+        .map(Into::into)
+        .collect::<Vec<_>>();
+
+    ops.push(asm::Access::MutKeys.into());
+    ops.push(asm::Pred::EqSet.into());
+    let stack = exec_ops(&ops, access).unwrap();
+    assert_eq!(&stack[..], &[1]);
 }
 
 #[test]

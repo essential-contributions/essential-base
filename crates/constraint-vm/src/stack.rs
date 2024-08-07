@@ -241,6 +241,17 @@ impl Stack {
         self.0.truncate(ix);
         Ok(out)
     }
+
+    /// Pop the length from the top of the stack, then discard that many words.
+    pub fn pop_len_discard(&mut self) -> StackResult<()> {
+        let len = self.pop_len()?;
+        let ix = self
+            .len()
+            .checked_sub(len)
+            .ok_or(StackError::IndexOutOfBounds)?;
+        self.0.truncate(ix);
+        Ok(())
+    }
 }
 
 impl From<Stack> for Vec<Word> {
