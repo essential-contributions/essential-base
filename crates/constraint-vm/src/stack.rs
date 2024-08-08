@@ -232,26 +232,40 @@ impl Stack {
         F: FnOnce(&[Word]) -> Result<O, E>,
         E: From<StackError>,
     {
-        let len = self.pop_len()?;
-        let ix = self
-            .len()
-            .checked_sub(len)
-            .ok_or(StackError::IndexOutOfBounds)?;
-        let out = f(&self[ix..])?;
-        self.0.truncate(ix);
+        let (rest, slice) = slice_split_len_words(self).ok_or(StackError::IndexOutOfBounds)?;
+        let out = f(slice)?;
+        self.0.truncate(rest.len());
         Ok(out)
     }
 
-    /// Pop the length from the top of the stack, then discard that many words.
-    pub fn pop_len_discard(&mut self) -> StackResult<()> {
-        let len = self.pop_len()?;
-        let ix = self
-            .len()
-            .checked_sub(len)
-            .ok_or(StackError::IndexOutOfBounds)?;
-        self.0.truncate(ix);
-        Ok(())
+    /// Pop two slices from the top of the stack, each followed by one word
+    /// describing their length, and pass them to the given function.
+    /// The top slice is provided to the rhs, the bottom slice is provided to the lhs.
+    pub fn pop_len_words2<F, O, E>(&mut self, f: F) -> Result<O, E>
+    where
+        F: FnOnce(&[Word], &[Word]) -> Result<O, E>,
+        E: From<StackError>,
+    {
+        let (rest, rhs) = slice_split_len_words(self).ok_or(StackError::IndexOutOfBounds)?;
+        let (rest, lhs) = slice_split_len_words(rest).ok_or(StackError::IndexOutOfBounds)?;
+        let out = f(lhs, rhs)?;
+        self.0.truncate(rest.len());
+        Ok(out)
     }
+}
+
+/// Split a length from the top of the stack slice, then split off a slice of
+/// that length.
+///
+/// Returns `Some((remaining, slice_of_len))`.
+///
+/// Returns `None` if the slice is empty, or the length is greater than the rest
+/// of the slice.
+fn slice_split_len_words(slice: &[Word]) -> Option<(&[Word], &[Word])> {
+    let (len, rest) = slice.split_last()?;
+    let len = usize::try_from(*len).ok()?;
+    let ix = rest.len().checked_sub(len)?;
+    Some(rest.split_at(ix))
 }
 
 impl From<Stack> for Vec<Word> {
