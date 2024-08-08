@@ -192,23 +192,32 @@ pub(crate) fn decision_var_len(solution: SolutionAccess, stack: &mut Stack) -> O
     })
 }
 
-/// `Access::MutKeysLen` implementation.
-pub(crate) fn mut_keys_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    stack.push(
-        solution
-            .mutable_keys
-            .len()
-            .try_into()
-            .map_err(|_| AccessError::SolutionDataOutOfBounds)?,
+/// `Access::MutKeys` implementation.
+pub(crate) fn push_mut_keys(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
+    let length = solution
+        .mutable_keys
+        .iter()
+        .map(|i| i.len())
+        .sum::<usize>()
+        .checked_add(solution.mutable_keys.len());
+    let total_length = length.and_then(|i| Word::try_from(i).ok()).ok_or(
+        AccessError::StateMutationsLengthTooLarge(solution.mutable_keys.len()),
     )?;
-    Ok(())
-}
-
-pub(crate) fn mut_keys_contains(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    let found = stack.pop_len_words::<_, bool, crate::error::OpError>(|words| {
-        Ok(solution.mutable_keys.contains(words))
-    })?;
-    stack.push(Word::from(found))?;
+    let iter = solution.mutable_keys.iter().flat_map(|key| {
+        key.iter()
+            .copied()
+            .map(Ok)
+            // Safe cast due to above filter
+            .chain(core::iter::once_with(|| {
+                key.len().try_into().map_err(|_| StackError::Overflow)
+            }))
+    });
+    // Safe cast due to above try from.
+    stack.reserve(total_length as usize);
+    for word in iter {
+        stack.push(word?)?;
+    }
+    stack.push(total_length)?;
     Ok(())
 }
 

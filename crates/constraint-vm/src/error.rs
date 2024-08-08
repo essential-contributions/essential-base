@@ -81,6 +81,9 @@ pub enum OpError {
     /// Pc counter overflowed.
     #[error("PC counter overflowed")]
     PcOverflow,
+    /// An error occurred while decoding some data.
+    #[error("decoding error: {0}")]
+    Decode(#[from] DecodeError),
 }
 
 /// Access operation error.
@@ -110,6 +113,9 @@ pub enum AccessError {
     /// A state slot delta value was invalid. Must be `0` (pre) or `1` (post).
     #[error("invalid state slot delta: expected `0` or `1`, found {0}")]
     InvalidStateSlotDelta(Word),
+    /// The total length of the set of state mutations was too large.
+    #[error("the total length of the set of state mutations was too large: {0}")]
+    StateMutationsLengthTooLarge(usize),
 }
 
 /// ALU operation error.
@@ -216,6 +222,14 @@ pub enum TemporaryError {
     /// The memory size exceeded the size limit.
     #[error("the {}-word stack size limit was exceeded", crate::Memory::SIZE_LIMIT)]
     Overflow,
+}
+
+/// Decode error.
+#[derive(Debug, Error)]
+pub enum DecodeError {
+    /// Decoding a set failed.
+    #[error("failed to decode set: {0:?}")]
+    Set(Vec<Word>),
 }
 
 impl fmt::Display for ConstraintErrors {

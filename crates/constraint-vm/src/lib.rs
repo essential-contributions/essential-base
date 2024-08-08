@@ -248,8 +248,7 @@ pub fn step_op_access(
         asm::Access::DecisionVarAt => access::decision_var_at(access.solution, stack),
         asm::Access::DecisionVarRange => access::decision_var_range(access.solution, stack),
         asm::Access::DecisionVarLen => access::decision_var_len(access.solution, stack),
-        asm::Access::MutKeysLen => access::mut_keys_len(access.solution, stack),
-        asm::Access::MutKeysContains => access::mut_keys_contains(access.solution, stack),
+        asm::Access::MutKeys => access::push_mut_keys(access.solution, stack),
         asm::Access::State => access::state(access.state_slots, stack),
         asm::Access::StateRange => access::state_range(access.state_slots, stack),
         asm::Access::StateLen => access::state_len(access.state_slots, stack),
@@ -304,6 +303,7 @@ pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
         asm::Pred::And => stack.pop2_push1(|a, b| Ok((a != 0 && b != 0).into())),
         asm::Pred::Or => stack.pop2_push1(|a, b| Ok((a != 0 || b != 0).into())),
         asm::Pred::Not => stack.pop1_push1(|a| Ok((a == 0).into())),
+        asm::Pred::EqSet => pred::eq_set(stack),
     }
 }
 

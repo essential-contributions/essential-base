@@ -158,6 +158,20 @@ StateRead:
               stack_in: [a]
               stack_out: ["!a"]
 
+            EqSet:
+              opcode: 0x19
+              description: |
+                Pop two sets off the stack and check if they are equal.
+                This is set equality so order does not matter.
+                Sets must be the same length.
+
+                Note the encoding of each set is:
+                `[elem_0_word_0, ...elem_0_word_I, elem_0_len, ...elem_N_word_0, ...elem_N_word_J, elem_N_len, set_len]`.
+
+                Note this differs from `EqRange` in that there is a size given at the end of both sets.
+              stack_in: [lhs, lhs_set_length, rhs, rhs_set_length]
+              stack_out: [set(lhs) == set(rhs)]
+
         Alu:
           description: Operations for computing arithmetic and logic.
           group:
@@ -301,25 +315,15 @@ StateRead:
                 elem: length
                 len: range
 
-            MutKeysLen:
+            MutKeys:
               opcode: 0x38
               description: |
-                Get the number of mutable keys being proposed for mutation.
-
-                This operation returns a single word representing the length.
-              stack_out: [word]
-
-            MutKeysContains:
-              opcode: 0x39
-              description: |
-                Check if the mutable keys being proposed contain the given key.
-
-                This operation returns a true if the key is found, false otherwise.
-              stack_in: [key, key_len]
-              stack_out: [bool]
+                Push the keys of the proposed state mutations onto the stack.
+                Note the order is non-deterministic because this is a set.
+              stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
 
             ThisAddress:
-              opcode: 0x3A
+              opcode: 0x39
               description: |
                 Get the content hash of this predicate.
 
@@ -327,7 +331,7 @@ StateRead:
               stack_out: [key]
 
             ThisContractAddress:
-              opcode: 0x3B
+              opcode: 0x3A
               description: |
                 Get the content hash of the contract this predicate belongs to.
 
@@ -335,7 +339,7 @@ StateRead:
               stack_out: [key]
 
             ThisPathway:
-              opcode: 0x3C
+              opcode: 0x3B
               description: |
                 Get the pathway of this predicate.
 
@@ -343,12 +347,12 @@ StateRead:
               stack_out: [in]
 
             RepeatCounter:
-              opcode: 0x3D
+              opcode: 0x3C
               description: Access the top repeat counters current value.
               stack_out: [counter_value]
 
             Transient:
-              opcode: 0x3E
+              opcode: 0x3D
               description: Get the solution data indexed by pathway and key.
               stack_in: [key_0, ...key_N, key_len, pathway]
               stack_out:
@@ -356,13 +360,13 @@ StateRead:
                 len: value_len
 
             TransientLen:
-              opcode: 0x3F
+              opcode: 0x3E
               description: Get the length of solution data indexed by pathway and key.
               stack_in: [key_0, ...key_N, key_len, pathway]
               stack_out: [len]
 
             PredicateAt:
-              opcode: 0x40
+              opcode: 0x3F
               description: Get the predicate at solution data pathway.
               stack_in: [pathway]
               stack_out:
@@ -378,12 +382,12 @@ StateRead:
                 ]
 
             ThisTransientLen:
-              opcode: 0x41
+              opcode: 0x40
               description: Get the length of the transient data at this predicate.
               stack_out: [len]
 
             ThisTransientContains:
-              opcode: 0x42
+              opcode: 0x41
               description: Check if the transient data at this predicate contains the given key.
               stack_in: [key_0, ...key_N, key_len]
               stack_out: [bool]
