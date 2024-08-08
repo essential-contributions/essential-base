@@ -252,6 +252,12 @@ impl Stack {
         self.0.truncate(rest.len());
         Ok(out)
     }
+
+    /// Reserve additional capacity for the stack.
+    /// Noop if capacity already exists.
+    pub fn reserve(&mut self, additional: usize) {
+        self.0.reserve(additional);
+    }
 }
 
 /// Split a length from the top of the stack slice, then split off a slice of

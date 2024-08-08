@@ -203,23 +203,20 @@ pub(crate) fn push_mut_keys(solution: SolutionAccess, stack: &mut Stack) -> OpRe
     let total_length = length.and_then(|i| Word::try_from(i).ok()).ok_or(
         AccessError::StateMutationsLengthTooLarge(solution.mutable_keys.len()),
     )?;
-    let iter = solution
-        .mutable_keys
-        .iter()
-        .filter(|key| {
-            // This should never happen because keys have
-            // a capped size but we don't want to return
-            // an error because it would require collecting
-            // into a vec. But we also don't want to panic.
-            key.len() <= (Word::MAX as usize)
-        })
-        .flat_map(|key| {
-            key.iter()
-                .copied()
-                // Safe cast due to above filter
-                .chain(core::iter::once(key.len() as Word))
-        });
-    stack.extend(iter)?;
+    let iter = solution.mutable_keys.iter().flat_map(|key| {
+        key.iter()
+            .copied()
+            .map(Ok)
+            // Safe cast due to above filter
+            .chain(core::iter::once_with(|| {
+                key.len().try_into().map_err(|_| StackError::Overflow)
+            }))
+    });
+    // Safe cast due to above try from.
+    stack.reserve(total_length as usize);
+    for word in iter {
+        stack.push(word?)?;
+    }
     stack.push(total_length)?;
     Ok(())
 }
