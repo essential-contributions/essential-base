@@ -169,7 +169,7 @@ StateRead:
                 `[elem_0_word_0, ...elem_0_word_I, elem_0_len, ...elem_N_word_0, ...elem_N_word_J, elem_N_len, set_len]`.
 
                 Note this differs from `EqRange` in that there is a size given at the end of both sets.
-              stack_in: [lhs, rhs, set_length]
+              stack_in: [lhs, lhs_set_length, rhs, rhs_set_length]
               stack_out: [set(lhs) == set(rhs)]
 
         Alu:
