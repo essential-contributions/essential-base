@@ -494,6 +494,12 @@ where
     Ok((utility, state_read_gas))
 }
 
+/// Pre-state slots generated from state reads.
+pub type PreStateSlots = Vec<Vec<Word>>;
+
+/// Post-state slots generated from state reads.
+pub type PostStateSlots = Vec<Vec<Word>>;
+
 /// Reads all pre and post state slots for the given predicate into memory for
 /// checking the solution data at the given index.
 ///
@@ -507,7 +513,7 @@ pub async fn predicate_state_slots<SA, SB>(
     predicate_state_reads: &[StateReadBytecode],
     solution_data_index: SolutionDataIndex,
     transient_data: &TransientData,
-) -> Result<(Gas, Vec<Vec<Word>>, Vec<Vec<Word>>), PredicateError<SA::Error>>
+) -> Result<(Gas, PreStateSlots, PostStateSlots), PredicateError<SA::Error>>
 where
     SA: StateRead,
     SB: StateRead<Error = SA::Error>,
