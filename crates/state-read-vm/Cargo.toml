@@ -1,6 +1,6 @@
 [package]
 name = "essential-state-read-vm"
-version = "0.2.0"
+version = "0.3.0"
 description = "The Essential state reading VM"
 edition.workspace = true
 authors.workspace = true
