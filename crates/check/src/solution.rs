@@ -4,6 +4,7 @@ use crate::{
     constraint_vm::{
         self,
         error::{CheckError, ConstraintErrors, ConstraintsUnsatisfied},
+        TransientData,
     },
     state_read_vm::{
         self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
@@ -12,10 +13,9 @@ use crate::{
     types::{
         predicate::{Directive, Predicate},
         solution::{Solution, SolutionData, SolutionDataIndex},
-        Key, PredicateAddress, Word,
+        Key, PredicateAddress, StateReadBytecode, Word,
     },
 };
-use constraint_vm::TransientData;
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
 use std::{collections::HashSet, fmt, sync::Arc};
@@ -465,8 +465,52 @@ pub async fn check_predicate<SA, SB>(
     transient_data: Arc<TransientData>,
 ) -> Result<(Utility, Gas), PredicateError<SA::Error>>
 where
-    SA: StateRead + Sync,
-    SB: StateRead<Error = SA::Error> + Sync,
+    SA: StateRead,
+    SB: StateRead<Error = SA::Error>,
+{
+    // Perform the state reads and construct the state slots.
+    let (state_read_gas, pre_slots, post_slots) = predicate_state_slots(
+        pre_state,
+        post_state,
+        &solution,
+        &predicate.state_read,
+        solution_data_index,
+        &transient_data,
+    )
+    .await?;
+
+    // Check constraints.
+    let utility = check_predicate_constraints(
+        solution,
+        solution_data_index,
+        predicate.clone(),
+        Arc::from(pre_slots.into_boxed_slice()),
+        Arc::from(post_slots.into_boxed_slice()),
+        config,
+        transient_data,
+    )
+    .await?;
+
+    Ok((utility, state_read_gas))
+}
+
+/// Reads all pre and post state slots for the given predicate into memory for
+/// checking the solution data at the given index.
+///
+/// Returns a tuple with the total gas spent, the pre-state slots, and the
+/// post-state slots respectively.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
+pub async fn predicate_state_slots<SA, SB>(
+    pre_state: &SA,
+    post_state: &SB,
+    solution: &Solution,
+    predicate_state_reads: &[StateReadBytecode],
+    solution_data_index: SolutionDataIndex,
+    transient_data: &TransientData,
+) -> Result<(Gas, Vec<Vec<Word>>, Vec<Vec<Word>>), PredicateError<SA::Error>>
+where
+    SA: StateRead,
+    SB: StateRead<Error = SA::Error>,
 {
     // Track the total gas spent over all execution.
     let mut total_gas = 0;
@@ -474,16 +518,12 @@ where
     // Initialize pre and post slots. These will contain all state slots for all state reads.
     let mut pre_slots: Vec<Vec<Word>> = Vec::new();
     let mut post_slots: Vec<Vec<Word>> = Vec::new();
-    let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-    let solution_access = SolutionAccess::new(
-        &solution,
-        solution_data_index,
-        &mutable_keys,
-        &transient_data,
-    );
+    let mutable_keys = constraint_vm::mut_keys_set(solution, solution_data_index);
+    let solution_access =
+        SolutionAccess::new(solution, solution_data_index, &mutable_keys, transient_data);
 
     // Read pre and post states.
-    for (state_read_index, state_read) in predicate.state_read.iter().enumerate() {
+    for (state_read_index, state_read) in predicate_state_reads.iter().enumerate() {
         #[cfg(not(feature = "tracing"))]
         let _ = state_read_index;
 
@@ -536,19 +576,7 @@ where
         post_slots.extend(new_post_slots);
     }
 
-    // Check constraints.
-    let utility = check_predicate_constraints(
-        solution,
-        solution_data_index,
-        predicate.clone(),
-        Arc::from(pre_slots.into_boxed_slice()),
-        Arc::from(post_slots.into_boxed_slice()),
-        config,
-        transient_data,
-    )
-    .await?;
-
-    Ok((utility, total_gas))
+    Ok((total_gas, pre_slots, post_slots))
 }
 
 /// Reads state slots from storage using the given bytecode.
