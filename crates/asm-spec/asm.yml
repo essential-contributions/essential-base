@@ -463,7 +463,6 @@ StateRead:
               opcode: 0x63
               description: Jump forward the given number of instructions if the value is true.
               panics:
-                - The jump is out of bounds.
                 - The jump is negative.
                 - The jump distance is zero.
               stack_in: [n_instruction, condition]
