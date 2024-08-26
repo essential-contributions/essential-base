@@ -4,8 +4,9 @@ pub use crate::constraint::error::{StackError, StackResult};
 #[doc(inline)]
 use crate::{
     asm::{self, Word},
-    constraint, Gas,
+    constraint,
 };
+pub use essential_constraint_vm::error::OutOfGasError;
 use thiserror::Error;
 
 /// Shorthand for a `Result` where the error type is a `StateReadError`.
@@ -49,23 +50,6 @@ pub enum OpError<E> {
     /// The total gas limit was exceeded.
     #[error("{0}")]
     OutOfGas(#[from] OutOfGasError),
-}
-
-/// The gas cost of performing an operation would exceed the gas limit.
-#[derive(Debug, Error)]
-#[error(
-    "operation cost would exceed gas limit\n  \
-    spent: {spent} gas\n  \
-    op cost: {op_gas} gas\n  \
-    limit: {limit} gas"
-)]
-pub struct OutOfGasError {
-    /// Total spent prior to the operation that would exceed the limit.
-    pub spent: Gas,
-    /// The gas required for the operation that failed.
-    pub op_gas: Gas,
-    /// The total gas limit that would be exceeded.
-    pub limit: Gas,
 }
 
 /// A synchronous operation failed.

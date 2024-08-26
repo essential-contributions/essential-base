@@ -1,9 +1,11 @@
+use essential_constraint_vm::{error::OutOfGasError, Gas, OpGasCost};
+
 use crate::{
     asm::Op,
-    error::{OpAsyncError, OpError, OutOfGasError, StateReadError},
+    error::{OpAsyncError, OpError, StateReadError},
     state_read::{self, StateReadFuture},
-    step_op_sync, Access, ContentAddress, Gas, GasLimit, OpAccess, OpAsync, OpAsyncResult,
-    OpGasCost, OpKind, StateRead, Vm,
+    step_op_sync, Access, ContentAddress, GasLimit, OpAccess, OpAsync, OpAsyncResult, OpKind,
+    StateRead, Vm,
 };
 use core::{
     future::Future,
@@ -141,7 +143,7 @@ impl<'a, S, OA, OG> Future for ExecFuture<'a, S, OA, OG>
 where
     S: StateRead,
     OA: OpAccess<Op = Op> + Unpin,
-    OG: OpGasCost,
+    OG: OpGasCost<Op>,
     OA::Error: Into<OpError<S::Error>>,
 {
     /// Returns a result with the total gas spent.
@@ -304,7 +306,7 @@ pub(crate) fn exec<'a, S, OA, OG>(
 where
     S: StateRead,
     OA: OpAccess<Op = Op> + Unpin,
-    OG: OpGasCost,
+    OG: OpGasCost<Op>,
     OA::Error: Into<OpError<S::Error>>,
 {
     ExecFuture {

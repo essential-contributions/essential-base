@@ -732,6 +732,8 @@ async fn check_predicate_constraints_parallel(
                     .iter()
                     .copied(),
                 access,
+                &|_: &constraint_vm::asm::Op| 1,
+                Gas::MAX,
             );
             // Send the result back to the main thread.
             // Send errors are ignored as if the recv is gone there's no one to send to.
@@ -828,13 +830,18 @@ async fn calculate_utility(
         };
 
         // Execute the directive code.
-        let res = constraint_vm::exec_bytecode_iter(code.iter().copied(), access)
-            .map_err(UtilityError::from)
-            .and_then(|mut stack| {
-                let [start, end, value] = stack.pop3()?;
-                let util = normalize_utility(value, start, end)?;
-                Ok(util)
-            });
+        let res = constraint_vm::exec_bytecode_iter(
+            code.iter().copied(),
+            access,
+            &|_: &constraint_vm::asm::Op| 1,
+            Gas::MAX,
+        )
+        .map_err(UtilityError::from)
+        .and_then(|mut stack| {
+            let [start, end, value] = stack.pop3()?;
+            let util = normalize_utility(value, start, end)?;
+            Ok(util)
+        });
 
         // Send errors are ignored as if the recv is dropped.
         let _ = tx.send(res);

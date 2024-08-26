@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use essential_constraint_asm as asm;
-use essential_constraint_vm::{eval_ops, Access, SolutionAccess, StateSlots};
+use essential_constraint_asm::{self as asm, Op};
+use essential_constraint_vm::{eval_ops, Access, Gas, SolutionAccess, StateSlots};
 use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 #[test]
@@ -52,7 +52,7 @@ fn test_forall_in_asm() {
         asm::Pred::And.into(),
         asm::Stack::RepeatEnd.into(), // elem_0, elem_1
     ];
-    let res = eval_ops(ops, access).unwrap();
+    let res = eval_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert!(res)
 }
 
@@ -123,7 +123,7 @@ fn test_fold_filter_in_asm() {
         asm::Temporary::Load.into(),
         asm::Pred::Eq.into(),
     ];
-    let res = eval_ops(ops, access).unwrap();
+    let res = eval_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert!(res);
 
     // constraint {
@@ -217,6 +217,6 @@ fn test_fold_filter_in_asm() {
         asm::Pred::Eq.into(),
         asm::Pred::And.into(),
     ];
-    let res = eval_ops(ops, access).unwrap();
+    let res = eval_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert!(res)
 }

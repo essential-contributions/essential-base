@@ -4,7 +4,9 @@ use crate::{
     error::{AccessError, ConstraintError, OpError},
     eval_ops, exec_ops,
     test_util::*,
+    Gas,
 };
+use essential_constraint_asm::Op;
 use essential_types::{
     solution::{Mutation, Solution},
     ContentAddress, PredicateAddress,
@@ -309,7 +311,7 @@ fn decision_var_ops() {
         asm::Stack::Push(0).into(), // Slot index.
         asm::Access::DecisionVar.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[42]);
 }
 
@@ -335,7 +337,7 @@ fn decision_var_range_ops() {
         asm::Stack::Push(3).into(), // Range length.
         asm::Access::DecisionVarRange.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[7, 8, 9]);
 }
 
@@ -359,7 +361,7 @@ fn decision_var_slot_oob_ops() {
         asm::Stack::Push(1).into(), // Slot index.
         asm::Access::DecisionVar.into(),
     ];
-    let res = exec_ops(ops, access);
+    let res = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX);
     match res {
         Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {}
         _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
@@ -448,7 +450,7 @@ fn mut_keys_push_eq() {
 
     ops.push(asm::Access::MutKeys.into());
     ops.push(asm::Pred::EqSet.into());
-    let stack = exec_ops(&ops, access).unwrap();
+    let stack = exec_ops(&ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[1]);
 }
 
@@ -466,7 +468,7 @@ fn state_pre_mutation() {
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
         asm::Access::State.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[42]);
 }
 
@@ -484,7 +486,7 @@ fn state_post_mutation() {
         asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
         asm::Access::State.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[42]);
 }
 
@@ -502,7 +504,7 @@ fn state_pre_mutation_oob() {
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
         asm::Access::State.into(),
     ];
-    let res = exec_ops(ops, access);
+    let res = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX);
     match res {
         Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotOutOfBounds))) => (),
         _ => panic!("expected state slot out-of-bounds error, got {res:?}"),
@@ -523,7 +525,7 @@ fn invalid_state_slot_delta() {
         asm::Stack::Push(2).into(), // Delta (invalid).
         asm::Access::State.into(),
     ];
-    let res = exec_ops(ops, access);
+    let res = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX);
     match res {
         Err(ConstraintError::Op(_, OpError::Access(AccessError::InvalidStateSlotDelta(2)))) => {}
         _ => panic!("expected invalid state slot delta error, got {res:?}"),
@@ -544,7 +546,7 @@ fn state_slot_was_none() {
         asm::Stack::Push(0).into(), // Delta.
         asm::Access::State.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert!(&stack.is_empty());
 }
 
@@ -563,7 +565,7 @@ fn state_range_pre_mutation() {
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
         asm::Access::StateRange.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[10, 20, 30]);
 }
 
@@ -582,7 +584,7 @@ fn state_range_post_mutation() {
         asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
         asm::Access::StateRange.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[40, 50]);
 }
 
@@ -604,7 +606,7 @@ fn state_is_not_empty_pre_mutation_false() {
         asm::Pred::Not.into(),
     ];
     // Expect false for `vec![]`.
-    assert!(!eval_ops(ops, access).unwrap());
+    assert!(!eval_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap());
 }
 
 #[test]
@@ -625,7 +627,7 @@ fn state_is_not_empty_post_mutation_true() {
         asm::Pred::Not.into(),
     ];
     // Expect true for `vec![42]`.
-    assert!(eval_ops(ops, access).unwrap());
+    assert!(eval_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap());
 }
 
 #[test]
@@ -643,7 +645,7 @@ fn state_is_some_range_pre_mutation() {
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
         asm::Access::StateLenRange.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     // Expect true, false, true for `vec![10], vec![], vec![30]`.
     assert_eq!(&stack[..], &[1, 0, 1]);
 }
@@ -663,7 +665,7 @@ fn state_is_some_range_post_mutation() {
         asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
         asm::Access::StateLenRange.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     // Expect false, true, false for `vec![], vec![40], vec![]`.
     assert_eq!(&stack[..], &[0, 1, 0]);
 }
@@ -671,7 +673,7 @@ fn state_is_some_range_post_mutation() {
 #[test]
 fn this_address() {
     let ops = &[asm::Access::ThisAddress.into()];
-    let stack = exec_ops(ops, *test_access()).unwrap();
+    let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.predicate.0);
     assert_eq!(&stack[..], expected_words);
 }
@@ -679,7 +681,7 @@ fn this_address() {
 #[test]
 fn this_contract_address() {
     let ops = &[asm::Access::ThisContractAddress.into()];
-    let stack = exec_ops(ops, *test_access()).unwrap();
+    let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.contract.0);
     assert_eq!(&stack[..], expected_words);
 }
@@ -704,7 +706,7 @@ fn transient() {
         asm::Stack::Push(0).into(),
         asm::Access::Transient.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[2]);
 }
 
@@ -728,7 +730,7 @@ fn transient_len() {
         asm::Stack::Push(0).into(),
         asm::Access::TransientLen.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[1]);
 }
 
@@ -753,7 +755,7 @@ fn predicate_at() {
         state_slots: StateSlots::EMPTY,
     };
     let ops = &[asm::Stack::Push(0).into(), asm::Access::PredicateAt.into()];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     let predicate = data[0].predicate_to_solve.clone();
     let mut expected = vec![];
     expected.extend(word_4_from_u8_32(predicate.contract.0));
@@ -782,7 +784,7 @@ fn this_transient_len() {
         state_slots: StateSlots::EMPTY,
     };
     let ops = &[asm::Access::ThisTransientLen.into()];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[1]);
 }
 
@@ -811,6 +813,6 @@ fn this_transient_contains() {
         asm::Stack::Push(1).into(),
         asm::Access::ThisTransientContains.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &|_: &Op| 1, Gas::MAX).unwrap();
     assert_eq!(&stack[..], &[1]);
 }

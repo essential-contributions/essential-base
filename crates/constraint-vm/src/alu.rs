@@ -24,11 +24,14 @@ pub(crate) fn mod_(a: Word, b: Word) -> OpResult<Word> {
 
 #[cfg(test)]
 mod tests {
+    use essential_constraint_asm::Op;
+
     use crate::{
         asm::{Alu, Pred, Stack, Word},
         error::{AluError, ConstraintError, OpError},
         eval_ops,
         test_util::*,
+        Gas,
     };
 
     #[test]
@@ -40,7 +43,7 @@ mod tests {
             Stack::Push(42).into(),
             Pred::Eq.into(),
         ];
-        eval_ops(ops, *test_access()).unwrap();
+        eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
     }
 
     #[test]
@@ -52,7 +55,7 @@ mod tests {
             Stack::Push(6).into(),
             Pred::Eq.into(),
         ];
-        eval_ops(ops, *test_access()).unwrap();
+        eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
     }
 
     #[test]
@@ -62,7 +65,7 @@ mod tests {
             Stack::Push(0).into(),
             Alu::Div.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(_, OpError::Alu(AluError::DivideByZero))) => (),
             _ => panic!("expected ALU divide-by-zero error"),
         }
@@ -75,7 +78,7 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Add.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(_, OpError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
@@ -88,7 +91,7 @@ mod tests {
             Stack::Push(2).into(),
             Alu::Mul.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(_, OpError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
@@ -101,7 +104,7 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Sub.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(_, OpError::Alu(AluError::Underflow))) => (),
             _ => panic!("expected ALU underflow error"),
         }

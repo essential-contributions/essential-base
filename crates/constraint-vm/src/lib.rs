@@ -48,6 +48,10 @@ use essential_constraint_asm::Op;
 pub use essential_types as types;
 use essential_types::{convert::bool_from_word, ConstraintBytecode};
 #[doc(inline)]
+pub use gas::Gas;
+#[doc(inline)]
+pub use gas::OpGasCost;
+#[doc(inline)]
 pub use memory::Memory;
 #[doc(inline)]
 pub use op_access::OpAccess;
@@ -63,6 +67,7 @@ mod alu;
 mod bytecode;
 mod crypto;
 pub mod error;
+mod gas;
 mod memory;
 mod op_access;
 mod pred;
@@ -79,11 +84,21 @@ mod total_control_flow;
 /// [`CheckError`][error::CheckError] type.
 ///
 /// The predicate is considered to be satisfied if this function returns `Ok(())`.
-pub fn check_predicate(predicate: &[ConstraintBytecode], access: Access) -> CheckResult<()> {
+pub fn check_predicate<O>(
+    predicate: &[ConstraintBytecode],
+    access: Access,
+    op_gas_cost: O,
+    gas_limit: Gas,
+) -> CheckResult<()>
+where
+    O: OpGasCost<Op> + Send + Sync,
+{
     use rayon::{iter::Either, prelude::*};
     let (failed, unsatisfied): (Vec<_>, Vec<_>) = predicate
         .par_iter()
-        .map(|bytecode| eval_bytecode_iter(bytecode.iter().copied(), access))
+        .map(|bytecode| {
+            eval_bytecode_iter(bytecode.iter().copied(), access, &op_gas_cost, gas_limit)
+        })
         .enumerate()
         .filter_map(|(i, constraint_res)| match constraint_res {
             Err(err) => Some(Either::Left((i, err))),
@@ -103,37 +118,62 @@ pub fn check_predicate(predicate: &[ConstraintBytecode], access: Access) -> Chec
 /// Evaluate the bytecode of a single constraint and return its boolean result.
 ///
 /// This is the same as [`exec_bytecode`], but retrieves the boolean result from the resulting stack.
-pub fn eval_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintResult<bool> {
-    eval(bytes, access)
+pub fn eval_bytecode(
+    bytes: &BytecodeMapped<Op>,
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<bool> {
+    eval(bytes, access, op_gas_cost, gas_limit)
 }
 
 /// Evaluate the bytecode of a single constraint and return its boolean result.
 ///
 /// This is the same as [`eval_bytecode`], but lazily constructs the bytecode
 /// mapping as bytes are parsed.
-pub fn eval_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<bool>
+pub fn eval_bytecode_iter<I>(
+    bytes: I,
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<bool>
 where
     I: IntoIterator<Item = u8>,
 {
-    eval(BytecodeMappedLazy::new(bytes), access)
+    eval(
+        BytecodeMappedLazy::new(bytes),
+        access,
+        op_gas_cost,
+        gas_limit,
+    )
 }
 
 /// Evaluate the operations of a single constraint and return its boolean result.
 ///
 /// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
-pub fn eval_ops(ops: &[Op], access: Access) -> ConstraintResult<bool> {
-    eval(ops, access)
+pub fn eval_ops(
+    ops: &[Op],
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<bool> {
+    eval(ops, access, op_gas_cost, gas_limit)
 }
 
 /// Evaluate the operations of a single constraint and return its boolean result.
 ///
 /// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
-pub fn eval<OA>(op_access: OA, access: Access) -> ConstraintResult<bool>
+pub fn eval<OA>(
+    op_access: OA,
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<bool>
 where
     OA: OpAccess<Op = Op>,
     OA::Error: Into<error::OpError>,
 {
-    let stack = exec(op_access, access)?;
+    let stack = exec(op_access, access, op_gas_cost, gas_limit)?;
     let word = match stack.last() {
         Some(&w) => w,
         None => return Err(ConstraintError::InvalidEvaluation(stack)),
@@ -142,28 +182,53 @@ where
 }
 
 /// Execute the bytecode of a constraint and return the resulting stack.
-pub fn exec_bytecode(bytes: &BytecodeMapped<Op>, access: Access) -> ConstraintResult<Stack> {
-    exec(bytes, access)
+pub fn exec_bytecode(
+    bytes: &BytecodeMapped<Op>,
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<Stack> {
+    exec(bytes, access, op_gas_cost, gas_limit)
 }
 
 /// Execute the bytecode of a constraint and return the resulting stack.
 ///
 /// This is the same as [`exec_bytecode`], but lazily constructs the bytecode
 /// mapping as bytes are parsed.
-pub fn exec_bytecode_iter<I>(bytes: I, access: Access) -> ConstraintResult<Stack>
+pub fn exec_bytecode_iter<I>(
+    bytes: I,
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<Stack>
 where
     I: IntoIterator<Item = u8>,
 {
-    exec(BytecodeMappedLazy::new(bytes), access)
+    exec(
+        BytecodeMappedLazy::new(bytes),
+        access,
+        op_gas_cost,
+        gas_limit,
+    )
 }
 
 /// Execute the operations of a constraint and return the resulting stack.
-pub fn exec_ops(ops: &[Op], access: Access) -> ConstraintResult<Stack> {
-    exec(ops, access)
+pub fn exec_ops(
+    ops: &[Op],
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<Stack> {
+    exec(ops, access, op_gas_cost, gas_limit)
 }
 
 /// Execute the operations of a constraint and return the resulting stack.
-pub fn exec<OA>(mut op_access: OA, access: Access) -> ConstraintResult<Stack>
+pub fn exec<OA>(
+    mut op_access: OA,
+    access: Access,
+    op_gas_cost: &impl OpGasCost<Op>,
+    gas_limit: Gas,
+) -> ConstraintResult<Stack>
 where
     OA: OpAccess<Op = Op>,
     OA::Error: Into<error::OpError>,
@@ -172,8 +237,23 @@ where
     let mut stack = Stack::default();
     let mut memory = Memory::new();
     let mut repeat = Repeat::new();
+    let mut spent: Gas = 0;
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
+
+        spent = spent
+            .checked_add(op_gas_cost.op_gas_cost(&op))
+            .filter(|&spent| spent <= gas_limit)
+            .ok_or_else(|| {
+                ConstraintError::Op(
+                    pc,
+                    error::OpError::OutOfGas(error::OutOfGasError {
+                        spent,
+                        op_gas: op_gas_cost.op_gas_cost(&op),
+                        limit: gas_limit,
+                    }),
+                )
+            })?;
 
         let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat);
 
@@ -446,7 +526,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Eq.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -456,7 +536,7 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::Eq.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -466,7 +546,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gt.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -476,7 +556,7 @@ mod pred_tests {
             Stack::Push(6).into(),
             Pred::Gt.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -486,7 +566,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lt.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -496,7 +576,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lt.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -506,7 +586,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -516,13 +596,13 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
         let ops = &[
             Stack::Push(8).into(),
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -532,7 +612,7 @@ mod pred_tests {
             Stack::Push(6).into(),
             Pred::Lte.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -542,13 +622,13 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
         let ops = &[
             Stack::Push(7).into(),
             Stack::Push(8).into(),
             Pred::Lte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -558,7 +638,7 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::And.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -568,13 +648,13 @@ mod pred_tests {
             Stack::Push(0).into(),
             Pred::And.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(0).into(),
             Pred::And.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -584,19 +664,19 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(42).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
         let ops = &[
             Stack::Push(42).into(),
             Stack::Push(0).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
@@ -606,18 +686,18 @@ mod pred_tests {
             Stack::Push(0).into(),
             Pred::Or.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
     fn pred_not_true() {
         let ops = &[Stack::Push(0).into(), Pred::Not.into()];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 
     #[test]
     fn pred_not_false() {
         let ops = &[Stack::Push(42).into(), Pred::Not.into()];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap());
     }
 }
