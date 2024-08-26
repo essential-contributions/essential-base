@@ -320,3 +320,25 @@ async fn read_pre_post_state_and_check_constraints() {
 
     // Constraints pass - we're free to apply the updated state!
 }
+
+// Test that halt is not required to end the vm.
+#[tokio::test]
+async fn test_halt() {
+    let mut vm = Vm::default();
+    let ops = &[
+        asm::Stack::Push(6).into(),
+        asm::Stack::Push(7).into(),
+        asm::Alu::Mul.into(),
+    ];
+    let op_gas_cost = &|_: &Op| 1;
+    vm.exec_ops(
+        ops,
+        *test_access(),
+        &State::EMPTY,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .await
+    .unwrap();
+    assert_eq!(&vm.stack[..], &[42]);
+}

@@ -264,8 +264,7 @@ where
             }
         }
 
-        // Programs must complete with a `Halt` operation.
-        Poll::Ready(Err(StateReadError::PcOutOfRange(vm.pc)))
+        Poll::Ready(Ok(self.gas.spent))
     }
 }
 
