@@ -33,9 +33,6 @@ pub type Value = Vec<Word>;
 /// Hash encoded as a 32 byte array.
 pub type Hash = [u8; 32];
 
-/// Externally owned account.
-pub type Eoa = [u8; 32];
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Recoverable ECDSA signature over some data.
 pub struct Signature(
@@ -75,6 +72,10 @@ pub struct Block {
     pub number: u64,
     /// The timestamp of the block.
     pub timestamp: Duration,
+    /// The parent hash.
+    pub parent_hash: Hash,
+    /// The merkle root of the state as of this block.
+    pub state_root: Hash,
     /// The solutions in the the block.
     pub solutions: Vec<Solution>,
 }
