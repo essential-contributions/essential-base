@@ -19,7 +19,7 @@ essential-constraint-vm = { path = "crates/constraint-vm", version = "0.3.0" }
 essential-hash = { path = "crates/hash", version = "0.3.0" }
 essential-sign = { path = "crates/sign", version = "0.3.0" }
 essential-state-asm = { path = "crates/state-asm", version = "~0.3.1" }
-essential-state-read-vm = { path = "crates/state-read-vm", version = "0.3.0" }
+essential-state-read-vm = { path = "crates/state-read-vm", version = "0.4.0" }
 essential-types = { path = "crates/types", version = "0.2.0" }
 futures = "0.3" # For `state-read-vm` tests.
 hex = "0.4.3"
