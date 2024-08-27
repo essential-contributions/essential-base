@@ -43,5 +43,5 @@ pub fn from_predicate_addrs_slice(
     salt: &Hash,
 ) -> ContentAddress {
     predicate_addrs.sort();
-    crate::content_addr(&(predicate_addrs, salt))
+    ContentAddress(crate::hash(&(predicate_addrs, salt)))
 }

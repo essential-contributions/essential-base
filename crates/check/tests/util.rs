@@ -189,13 +189,13 @@ pub fn test_predicate_42(entropy: Word) -> Predicate {
 }
 
 pub fn contract_addr(predicates: &contract::SignedContract) -> ContentAddress {
-    essential_hash::contract_addr::from_contract(&predicates.contract)
+    essential_hash::content_addr(&predicates.contract)
 }
 
 pub fn predicate_addr(predicates: &contract::SignedContract, ix: usize) -> PredicateAddress {
     PredicateAddress {
         contract: contract_addr(predicates),
-        predicate: ContentAddress(essential_hash::hash(&predicates.contract[ix])),
+        predicate: essential_hash::content_addr(&predicates.contract[ix]),
     }
 }
 
