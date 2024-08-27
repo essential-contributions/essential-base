@@ -1,4 +1,4 @@
-//! A small collection of helper functions to assist in the calculation of an
+//! A small collection of helper functions to assist in the calculation of a
 //! block's content address.
 //!
 //! Note that it is possible this hash will change in the future
@@ -6,7 +6,7 @@
 
 use essential_types::{Block, ContentAddress};
 
-/// Shorthand for the common case of producing an block's content address
+/// Shorthand for the common case of producing a block's content address
 /// from a [`Block`].
 ///
 /// *Note:* this also hashes each solution.
