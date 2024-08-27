@@ -147,9 +147,7 @@ async fn check_predicate_42_with_solution() {
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::contract_addr::from_contract(
-        &predicates.contract,
-    ));
+    pre_state.deploy_namespace(essential_hash::content_addr(&predicates.contract));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 
@@ -304,9 +302,7 @@ async fn predicate_with_multiple_state_reads_and_slots() {
 
     // Construct the pre state, then apply mutations to acquire post state.
     let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::contract_addr::from_contract(
-        &predicates.contract,
-    ));
+    pre_state.deploy_namespace(essential_hash::content_addr(&predicates.contract));
     let mut post_state = pre_state.clone();
     post_state.apply_mutations(&solution);
 

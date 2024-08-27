@@ -26,9 +26,7 @@ pub fn bench(c: &mut Criterion) {
         let (predicates, solution, predicates_map) = create(i);
         let get_predicate = |addr: &PredicateAddress| predicates_map.get(addr).cloned().unwrap();
         let mut pre_state = State::EMPTY;
-        pre_state.deploy_namespace(essential_hash::contract_addr::from_contract(
-            &predicates.contract,
-        ));
+        pre_state.deploy_namespace(essential_hash::content_addr(&predicates.contract));
         let mut post_state = pre_state.clone();
         post_state.apply_mutations(&solution);
         c.bench_function(&format!("check_42_{}", i), |b| {
@@ -65,7 +63,7 @@ fn create(
             (
                 PredicateAddress {
                     contract: contract.clone(),
-                    predicate: ContentAddress(essential_hash::hash(&predicate)),
+                    predicate: essential_hash::content_addr(predicate),
                 },
                 Arc::new(predicate.clone()),
             )
@@ -224,7 +222,7 @@ fn test_predicate_42(entropy: Word) -> Predicate {
 }
 
 fn contract_addr(contract: &SignedContract) -> ContentAddress {
-    essential_hash::contract_addr::from_contract(&contract.contract)
+    essential_hash::content_addr(&contract.contract)
 }
 
 fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
@@ -250,9 +248,7 @@ fn test_predicate_42_solution_pair(
         .map(|i| SolutionData {
             predicate_to_solve: PredicateAddress {
                 contract: contract_addr.clone(),
-                predicate: ContentAddress(essential_hash::hash(
-                    signed_contract.contract.get(i).unwrap(),
-                )),
+                predicate: essential_hash::content_addr(signed_contract.contract.get(i).unwrap()),
             },
             decision_variables: vec![vec![42]],
             state_mutations: vec![Mutation {

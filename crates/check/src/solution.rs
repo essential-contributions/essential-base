@@ -213,7 +213,7 @@ impl<E: fmt::Display> fmt::Display for PredicateErrors<E> {
 /// its associated predicates.
 ///
 /// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(&solution.data)), err))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(solution)), err))]
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;

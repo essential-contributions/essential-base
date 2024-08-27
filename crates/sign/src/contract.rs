@@ -21,7 +21,7 @@ use secp256k1::{PublicKey, SecretKey};
 /// the content address directly with [`sign_hash`][crate::sign_hash] and then
 /// constructing the [`predicate::SignedContract`] from its fields.
 pub fn sign(contract: Contract, sk: &SecretKey) -> contract::SignedContract {
-    let ca = essential_hash::contract_addr::from_contract(&contract);
+    let ca = essential_hash::content_addr(&contract);
     let signature = crate::sign_hash(ca.0, sk);
     contract::SignedContract {
         contract,
@@ -31,7 +31,7 @@ pub fn sign(contract: Contract, sk: &SecretKey) -> contract::SignedContract {
 
 /// Verifies the signature against the content address of the contract.
 pub fn verify(signed: &contract::SignedContract) -> Result<(), secp256k1::Error> {
-    let ca = essential_hash::contract_addr::from_contract(&signed.contract);
+    let ca = essential_hash::content_addr(&signed.contract);
     crate::verify_hash(ca.0, &signed.signature)
 }
 
@@ -43,6 +43,6 @@ pub fn verify(signed: &contract::SignedContract) -> Result<(), secp256k1::Error>
 /// If the content address of the contract is already known, consider recovering the
 /// content address directly.
 pub fn recover(signed: &contract::SignedContract) -> Result<PublicKey, secp256k1::Error> {
-    let ca = essential_hash::contract_addr::from_contract(&signed.contract);
+    let ca = essential_hash::content_addr(&signed.contract);
     crate::recover_hash(ca.0, &signed.signature)
 }

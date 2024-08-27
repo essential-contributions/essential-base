@@ -8,7 +8,16 @@ use essential_types::{convert::bytes_from_word, ContentAddress, Hash, Word};
 use serde::Serialize;
 use sha2::Digest;
 
+mod address_impl;
+pub mod block_addr;
 pub mod contract_addr;
+
+/// Standardized trait for creating content addresses for
+/// types using the correct constructors.
+pub trait Address {
+    /// Produce the content address for self.
+    fn content_address(&self) -> ContentAddress;
+}
 
 /// Serialize data for hashing using postcard.
 ///
@@ -33,8 +42,8 @@ pub fn hash<T: Serialize>(t: &T) -> Hash {
 /// Shorthand for hashing the given value in order to produce its content address.
 ///
 /// Commonly useful for solutions, predicates and contracts.
-pub fn content_addr<T: Serialize>(t: &T) -> ContentAddress {
-    ContentAddress(hash(t))
+pub fn content_addr<T: Address>(t: &T) -> ContentAddress {
+    t.content_address()
 }
 
 /// Hash words in the same way that `Crypto::Sha256` does.

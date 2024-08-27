@@ -75,7 +75,7 @@ async fn test_encoding_sig_and_pub_key() {
     let contract = Contract::without_salt(vec![predicate]);
 
     let address = PredicateAddress {
-        contract: essential_hash::contract_addr::from_contract(&contract),
+        contract: essential_hash::content_addr(&contract),
         predicate: essential_hash::content_addr(&contract[0]),
     };
 

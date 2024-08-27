@@ -8,7 +8,7 @@ use crate::{
     },
 };
 #[cfg(feature = "tracing")]
-use essential_hash::contract_addr;
+use essential_hash::content_addr;
 use essential_types::contract;
 use thiserror::Error;
 
@@ -135,7 +135,7 @@ pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 /// Validate a signed contract of predicates.
 ///
 /// Verifies the signature and then validates the contract.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(addr = %contract_addr::from_contract(&signed_contract.contract)), err))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(addr = %content_addr(&signed_contract.contract)), err))]
 pub fn check_signed_contract(
     signed_contract: &contract::SignedContract,
 ) -> Result<(), InvalidSignedContract> {
