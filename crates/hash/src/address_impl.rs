@@ -2,7 +2,7 @@ use essential_types::{
     contract::Contract, predicate::Predicate, solution::Solution, Block, ContentAddress,
 };
 
-use crate::Address;
+use crate::{hash, Address};
 
 impl Address for Block {
     fn content_address(&self) -> ContentAddress {
@@ -10,7 +10,11 @@ impl Address for Block {
     }
 }
 
-impl Address for Predicate {}
+impl Address for Predicate {
+    fn content_address(&self) -> ContentAddress {
+        ContentAddress(hash(self))
+    }
+}
 
 impl Address for Contract {
     fn content_address(&self) -> ContentAddress {
@@ -18,4 +22,8 @@ impl Address for Contract {
     }
 }
 
-impl Address for Solution {}
+impl Address for Solution {
+    fn content_address(&self) -> ContentAddress {
+        ContentAddress(hash(self))
+    }
+}

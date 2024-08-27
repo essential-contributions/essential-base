@@ -14,11 +14,9 @@ pub mod contract_addr;
 
 /// Standardized trait for creating content addresses for
 /// types using the correct constructors.
-pub trait Address: Serialize {
+pub trait Address {
     /// Produce the content address for self.
-    fn content_address(&self) -> ContentAddress {
-        ContentAddress(hash(&self))
-    }
+    fn content_address(&self) -> ContentAddress;
 }
 
 /// Serialize data for hashing using postcard.
