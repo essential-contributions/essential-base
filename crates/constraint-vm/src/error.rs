@@ -353,3 +353,8 @@ impl From<core::convert::Infallible> for OpError {
         match err {}
     }
 }
+impl From<MissingAccessArgError> for OpError {
+    fn from(err: MissingAccessArgError) -> Self {
+        AccessError::MissingArg(err).into()
+    }
+}

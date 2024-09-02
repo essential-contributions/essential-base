@@ -461,11 +461,6 @@ fn mut_keys_push_eq() {
     assert_eq!(&stack[..], &[1]);
 }
 
-// #[test]
-// fn pub_var_keys_push_eq() {
-//     todo!()
-// }
-
 #[test]
 fn state_single_word_pre_mutation() {
     let access = Access {

@@ -164,18 +164,13 @@ pub fn transient_data(solution: &Solution) -> TransientData {
 
 /// `Access::DecisionVar` implementation.
 pub(crate) fn decision_var(this_decision_vars: &[Value], stack: &mut Stack) -> OpResult<()> {
-    let len = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::DecVarLen)
-        .map_err(AccessError::from)?;
+    let len = stack.pop().map_err(|_| MissingAccessArgError::DecVarLen)?;
     let value_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::DecVarValueIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::DecVarValueIx)?;
     let slot_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::DecVarSlotIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::DecVarSlotIx)?;
     let slot_ix =
         usize::try_from(slot_ix).map_err(|_| AccessError::DecisionSlotIxOutOfBounds(slot_ix))?;
     let range = range_from_start_len(value_ix, len).ok_or(AccessError::InvalidAccessRange)?;
@@ -188,8 +183,7 @@ pub(crate) fn decision_var(this_decision_vars: &[Value], stack: &mut Stack) -> O
 pub(crate) fn decision_var_len(this_decision_vars: &[Value], stack: &mut Stack) -> OpResult<()> {
     let slot_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::DecVarSlotIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::DecVarSlotIx)?;
     let slot_ix =
         usize::try_from(slot_ix).map_err(|_| AccessError::DecisionSlotIxOutOfBounds(slot_ix))?;
     let len = resolve_decision_var_len(this_decision_vars, slot_ix)?;
@@ -212,8 +206,7 @@ pub(crate) fn push_mut_keys(solution: SolutionAccess, stack: &mut Stack) -> OpRe
 pub(crate) fn push_pub_var_keys(pub_vars: &TransientData, stack: &mut Stack) -> OpResult<()> {
     let pathway_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::PushPubVarKeysPathwayIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::PushPubVarKeysPathwayIx)?;
     let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
         .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
     let pub_vars = pub_vars
@@ -227,22 +220,14 @@ pub(crate) fn push_pub_var_keys(pub_vars: &TransientData, stack: &mut Stack) -> 
 
 /// `Access::State` implementation.
 pub(crate) fn state(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    let delta = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::StateDelta)
-        .map_err(AccessError::from)?;
-    let len = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::StateLen)
-        .map_err(AccessError::from)?;
+    let delta = stack.pop().map_err(|_| MissingAccessArgError::StateDelta)?;
+    let len = stack.pop().map_err(|_| MissingAccessArgError::StateLen)?;
     let value_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::StateValueIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::StateValueIx)?;
     let slot_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::StateSlotIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::StateSlotIx)?;
     let values = state_slot_value_range(slots, slot_ix, value_ix, len, delta)?;
     stack.extend(values.iter().copied())?;
     Ok(())
@@ -250,14 +235,10 @@ pub(crate) fn state(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
 
 /// `Access::StateLen` implementation.
 pub(crate) fn state_len(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    let delta = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::StateDelta)
-        .map_err(AccessError::from)?;
+    let delta = stack.pop().map_err(|_| MissingAccessArgError::StateDelta)?;
     let slot_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::StateSlotIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::StateSlotIx)?;
     let slot = state_slot(slots, slot_ix, delta)?;
     let len =
         Word::try_from(slot.len()).map_err(|_| AccessError::StateValueTooLarge(slot.len()))?;
@@ -294,16 +275,15 @@ pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()>
     Ok(stack.push(counter)?)
 }
 
+/// `Access::PubVar` implementation.
 pub(crate) fn pub_var(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<()> {
     // Pop the value_len, value_ix and create a range.
     let value_len = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::PubVarValueLen)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::PubVarValueLen)?;
     let value_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::PubVarValueIx)
-        .map_err(AccessError::from)?;
+        .map_err(|_| MissingAccessArgError::PubVarValueIx)?;
     let range = range_from_start_len(value_ix, value_len).ok_or(AccessError::InvalidAccessRange)?;
 
     // Get the pathway_ix.
@@ -313,8 +293,7 @@ pub(crate) fn pub_var(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<(
         .map_err(map_pub_var_len_words_err)?
         .last()
         .copied()
-        .ok_or(MissingAccessArgError::PubVarPathwayIx)
-        .map_err(AccessError::from)?;
+        .ok_or(MissingAccessArgError::PubVarPathwayIx)?;
 
     let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
         .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
@@ -347,8 +326,7 @@ pub(crate) fn pub_var_len(stack: &mut Stack, pub_vars: &TransientData) -> OpResu
         .map_err(map_pub_var_len_words_err)?
         .last()
         .copied()
-        .ok_or(MissingAccessArgError::PubVarPathwayIx)
-        .map_err(AccessError::from)?;
+        .ok_or(MissingAccessArgError::PubVarPathwayIx)?;
 
     let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
         .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;

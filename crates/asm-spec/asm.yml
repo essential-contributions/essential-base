@@ -252,7 +252,9 @@ StateRead:
               opcode: 0x34
               description: |
                 Push the keys of the proposed state mutations onto the stack.
+
                 Note the order is non-deterministic because this is a set.
+
                 Returns only total length 0 if there are no mutations.
               stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
             
@@ -273,7 +275,7 @@ StateRead:
             DecisionVar:
               opcode: 0x37
               description: |
-                Access a range of decision variables words starting from a specified slot_ix and value_ix.
+                Access a range of `len` words starting from `value_ix` within the decision variable located at `slot_ix`.
 
                 Returns a list of decision words with length equal to the specified len.
               panics:
@@ -286,7 +288,7 @@ StateRead:
 
             DecisionVarLen:
               opcode: 0x38
-              description: Get the length of a specified `slot_ix`.
+              description: Get the length of a the decision variable value located at `slot_ix`.
               panics:
                 - slot_ix is out of range.
               stack_in: [slot_ix]
@@ -295,10 +297,9 @@ StateRead:
             State:
               opcode: 0x39
               description: |
-                Access a range of state values from the slot at `slot_ix`.
+                Access a range of words from the state value located in the slot at `slot_ix`.
 
-                Push words onto the stack starting from the value at `value_ix` 
-                and continuing for `len` words.
+                Push `len` words from the value onto the stack, starting from the word at `value_ix`.  
 
                 The argument delta `false` accesses pre state.
                 The argument delta `true` accesses post state.
@@ -319,7 +320,7 @@ StateRead:
                 The argument delta `false` accesses pre state.
                 The argument delta `true` accesses post state.
 
-                Returns a the length of the state value.
+                Returns the length of the state value.
               panics:
                 - slot_ix is out of range.
                 - delta is not a boolean.
