@@ -205,23 +205,24 @@ async fn predicate_with_multiple_state_reads_and_slots() {
     ])
     .collect();
 
-    let slot_len = |slot, range, len| -> Vec<Op> {
+    let slot_len = |slot, len| -> Vec<Op> {
         vec![
-            constraint_vm::asm::Stack::Push(slot).into(),  // slot
-            constraint_vm::asm::Stack::Push(range).into(), // range
+            constraint_vm::asm::Stack::Push(slot).into(), // slot
             constraint_vm::asm::Stack::Push(1).into(),
-            constraint_vm::asm::Access::StateLenRange.into(),
+            constraint_vm::asm::Access::StateLen.into(),
             constraint_vm::asm::Stack::Push(len).into(),
             constraint_vm::asm::Pred::Eq.into(),
         ]
     };
     let mut constraints: Vec<Op> = vec![];
     // Slot 0 must have length 5.
-    constraints.extend(slot_len(0, 1, 5));
+    constraints.extend(slot_len(0, 5));
 
     // Slot 0 must equal 0, 1, 2, 3, 4.
     let c: Vec<Op> = vec![
         constraint_vm::asm::Stack::Push(0).into(), // slot
+        constraint_vm::asm::Stack::Push(0).into(),
+        constraint_vm::asm::Stack::Push(5).into(),
         constraint_vm::asm::Stack::Push(1).into(),
         constraint_vm::asm::Access::State.into(),
         constraint_vm::asm::Stack::Push(0).into(),
@@ -236,15 +237,28 @@ async fn predicate_with_multiple_state_reads_and_slots() {
     constraints.push(constraint_vm::asm::Pred::And.into());
 
     // Slots 1, 2, 3, 4 must have length 1.
-    constraints.extend(slot_len(1, 4, 1));
+    constraints.extend(slot_len(1, 1));
+    constraints.push(constraint_vm::asm::Pred::And.into());
+    constraints.extend(slot_len(2, 1));
+    constraints.push(constraint_vm::asm::Pred::And.into());
+    constraints.extend(slot_len(3, 1));
+    constraints.push(constraint_vm::asm::Pred::And.into());
+    constraints.extend(slot_len(4, 1));
     constraints.push(constraint_vm::asm::Pred::And.into());
 
     // Slots 1, 2, 3, 4 must be equal to 5, 6, 7, 8.
     let c: Vec<Op> = vec![
-        constraint_vm::asm::Stack::Push(1).into(), // slot
-        constraint_vm::asm::Stack::Push(4).into(), // range
+        constraint_vm::asm::Stack::Push(4).into(),
         constraint_vm::asm::Stack::Push(1).into(),
-        constraint_vm::asm::Access::StateRange.into(),
+        constraint_vm::asm::Stack::Repeat.into(),
+        constraint_vm::asm::Access::RepeatCounter.into(),
+        constraint_vm::asm::Stack::Push(1).into(),
+        constraint_vm::asm::Alu::Add.into(),
+        constraint_vm::asm::Stack::Push(0).into(),
+        constraint_vm::asm::Stack::Push(1).into(),
+        constraint_vm::asm::Stack::Push(1).into(),
+        constraint_vm::asm::Access::State.into(),
+        constraint_vm::asm::Stack::RepeatEnd.into(),
         constraint_vm::asm::Stack::Push(5).into(),
         constraint_vm::asm::Stack::Push(6).into(),
         constraint_vm::asm::Stack::Push(7).into(),

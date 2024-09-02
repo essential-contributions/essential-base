@@ -1,8 +1,9 @@
 //! Access operation implementations.
 
 use crate::{
-    error::{AccessError, OpError, StackError},
+    error::{AccessError, LenWordsError, MissingAccessArgError, OpError, StackError},
     repeat::Repeat,
+    sets::encode_set,
     types::convert::bool_from_word,
     OpResult, Stack,
 };
@@ -10,10 +11,18 @@ use essential_constraint_asm::Word;
 use essential_types::{
     convert::word_4_from_u8_32,
     solution::{Mutation, Solution, SolutionData, SolutionDataIndex},
-    Key,
+    Key, Value,
 };
 use std::collections::{HashMap, HashSet};
 
+#[cfg(test)]
+mod dec_vars;
+#[cfg(test)]
+mod pub_vars;
+#[cfg(test)]
+mod state;
+#[cfg(test)]
+mod test_utils;
 #[cfg(test)]
 mod tests;
 
@@ -154,108 +163,107 @@ pub fn transient_data(solution: &Solution) -> TransientData {
 }
 
 /// `Access::DecisionVar` implementation.
-pub(crate) fn decision_var(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    stack.pop1_push1(|slot| {
-        let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-        let w = resolve_decision_var(solution.data, solution.index, slot_ix, 0)?;
-        Ok(w)
-    })
-}
-
-/// `Access::DecisionVarAt` implementation.
-pub(crate) fn decision_var_at(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    stack.pop2_push1(|slot, index| {
-        let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-        let var_ix = usize::try_from(index).map_err(|_| AccessError::DecisionIndexOutOfBounds)?;
-        let w = resolve_decision_var(solution.data, solution.index, slot_ix, var_ix)?;
-        Ok(w)
-    })
-}
-
-/// `Access::DecisionVarRange` implementation.
-pub(crate) fn decision_var_range(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    let [slot, index, len] = stack.pop3()?;
-    let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-    let range = range_from_start_len(index, len).ok_or(AccessError::DecisionIndexOutOfBounds)?;
-    let words = resolve_decision_var_range(solution.data, solution.index, slot_ix, range)?;
+pub(crate) fn decision_var(this_decision_vars: &[Value], stack: &mut Stack) -> OpResult<()> {
+    let len = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::DecVarLen)
+        .map_err(AccessError::from)?;
+    let value_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::DecVarValueIx)
+        .map_err(AccessError::from)?;
+    let slot_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::DecVarSlotIx)
+        .map_err(AccessError::from)?;
+    let slot_ix =
+        usize::try_from(slot_ix).map_err(|_| AccessError::DecisionSlotIxOutOfBounds(slot_ix))?;
+    let range = range_from_start_len(value_ix, len).ok_or(AccessError::InvalidAccessRange)?;
+    let words = resolve_decision_var_range(this_decision_vars, slot_ix, range)?;
     stack.extend(words.iter().copied())?;
     Ok(())
 }
 
 /// `Access::DecisionVarLen` implementation.
-pub(crate) fn decision_var_len(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    stack.pop1_push1(|slot| {
-        let slot_ix = usize::try_from(slot).map_err(|_| AccessError::DecisionSlotOutOfBounds)?;
-        let len = resolve_decision_var_len(solution.data, solution.index, slot_ix)?;
-        let w = Word::try_from(len).map_err(|_| AccessError::DecisionLengthTooLarge(len))?;
-        Ok(w)
-    })
+pub(crate) fn decision_var_len(this_decision_vars: &[Value], stack: &mut Stack) -> OpResult<()> {
+    let slot_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::DecVarSlotIx)
+        .map_err(AccessError::from)?;
+    let slot_ix =
+        usize::try_from(slot_ix).map_err(|_| AccessError::DecisionSlotIxOutOfBounds(slot_ix))?;
+    let len = resolve_decision_var_len(this_decision_vars, slot_ix)?;
+    let w = Word::try_from(len).map_err(|_| AccessError::DecisionLengthTooLarge(len))?;
+    stack
+        .push(w)
+        .expect("Can't fail because 1 is popped and 1 is pushed");
+    Ok(())
 }
 
 /// `Access::MutKeys` implementation.
 pub(crate) fn push_mut_keys(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    let length = solution
-        .mutable_keys
-        .iter()
-        .map(|i| i.len())
-        .sum::<usize>()
-        .checked_add(solution.mutable_keys.len());
-    let total_length = length.and_then(|i| Word::try_from(i).ok()).ok_or(
-        AccessError::StateMutationsLengthTooLarge(solution.mutable_keys.len()),
-    )?;
-    let iter = solution.mutable_keys.iter().flat_map(|key| {
-        key.iter()
-            .copied()
-            .map(Ok)
-            // Safe cast due to above filter
-            .chain(core::iter::once_with(|| {
-                key.len().try_into().map_err(|_| StackError::Overflow)
-            }))
-    });
-    // Safe cast due to above try from.
-    stack.reserve(total_length as usize);
-    for word in iter {
-        stack.push(word?)?;
-    }
-    stack.push(total_length)?;
+    encode_set(
+        solution.mutable_keys.iter().map(|k| k.iter().copied()),
+        stack,
+    )
+}
+
+/// `Access::PubVarKeys` implementation.
+pub(crate) fn push_pub_var_keys(pub_vars: &TransientData, stack: &mut Stack) -> OpResult<()> {
+    let pathway_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::PushPubVarKeysPathwayIx)
+        .map_err(AccessError::from)?;
+    let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
+        .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
+    let pub_vars = pub_vars
+        .get(&pathway_ix)
+        .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?;
+
+    encode_set(pub_vars.keys().map(|k| k.iter().copied()), stack)?;
+
     Ok(())
 }
 
 /// `Access::State` implementation.
 pub(crate) fn state(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    let [slot, delta] = stack.pop2()?;
-    let slot = state_slot(slots, slot, delta)?;
-    stack.extend(slot.clone())?;
-    Ok(())
-}
-
-/// `Access::StateRange` implementation.
-pub(crate) fn state_range(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    let [slot, len, delta] = stack.pop3()?;
-    let slice = state_slot_range(slots, slot, len, delta)?;
-    for slot in slice {
-        stack.extend(slot.clone())?;
-    }
+    let delta = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::StateDelta)
+        .map_err(AccessError::from)?;
+    let len = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::StateLen)
+        .map_err(AccessError::from)?;
+    let value_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::StateValueIx)
+        .map_err(AccessError::from)?;
+    let slot_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::StateSlotIx)
+        .map_err(AccessError::from)?;
+    let values = state_slot_value_range(slots, slot_ix, value_ix, len, delta)?;
+    stack.extend(values.iter().copied())?;
     Ok(())
 }
 
 /// `Access::StateLen` implementation.
 pub(crate) fn state_len(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    stack.pop2_push1(|slot, delta| {
-        let slot = state_slot(slots, slot, delta)?;
-        let len = Word::try_from(slot.len()).map_err(|_| AccessError::StateSlotOutOfBounds)?;
-        Ok(len)
-    })
-}
-
-/// `Access::StateLenRange` implementation.
-pub(crate) fn state_len_range(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    let [slot, len, delta] = stack.pop3()?;
-    let slice = state_slot_range(slots, slot, len, delta)?;
-    for slot in slice {
-        let len = Word::try_from(slot.len()).map_err(|_| AccessError::StateSlotOutOfBounds)?;
-        stack.push(len)?;
-    }
+    let delta = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::StateDelta)
+        .map_err(AccessError::from)?;
+    let slot_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::StateSlotIx)
+        .map_err(AccessError::from)?;
+    let slot = state_slot(slots, slot_ix, delta)?;
+    let len =
+        Word::try_from(slot.len()).map_err(|_| AccessError::StateValueTooLarge(slot.len()))?;
+    stack
+        .push(len)
+        .expect("Can't fail because 2 are popped and 1 is pushed");
     Ok(())
 }
 
@@ -286,42 +294,92 @@ pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()>
     Ok(stack.push(counter)?)
 }
 
-pub(crate) fn transient(stack: &mut Stack, solution: SolutionAccess) -> OpResult<()> {
-    let pathway = stack.pop()?;
-    let pathway =
-        SolutionDataIndex::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
-    let value = stack.pop_len_words::<_, _, StackError>(|key| {
-        let value = solution
-            .transient_data
-            .get(&pathway)
-            .ok_or(StackError::IndexOutOfBounds)?
+pub(crate) fn pub_var(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<()> {
+    // Pop the value_len, value_ix and create a range.
+    let value_len = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::PubVarValueLen)
+        .map_err(AccessError::from)?;
+    let value_ix = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::PubVarValueIx)
+        .map_err(AccessError::from)?;
+    let range = range_from_start_len(value_ix, value_len).ok_or(AccessError::InvalidAccessRange)?;
+
+    // Get the pathway_ix.
+    // Note this does not pop the pathway_ix from the stack.
+    let pathway_ix = stack
+        .skip_len_words()
+        .map_err(map_pub_var_len_words_err)?
+        .last()
+        .copied()
+        .ok_or(MissingAccessArgError::PubVarPathwayIx)
+        .map_err(AccessError::from)?;
+
+    let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
+        .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
+
+    // Pop the key and access the value.
+    let value = stack.pop_len_words::<_, _, OpError>(|key| {
+        let value = pub_vars
+            .get(&pathway_ix)
+            .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
             .get(key)
-            .ok_or(StackError::IndexOutOfBounds)?;
-        Ok(value.clone())
+            .ok_or(AccessError::PubVarKeyOutOfBounds)?
+            .get(range)
+            .ok_or(AccessError::PubVarDataOutOfBounds)?;
+        Ok(value.to_vec())
     })?;
+
+    // Pop pathway.
+    stack
+        .pop()
+        .expect("Can't fail because pathway_ix was found above");
+
     Ok(stack.extend(value)?)
 }
 
-pub(crate) fn transient_len(stack: &mut Stack, solution: SolutionAccess) -> OpResult<()> {
-    let pathway = stack.pop()?;
-    let pathway =
-        SolutionDataIndex::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
+pub(crate) fn pub_var_len(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<()> {
+    // Get the pathway_ix.
+    // Note this does not pop the pathway_ix from the stack.
+    let pathway_ix = stack
+        .skip_len_words()
+        .map_err(map_pub_var_len_words_err)?
+        .last()
+        .copied()
+        .ok_or(MissingAccessArgError::PubVarPathwayIx)
+        .map_err(AccessError::from)?;
+
+    let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
+        .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
+
+    // Pop the key and get the length of the value.
     let length = stack.pop_len_words::<_, _, OpError>(|key| {
-        let value = solution
-            .transient_data
-            .get(&pathway)
-            .ok_or(AccessError::TransientDataOutOfBounds)?
+        let value = pub_vars
+            .get(&pathway_ix)
+            .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
             .get(key)
-            .ok_or(AccessError::TransientDataKeyOutOfBounds)?;
+            .ok_or(AccessError::PubVarKeyOutOfBounds)?;
         Ok(value.len())
     })?;
-    let length = Word::try_from(length).map_err(|_| AccessError::TransientDataOutOfBounds)?;
-    Ok(stack.push(length)?)
+
+    let length = Word::try_from(length).map_err(|_| AccessError::PubVarDataOutOfBounds)?;
+
+    // Pop pathway.
+    stack
+        .pop()
+        .expect("Can't fail because pathway_ix was found above");
+
+    stack
+        .push(length)
+        .expect("Can't fail because 3 are popped and 1 is pushed");
+
+    Ok(())
 }
 
 pub(crate) fn predicate_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult<()> {
     let pathway = stack.pop()?;
-    let pathway = usize::try_from(pathway).map_err(|_| AccessError::TransientDataOutOfBounds)?;
+    let pathway = usize::try_from(pathway).map_err(|_| AccessError::PathwayOutOfBounds(pathway))?;
     let address = data
         .get(pathway)
         .ok_or(StackError::IndexOutOfBounds)?
@@ -334,114 +392,78 @@ pub(crate) fn predicate_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult
     Ok(())
 }
 
-pub(crate) fn this_transient_len(
-    stack: &mut Stack,
-    transient_data: Option<&HashMap<Key, Vec<Word>>>,
-) -> OpResult<()> {
-    let Some(transient_data) = transient_data else {
-        return Ok(stack.push(0)?);
-    };
-    let length = transient_data.len();
-    let length = Word::try_from(length).map_err(|_| AccessError::TransientDataOutOfBounds)?;
-    stack.push(length)?;
-    Ok(())
-}
-
-pub(crate) fn this_transient_contains(
-    stack: &mut Stack,
-    transient_data: Option<&HashMap<Key, Vec<Word>>>,
-) -> OpResult<()> {
-    let Some(transient_data) = transient_data else {
-        stack.pop_len_words::<_, _, StackError>(|_| Ok(()))?;
-        return Ok(stack.push(Word::from(false))?);
-    };
-    let contains =
-        stack.pop_len_words::<_, _, StackError>(|key| Ok(transient_data.contains_key(key)))?;
-    let contains = Word::from(contains);
-    stack.push(contains)?;
-    Ok(())
-}
-
-/// Resolve the decision variable word at a slot and index.
-///
-/// Errors if the solution data or decision var indices are out of bounds.
-pub(crate) fn resolve_decision_var(
-    data: &[SolutionData],
-    data_ix: usize,
-    slot_ix: usize,
-    var_ix: usize,
-) -> Result<Word, AccessError> {
-    let solution_data = data
-        .get(data_ix)
-        .ok_or(AccessError::SolutionDataOutOfBounds)?;
-    solution_data
-        .decision_variables
-        .get(slot_ix)
-        .ok_or(AccessError::DecisionSlotOutOfBounds)?
-        .get(var_ix)
-        .copied()
-        .ok_or(AccessError::DecisionIndexOutOfBounds)
+fn map_pub_var_len_words_err(e: LenWordsError) -> AccessError {
+    match e {
+        LenWordsError::MissingLength => {
+            AccessError::MissingArg(MissingAccessArgError::PubVarKeyLen)
+        }
+        LenWordsError::InvalidLength(l) => AccessError::KeyLengthOutOfBounds(l),
+        LenWordsError::OutOfBounds(_) => AccessError::MissingArg(MissingAccessArgError::PubVarKey),
+    }
 }
 
 /// Resolve a range of words at a decision variable slot.
 ///
 /// Errors if the solution data or decision var indices are out of bounds.
 pub(crate) fn resolve_decision_var_range(
-    data: &[SolutionData],
-    data_ix: usize,
+    decision_variables: &[Value],
     slot_ix: usize,
-    var_range_ix: core::ops::Range<usize>,
+    value_range_ix: core::ops::Range<usize>,
 ) -> Result<&[Word], AccessError> {
-    let solution_data = data
-        .get(data_ix)
-        .ok_or(AccessError::SolutionDataOutOfBounds)?;
-    solution_data
-        .decision_variables
+    decision_variables
         .get(slot_ix)
-        .ok_or(AccessError::DecisionSlotOutOfBounds)?
-        .get(var_range_ix)
-        .ok_or(AccessError::DecisionIndexOutOfBounds)
+        .ok_or(AccessError::DecisionSlotIxOutOfBounds(slot_ix as Word))?
+        .get(value_range_ix.clone())
+        .ok_or(AccessError::DecisionValueRangeOutOfBounds(
+            value_range_ix.start as Word,
+            value_range_ix.end as Word,
+        ))
 }
 
 /// Resolve the length of decision variable slot.
 ///
 /// Errors if the solution data or decision var indices are out of bounds.
 pub(crate) fn resolve_decision_var_len(
-    data: &[SolutionData],
-    data_ix: usize,
+    decision_variables: &[Value],
     slot_ix: usize,
 ) -> Result<usize, AccessError> {
-    let solution_data = data
-        .get(data_ix)
-        .ok_or(AccessError::SolutionDataOutOfBounds)?;
-    solution_data
-        .decision_variables
+    decision_variables
         .get(slot_ix)
         .map(|slot| slot.len())
-        .ok_or(AccessError::DecisionSlotOutOfBounds)
+        .ok_or(AccessError::DecisionSlotIxOutOfBounds(slot_ix as Word))
 }
 
-fn state_slot(slots: StateSlots, slot: Word, delta: Word) -> OpResult<&Vec<Word>> {
+fn state_slot(slots: StateSlots, slot_ix: Word, delta: Word) -> OpResult<&Vec<Word>> {
     let delta = bool_from_word(delta).ok_or(AccessError::InvalidStateSlotDelta(delta))?;
     let slots = state_slots_from_delta(slots, delta);
-    let ix = usize::try_from(slot).map_err(|_| AccessError::StateSlotOutOfBounds)?;
-    let slot = slots.get(ix).ok_or(AccessError::StateSlotOutOfBounds)?;
+    let ix = usize::try_from(slot_ix).map_err(|_| AccessError::StateSlotIxOutOfBounds(slot_ix))?;
+    let slot = slots
+        .get(ix)
+        .ok_or(AccessError::StateSlotIxOutOfBounds(slot_ix))?;
     Ok(slot)
 }
 
-pub(crate) fn state_slot_range(
+fn state_slot_value_range(
     slots: StateSlots,
-    slot: Word,
+    slot_ix: Word,
+    value_ix: Word,
     len: Word,
     delta: Word,
-) -> OpResult<&StateSlotSlice> {
-    let delta = bool_from_word(delta).ok_or(AccessError::InvalidStateSlotDelta(slot))?;
+) -> OpResult<&[Word]> {
+    let delta = bool_from_word(delta).ok_or(AccessError::InvalidStateSlotDelta(delta))?;
     let slots = state_slots_from_delta(slots, delta);
-    let range = range_from_start_len(slot, len).ok_or(AccessError::StateSlotOutOfBounds)?;
-    let subslice = slots
-        .get(range)
-        .ok_or(AccessError::DecisionSlotOutOfBounds)?;
-    Ok(subslice)
+    let slot_ix =
+        usize::try_from(slot_ix).map_err(|_| AccessError::StateSlotIxOutOfBounds(slot_ix))?;
+    let range = range_from_start_len(value_ix, len).ok_or(AccessError::InvalidAccessRange)?;
+    let values = slots
+        .get(slot_ix)
+        .ok_or(AccessError::StateSlotIxOutOfBounds(slot_ix as Word))?
+        .get(range.clone())
+        .ok_or(AccessError::StateValueRangeOutOfBounds(
+            range.start as Word,
+            range.end as Word,
+        ))?;
+    Ok(values)
 }
 
 fn range_from_start_len(start: Word, len: Word) -> Option<std::ops::Range<usize>> {

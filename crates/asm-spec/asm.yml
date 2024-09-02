@@ -208,122 +208,8 @@ StateRead:
         Access:
           description: Operations for accessing input data.
           group:
-            DecisionVar:
-              opcode: 0x30
-              description: |
-                Access the first word in a decision variable slot by `slot`.
-
-                The slot must be in range.
-
-                Returns a decision word.
-              panics:
-                - The slot is out of range.
-                - If the slot is empty.
-              stack_in: [slot]
-              stack_out: [decision_word]
-            
-            DecisionVarAt:
-              opcode: 0x31
-              description: |
-                Access a word in a decision variable slot by `slot` and `index`.
-
-                The slot and index must be in range.
-
-                Returns a decision word.
-              panics:
-                - The slot is out of range.
-                - The index is out of range.
-              stack_in: [slot, index]
-              stack_out: [decision_word]
-
-            DecisionVarRange:
-              opcode: 0x32
-              description: |
-                Access a range of decision variables slot words starting from a specified slot and index.
-
-                Returns a list of decision words with length equal to the specified len.
-              panics:
-                - The slot is out of range.
-                - The range `index..(index + len)` is out of range.
-              stack_in: [slot, index, len]
-              stack_out:
-                elem: decision_word
-                len: range
-
-            DecisionVarLen:
-              opcode: 0x33
-              description: Get the length of a specified `slot`.
-              panics:
-                - The slot is out of range.
-              stack_in: [slot]
-              stack_out: [len]
-
-            State:
-              opcode: 0x34
-              description: |
-                Access a state variable by `slot`.
-
-                If the slot is empty, this is a noop.
-
-                The `delta` parameter determines if changes are considered.
-
-                Use `StateLen` to get the length of the state variable.
-              panics:
-                - The slot is out of range.
-              stack_in: [slot, delta]
-              stack_out: [state_slot_w0, ...state_slot_wN]
-
-            StateRange:
-              opcode: 0x35
-              description: |
-                Access a range of state variables starting from a specified slot.
-
-                Empty slots will not write anything to the stack.
-
-                The delta parameter determines if changes are considered.
-
-                Returns a list of state words with length equal to the specified range.
-
-                Use `StateLenRange` to get the lengths of the state variables.
-              panics:
-                - The range `slot..(slot + range)` is out of range.
-              stack_in: [slot, range, delta]
-              stack_out: [state_word_0, ...state_word_M, state_word_0, ...state_word_N, ...]
-
-            StateLen:
-              opcode: 0x36
-              description: |
-                Get the length of a state variable at a specified `slot`.
-
-                Returns a the length of the state variable.
-              panics:
-                - The slot is out of range.
-              stack_in: [slot, delta]
-              stack_out: [len]
-
-            StateLenRange:
-              opcode: 0x37
-              description: |
-                Get the lengths of a `range` of state variables starting from a specified `slot`.
-
-                Returns a list of lengths, each being the length of a state variable
-                in the range.
-              panics:
-                - The range `slot..(slot + range)` is out of range.
-              stack_in: [slot, range, delta]
-              stack_out:
-                elem: length
-                len: range
-
-            MutKeys:
-              opcode: 0x38
-              description: |
-                Push the keys of the proposed state mutations onto the stack.
-                Note the order is non-deterministic because this is a set.
-              stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
-
             ThisAddress:
-              opcode: 0x39
+              opcode: 0x30
               description: |
                 Get the content hash of this predicate.
 
@@ -331,7 +217,7 @@ StateRead:
               stack_out: [key]
 
             ThisContractAddress:
-              opcode: 0x3A
+              opcode: 0x31
               description: |
                 Get the content hash of the contract this predicate belongs to.
 
@@ -339,34 +225,15 @@ StateRead:
               stack_out: [key]
 
             ThisPathway:
-              opcode: 0x3B
+              opcode: 0x32
               description: |
                 Get the pathway of this predicate.
 
                 This operation returns the index of the solution data currently being used to check this predicate.
               stack_out: [in]
-
-            RepeatCounter:
-              opcode: 0x3C
-              description: Access the top repeat counters current value.
-              stack_out: [counter_value]
-
-            Transient:
-              opcode: 0x3D
-              description: Get the solution data indexed by pathway and key.
-              stack_in: [key_0, ...key_N, key_len, pathway]
-              stack_out:
-                elem: slot_word
-                len: value_len
-
-            TransientLen:
-              opcode: 0x3E
-              description: Get the length of solution data indexed by pathway and key.
-              stack_in: [key_0, ...key_N, key_len, pathway]
-              stack_out: [len]
-
+            
             PredicateAt:
-              opcode: 0x3F
+              opcode: 0x33
               description: Get the predicate at solution data pathway.
               stack_in: [pathway]
               stack_out:
@@ -380,17 +247,110 @@ StateRead:
                   predicate_key_2,
                   predicate_key_3,
                 ]
+            
+            MutKeys:
+              opcode: 0x34
+              description: |
+                Push the keys of the proposed state mutations onto the stack.
+                Note the order is non-deterministic because this is a set.
+                Returns only total length 0 if there are no mutations.
+              stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
+            
+            PubVarKeys:
+              opcode: 0x35
+              description: |
+                Push the keys of the pub vars at `pathway_id` onto the stack.
+                Note the order is non-deterministic because this is a set.
+                Returns only total length 0 if there are no keys.
+              stack_in: [pathway_ix]
+              stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
 
-            ThisTransientLen:
-              opcode: 0x40
-              description: Get the length of the transient data at this predicate.
+            RepeatCounter:
+              opcode: 0x36
+              description: Access the top repeat counters current value.
+              stack_out: [counter_value]
+
+            DecisionVar:
+              opcode: 0x37
+              description: |
+                Access a range of decision variables words starting from a specified slot_ix and value_ix.
+
+                Returns a list of decision words with length equal to the specified len.
+              panics:
+                - slot_ix is out of range.
+                - The range `value_ix..(value_ix + len)` is out of range.
+              stack_in: [slot_ix, value_ix, len]
+              stack_out:
+                elem: word
+                len: len 
+
+            DecisionVarLen:
+              opcode: 0x38
+              description: Get the length of a specified `slot_ix`.
+              panics:
+                - slot_ix is out of range.
+              stack_in: [slot_ix]
               stack_out: [len]
 
-            ThisTransientContains:
-              opcode: 0x41
-              description: Check if the transient data at this predicate contains the given key.
-              stack_in: [key_0, ...key_N, key_len]
-              stack_out: [bool]
+            State:
+              opcode: 0x39
+              description: |
+                Access a range of state values from the slot at `slot_ix`.
+
+                Push words onto the stack starting from the value at `value_ix` 
+                and continuing for `len` words.
+
+                The argument delta `false` accesses pre state.
+                The argument delta `true` accesses post state.
+              panics:
+                - slot_ix is out of range.
+                - The range `value_ix..(value_ix + len)` is out of range.
+                - delta is not a boolean.
+              stack_in: [slot_ix, value_ix, len, delta]
+              stack_out:
+                elem: word
+                len: len 
+
+            StateLen:
+              opcode: 0x3A
+              description: |
+                Get the length of a state value at a specified `slot_ix`.
+
+                The argument delta `false` accesses pre state.
+                The argument delta `true` accesses post state.
+
+                Returns a the length of the state value.
+              panics:
+                - slot_ix is out of range.
+                - delta is not a boolean.
+              stack_in: [slot_ix, delta]
+              stack_out: [len]
+
+            PubVar:
+              opcode: 0x3B
+              description: |
+                Access a range of public decision variable words at `pathway_ix` 
+                and key `key_0, ...key_N`.
+
+                Push words onto the stack starting from the value at `value_ix` 
+                and continuing for `len` words.
+              panics:
+                - pathway_ix is out of range.
+                - The range `value_ix..(value_ix + len)` is out of range for key.
+              stack_in: [pathway_ix, key_0, ...key_N, key_len, value_ix, value_len]
+              stack_out:
+                elem: word
+                len: value_len
+
+            PubVarLen:
+              opcode: 0x3C
+              description: |
+                Get the length of the value indexed by `pathway_ix`
+                and key `key_0, ...key_N`.
+              stack_in: [pathway, key_0, ...key_N, key_len]
+              stack_out: [len]
+
+        # Byte 4 reserved for Access ops
 
         Crypto:
           description: Operations providing cryptographic functionality.

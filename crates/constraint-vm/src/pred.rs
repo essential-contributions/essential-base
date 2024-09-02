@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use essential_types::Word;
 
 use crate::{
-    error::{DecodeError, OpError, StackError},
+    error::{OpError, StackError},
+    sets::decode_set,
     OpResult, Stack,
 };
 
@@ -40,31 +41,10 @@ pub(crate) fn eq_range(stack: &mut Stack) -> OpResult<()> {
 /// `Pred::EqSet` implementation.
 pub(crate) fn eq_set(stack: &mut Stack) -> OpResult<()> {
     let eq = stack.pop_len_words2::<_, _, OpError>(|lhs, rhs| {
-        let lhs = unflatten_keys(lhs).collect::<Result<HashSet<&[Word]>, _>>()?;
-        let rhs = unflatten_keys(rhs).collect::<Result<HashSet<&[Word]>, _>>()?;
+        let lhs = decode_set(lhs).collect::<Result<HashSet<&[Word]>, _>>()?;
+        let rhs = decode_set(rhs).collect::<Result<HashSet<&[Word]>, _>>()?;
         Ok(lhs == rhs)
     })?;
     stack.push(eq.into())?;
     Ok(())
-}
-
-/// Unflatten the keys, starting from the top of slice.
-fn unflatten_keys(words: &[Word]) -> impl '_ + Iterator<Item = OpResult<&[Word]>> {
-    let mut ws = words;
-    std::iter::from_fn(move || {
-        let (len, rest) = ws.split_last()?;
-        let ix = match usize::try_from(*len)
-            .map_err(|_| StackError::Overflow.into())
-            .and_then(|len| {
-                rest.len()
-                    .checked_sub(len)
-                    .ok_or_else(|| DecodeError::Set(words.to_vec()).into())
-            }) {
-            Ok(ix) => ix,
-            Err(e) => return Some(Err(e)),
-        };
-        let (rest, key) = rest.split_at(ix);
-        ws = rest;
-        Some(Ok(key))
-    })
 }

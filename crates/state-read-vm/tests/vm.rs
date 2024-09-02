@@ -238,7 +238,6 @@ async fn read_pre_post_state_and_check_constraints() {
         asm::Stack::Push(3).into(), // Num words
         asm::Stack::Push(0).into(), // Slot index
         asm::StateRead::KeyRange,
-        asm::TotalControlFlow::Halt.into(),
     ];
 
     // Execute the program.
@@ -281,9 +280,13 @@ async fn read_pre_post_state_and_check_constraints() {
         // Check that the first pre and post slots are equal.
         constraint::asm::to_bytes(vec![
             asm::Stack::Push(0).into(), // slot
+            asm::Stack::Push(0).into(),
+            asm::Stack::Push(1).into(),
             asm::Stack::Push(0).into(), // pre
             asm::Access::State.into(),
             asm::Stack::Push(0).into(), // slot
+            asm::Stack::Push(0).into(),
+            asm::Stack::Push(1).into(),
             asm::Stack::Push(1).into(), // post
             asm::Access::State.into(),
             asm::Pred::Eq.into(),
@@ -300,6 +303,7 @@ async fn read_pre_post_state_and_check_constraints() {
             asm::Stack::Push(1).into(), // post
             asm::Access::StateLen.into(),
             asm::Stack::Push(0).into(),
+            asm::Pred::Eq.into(),
             asm::Pred::Not.into(),
             asm::Pred::And.into(),
         ])
@@ -307,9 +311,13 @@ async fn read_pre_post_state_and_check_constraints() {
         // Check that the third pre and post slots are equal.
         constraint::asm::to_bytes(vec![
             asm::Stack::Push(2).into(), // slot
+            asm::Stack::Push(0).into(),
+            asm::Stack::Push(1).into(),
             asm::Stack::Push(0).into(), // pre
             asm::Access::State.into(),
             asm::Stack::Push(2).into(), // slot
+            asm::Stack::Push(0).into(),
+            asm::Stack::Push(1).into(),
             asm::Stack::Push(1).into(), // post
             asm::Access::State.into(),
             asm::Pred::Eq.into(),
