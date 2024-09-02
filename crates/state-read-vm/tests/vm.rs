@@ -3,11 +3,12 @@
 mod util;
 
 use constraint::mut_keys_set;
+use essential_constraint_vm::Gas;
 use essential_state_read_vm::{
     asm::{self, Op},
     constraint,
     types::solution::{Mutation, Solution, SolutionData},
-    Access, BytecodeMapped, Gas, GasLimit, SolutionAccess, StateSlots, Vm,
+    Access, BytecodeMapped, GasLimit, SolutionAccess, StateSlots, Vm,
 };
 use util::*;
 
@@ -316,7 +317,8 @@ async fn read_pre_post_state_and_check_constraints() {
         ])
         .collect(),
     ];
-    constraint::check_predicate(constraints, access).unwrap();
+    constraint::check_predicate(constraints, access, |_: &constraint::asm::Op| 1, Gas::MAX)
+        .unwrap();
 
     // Constraints pass - we're free to apply the updated state!
 }

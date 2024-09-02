@@ -36,6 +36,7 @@ use error::{OpError, OpSyncError, StateReadError, StateSlotsError};
 pub use essential_constraint_vm::{
     self as constraint, Access, OpAccess, SolutionAccess, Stack, StateSlotSlice, StateSlots,
 };
+pub use essential_constraint_vm::{Gas, OpGasCost};
 #[doc(inline)]
 pub use essential_state_asm as asm;
 use essential_state_asm::Op;
@@ -65,9 +66,6 @@ pub struct Vm {
     /// The state slots that will be written to by this program.
     pub state_slots_mut: StateSlotsMut,
 }
-
-/// Unit used to measure gas.
-pub type Gas = u64;
 
 /// Shorthand for the `BytecodeMapped` type representing a mapping to/from state read [`Op`]s.
 pub type BytecodeMapped<Bytes = Vec<u8>> = constraint::BytecodeMapped<Op, Bytes>;
@@ -112,12 +110,6 @@ pub(crate) enum OpAsync {
     StateReadKeyRangeExt,
 }
 
-/// A mapping from an operation to its gas cost.
-pub trait OpGasCost {
-    /// The gas cost associated with the given op.
-    fn op_gas_cost(&self, op: &Op) -> Gas;
-}
-
 impl GasLimit {
     /// The default value used for the `per_yield` limit.
     // TODO: Adjust this to match recommended poll time limit on supported validator
@@ -149,7 +141,7 @@ impl Vm {
         ops: &[Op],
         access: Access<'a>,
         state_read: &S,
-        op_gas_cost: &impl OpGasCost,
+        op_gas_cost: &impl OpGasCost<Op>,
         gas_limit: GasLimit,
     ) -> Result<Gas, StateReadError<S::Error>>
     where
@@ -176,7 +168,7 @@ impl Vm {
         bytecode_mapped: &BytecodeMapped<B>,
         access: Access<'a>,
         state_read: &S,
-        op_gas_cost: &impl OpGasCost,
+        op_gas_cost: &impl OpGasCost<Op>,
         gas_limit: GasLimit,
     ) -> Result<Gas, StateReadError<S::Error>>
     where
@@ -205,7 +197,7 @@ impl Vm {
         bytecode_iter: I,
         access: Access<'a>,
         state_read: &S,
-        op_gas_cost: &impl OpGasCost,
+        op_gas_cost: &impl OpGasCost<Op>,
         gas_limit: GasLimit,
     ) -> Result<Gas, StateReadError<S::Error>>
     where
@@ -235,7 +227,7 @@ impl Vm {
         access: Access<'a>,
         state_read: &S,
         op_access: OA,
-        op_gas_cost: &impl OpGasCost,
+        op_gas_cost: &impl OpGasCost<Op>,
         gas_limit: GasLimit,
     ) -> Result<Gas, StateReadError<S::Error>>
     where
@@ -262,15 +254,6 @@ impl From<Op> for OpKind {
             Op::KeyRange => OpKind::Async(OpAsync::StateReadKeyRange),
             Op::KeyRangeExtern => OpKind::Async(OpAsync::StateReadKeyRangeExt),
         }
-    }
-}
-
-impl<F> OpGasCost for F
-where
-    F: Fn(&Op) -> Gas,
-{
-    fn op_gas_cost(&self, op: &Op) -> Gas {
-        (*self)(op)
     }
 }
 

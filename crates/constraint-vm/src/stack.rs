@@ -295,11 +295,14 @@ impl core::ops::Deref for Stack {
 
 #[cfg(test)]
 mod tests {
+    use essential_constraint_asm::Op;
+
     use crate::{
         asm::Stack,
         error::{ConstraintError, OpError, StackError},
         eval_ops, exec_ops,
         test_util::*,
+        Gas,
     };
 
     #[test]
@@ -312,7 +315,7 @@ mod tests {
             Stack::Push(3).into(), // Index `3` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[42, 2, 1, 0, 42]);
     }
 
@@ -326,14 +329,14 @@ mod tests {
             Stack::Push(0).into(), // Index `0` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[3, 2, 1, 42, 42]);
     }
 
     #[test]
     fn push1() {
         let ops = &[Stack::Push(42).into()];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -345,14 +348,14 @@ mod tests {
             Stack::Pop.into(),
             Stack::Push(3).into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[1, 3]);
     }
 
     #[test]
     fn pop_empty() {
         let ops = &[Stack::Pop.into()];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(0, OpError::Stack(StackError::Empty))) => (),
             _ => panic!("expected empty stack error"),
         }
@@ -361,7 +364,7 @@ mod tests {
     #[test]
     fn index_oob() {
         let ops = &[Stack::Push(0).into(), Stack::DupFrom.into()];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(1, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
@@ -377,7 +380,7 @@ mod tests {
             Stack::Push(2).into(), // Index `2` should be swapped with the `42` value.
             Stack::SwapIndex.into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[3, 42, 5, 4]);
     }
 
@@ -389,7 +392,7 @@ mod tests {
             Stack::Push(2).into(), // Index `2` is out of range.
             Stack::SwapIndex.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
@@ -403,7 +406,7 @@ mod tests {
             Stack::Push(1).into(),
             Stack::Select.into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[4]);
     }
 
@@ -420,7 +423,7 @@ mod tests {
             Stack::Push(1).into(), // cond
             Stack::SelectRange.into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[5, 5, 5]);
     }
 
@@ -437,7 +440,7 @@ mod tests {
             Stack::Push(0).into(), // cond
             Stack::SelectRange.into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[4, 4, 4]);
     }
 
@@ -450,7 +453,7 @@ mod tests {
             Stack::Push(42).into(), // cond
             Stack::SelectRange.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(4, OpError::Stack(StackError::InvalidCondition(42)))) => (),
             _ => panic!("expected invalid condition stack error"),
         }
@@ -465,7 +468,7 @@ mod tests {
             Stack::Push(0).into(), // cond
             Stack::SelectRange.into(),
         ];
-        let stack = exec_ops(ops, *test_access()).unwrap();
+        let stack = exec_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX).unwrap();
         assert_eq!(&stack[..], &[4, 5]);
     }
 
@@ -476,7 +479,7 @@ mod tests {
             Stack::Push(0).into(),   // cond
             Stack::SelectRange.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(2, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out of bounds stack error"),
         }
@@ -492,7 +495,7 @@ mod tests {
             Stack::Push(0).into(), // cond
             Stack::SelectRange.into(),
         ];
-        match eval_ops(ops, *test_access()) {
+        match eval_ops(ops, *test_access(), &|_: &Op| 1, Gas::MAX) {
             Err(ConstraintError::Op(5, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out of bounds stack error"),
         }

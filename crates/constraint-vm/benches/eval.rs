@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use asm::Op;
 use criterion::{criterion_group, criterion_main, Criterion};
 use essential_constraint_asm as asm;
-use essential_constraint_vm::{eval_bytecode_iter, Access, SolutionAccess, StateSlots};
+use essential_constraint_vm::{eval_bytecode_iter, Access, Gas, SolutionAccess, StateSlots};
 use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 pub fn bench(c: &mut Criterion) {
@@ -32,7 +32,7 @@ pub fn bench(c: &mut Criterion) {
         bytes.push(asm::Stack::Push(1).into());
         let bytes: Vec<_> = asm::to_bytes(bytes).collect();
         c.bench_function(&format!("push_pop_{}", i), |b| {
-            b.iter(|| eval_bytecode_iter(bytes.iter().copied(), access))
+            b.iter(|| eval_bytecode_iter(bytes.iter().copied(), access, &|_: &Op| 1, Gas::MAX))
         });
     }
 }
