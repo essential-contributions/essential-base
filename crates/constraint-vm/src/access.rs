@@ -286,9 +286,17 @@ pub(crate) fn pub_var(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<(
         .map_err(|_| MissingAccessArgError::PubVarValueIx)?;
     let range = range_from_start_len(value_ix, value_len).ok_or(AccessError::InvalidAccessRange)?;
 
+    let key_length = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::PubVarKeyLen)?;
+    let length = usize::try_from(key_length)
+        .map_err(|_| AccessError::KeyLengthOutOfBounds(key_length))?
+        .checked_add(1)
+        .ok_or(AccessError::KeyLengthOutOfBounds(key_length))?;
+
     // Pop the key and access the value.
     let value = stack
-        .pop_len_words_with_additional::<_, _, OpError>(1, |slice| {
+        .pop_words::<_, _, OpError>(length, |slice| {
             let (pathway_ix, key) = slice
                 .split_first()
                 .expect("Can't fail because must have at least 1 word");
@@ -309,9 +317,16 @@ pub(crate) fn pub_var(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<(
 }
 
 pub(crate) fn pub_var_len(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<()> {
+    let key_length = stack
+        .pop()
+        .map_err(|_| MissingAccessArgError::PubVarKeyLen)?;
+    let length = usize::try_from(key_length)
+        .map_err(|_| AccessError::KeyLengthOutOfBounds(key_length))?
+        .checked_add(1)
+        .ok_or(AccessError::KeyLengthOutOfBounds(key_length))?;
     // Pop the key and get the length of the value.
     let length = stack
-        .pop_len_words_with_additional::<_, _, OpError>(1, |slice| {
+        .pop_words::<_, _, OpError>(length, |slice| {
             let (pathway_ix, key) = slice
                 .split_first()
                 .expect("Can't fail because must have at least 1 word");
