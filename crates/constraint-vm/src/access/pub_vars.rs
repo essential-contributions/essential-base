@@ -101,12 +101,6 @@ fn assert_stack_has_set(expected: &[&[Word]]) -> impl Fn(OpResult<Vec<Word>>) {
     ; "key length too large"
 )]
 #[test_case(
-    &[3, 99, 2, 100, 100],
-    pub_vars![0; &[3, 99] => &[1, 2]] =>
-    using assert_err!(OpError::Access(AccessError::MissingArg(MissingAccessArgError::PubVarPathwayIx)))
-    ; "missing pathway_ix"
-)]
-#[test_case(
     &[Word::MAX, 3, 99, 2, 100, 100],
     pub_vars![0; &[3, 99] => &[1, 2]] =>
     using assert_err!(OpError::Access(AccessError::PathwayOutOfBounds(Word::MAX)))
@@ -180,12 +174,6 @@ fn test_pub_var(words: &[Word], pub_vars: PubVarRef) -> OpResult<Vec<Word>> {
     pub_vars![0; &[3, 99] => &[1, 2]] =>
     using assert_err!(OpError::Access(AccessError::MissingArg(MissingAccessArgError::PubVarKey)))
     ; "key length too large"
-)]
-#[test_case(
-    &[3, 99, 2],
-    pub_vars![0; &[3, 99] => &[1, 2]] =>
-    using assert_err!(OpError::Access(AccessError::MissingArg(MissingAccessArgError::PubVarPathwayIx)))
-    ; "missing pathway_ix"
 )]
 #[test_case(
     &[Word::MAX, 3, 99, 2],

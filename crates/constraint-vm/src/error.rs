@@ -253,6 +253,9 @@ pub enum LenWordsError {
     /// A `len words` function was called with an out-of-bounds length.
     #[error("length argument for `len words` operation out of bounds: {0}")]
     OutOfBounds(Word),
+    /// The additional length was too large for the `len words` function.
+    #[error("additional length too large for `len words` operation: {0} + {1}")]
+    AdditionalOutOfBounds(usize, usize),
 }
 
 /// Shorthand for a `Result` where the error type is a `RepeatError`.

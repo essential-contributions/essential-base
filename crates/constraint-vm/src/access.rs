@@ -286,67 +286,47 @@ pub(crate) fn pub_var(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<(
         .map_err(|_| MissingAccessArgError::PubVarValueIx)?;
     let range = range_from_start_len(value_ix, value_len).ok_or(AccessError::InvalidAccessRange)?;
 
-    // Get the pathway_ix.
-    // Note this does not pop the pathway_ix from the stack.
-    let pathway_ix = stack
-        .skip_len_words()
-        .map_err(map_pub_var_len_words_err)?
-        .last()
-        .copied()
-        .ok_or(MissingAccessArgError::PubVarPathwayIx)?;
-
-    let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
-        .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
-
     // Pop the key and access the value.
-    let value = stack.pop_len_words::<_, _, OpError>(|key| {
-        let value = pub_vars
-            .get(&pathway_ix)
-            .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
-            .get(key)
-            .ok_or(AccessError::PubVarKeyOutOfBounds)?
-            .get(range)
-            .ok_or(AccessError::PubVarDataOutOfBounds)?;
-        Ok(value.to_vec())
-    })?;
-
-    // Pop pathway.
-    stack
-        .pop()
-        .expect("Can't fail because pathway_ix was found above");
+    let value = stack
+        .pop_len_words_with_additional::<_, _, OpError>(1, |slice| {
+            let (pathway_ix, key) = slice
+                .split_first()
+                .expect("Can't fail because must have at least 1 word");
+            let pathway_ix = SolutionDataIndex::try_from(*pathway_ix)
+                .map_err(|_| AccessError::PathwayOutOfBounds(*pathway_ix))?;
+            let value = pub_vars
+                .get(&pathway_ix)
+                .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
+                .get(key)
+                .ok_or(AccessError::PubVarKeyOutOfBounds)?
+                .get(range)
+                .ok_or(AccessError::PubVarDataOutOfBounds)?;
+            Ok(value.to_vec())
+        })
+        .map_err(map_key_len_err)?;
 
     Ok(stack.extend(value)?)
 }
 
 pub(crate) fn pub_var_len(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<()> {
-    // Get the pathway_ix.
-    // Note this does not pop the pathway_ix from the stack.
-    let pathway_ix = stack
-        .skip_len_words()
-        .map_err(map_pub_var_len_words_err)?
-        .last()
-        .copied()
-        .ok_or(MissingAccessArgError::PubVarPathwayIx)?;
-
-    let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
-        .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
-
     // Pop the key and get the length of the value.
-    let length = stack.pop_len_words::<_, _, OpError>(|key| {
-        let value = pub_vars
-            .get(&pathway_ix)
-            .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
-            .get(key)
-            .ok_or(AccessError::PubVarKeyOutOfBounds)?;
-        Ok(value.len())
-    })?;
+    let length = stack
+        .pop_len_words_with_additional::<_, _, OpError>(1, |slice| {
+            let (pathway_ix, key) = slice
+                .split_first()
+                .expect("Can't fail because must have at least 1 word");
+            let pathway_ix = SolutionDataIndex::try_from(*pathway_ix)
+                .map_err(|_| AccessError::PathwayOutOfBounds(*pathway_ix))?;
+            let value = pub_vars
+                .get(&pathway_ix)
+                .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
+                .get(key)
+                .ok_or(AccessError::PubVarKeyOutOfBounds)?;
+            Ok(value.len())
+        })
+        .map_err(map_key_len_err)?;
 
     let length = Word::try_from(length).map_err(|_| AccessError::PubVarDataOutOfBounds)?;
-
-    // Pop pathway.
-    stack
-        .pop()
-        .expect("Can't fail because pathway_ix was found above");
 
     stack
         .push(length)
@@ -370,13 +350,15 @@ pub(crate) fn predicate_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult
     Ok(())
 }
 
-fn map_pub_var_len_words_err(e: LenWordsError) -> AccessError {
+fn map_key_len_err(e: OpError) -> OpError {
     match e {
-        LenWordsError::MissingLength => {
-            AccessError::MissingArg(MissingAccessArgError::PubVarKeyLen)
-        }
-        LenWordsError::InvalidLength(l) => AccessError::KeyLengthOutOfBounds(l),
-        LenWordsError::OutOfBounds(_) => AccessError::MissingArg(MissingAccessArgError::PubVarKey),
+        OpError::Stack(StackError::LenWords(e)) => match e {
+            LenWordsError::OutOfBounds(_) => MissingAccessArgError::PubVarKey.into(),
+            LenWordsError::MissingLength => MissingAccessArgError::PubVarKeyLen.into(),
+            LenWordsError::InvalidLength(l) => AccessError::KeyLengthOutOfBounds(l).into(),
+            e => StackError::LenWords(e).into(),
+        },
+        e => e,
     }
 }
 
