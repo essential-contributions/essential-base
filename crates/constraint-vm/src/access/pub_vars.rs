@@ -13,6 +13,14 @@ use crate::{
 
 use super::*;
 
+/// Helper macro to create pub vars or [`TransientData`] for testing.
+///
+/// Usage:
+/// `pub_vars![pathway; key => value; key => value]
+/// ```no_run
+/// /// Pathway 0, key [3, 9], value [1, 2]
+/// pub_vars![0; &[3, 99] => &[1, 2]]
+/// ```
 macro_rules! pub_vars {
     ($($s:expr; $($k:expr => $v:expr),*);* $(;)?) => {
         &[
@@ -24,6 +32,7 @@ macro_rules! pub_vars {
 
 type PubVarRef<'a> = &'a [(SolutionDataIndex, &'a [(&'a [Word], &'a [Word])])];
 
+/// Helper function to assert that the stack contains the expected set of items.
 fn assert_stack_has_set(expected: &[&[Word]]) -> impl Fn(OpResult<Vec<Word>>) {
     let expected = expected
         .iter()
