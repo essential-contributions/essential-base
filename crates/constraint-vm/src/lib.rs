@@ -67,6 +67,7 @@ mod memory;
 mod op_access;
 mod pred;
 mod repeat;
+mod sets;
 mod stack;
 mod total_control_flow;
 
@@ -244,30 +245,25 @@ pub fn step_op_access(
     repeat: &mut Repeat,
 ) -> OpResult<()> {
     match op {
-        asm::Access::DecisionVar => access::decision_var(access.solution, stack),
-        asm::Access::DecisionVarAt => access::decision_var_at(access.solution, stack),
-        asm::Access::DecisionVarRange => access::decision_var_range(access.solution, stack),
-        asm::Access::DecisionVarLen => access::decision_var_len(access.solution, stack),
+        asm::Access::DecisionVar => {
+            access::decision_var(&access.solution.this_data().decision_variables, stack)
+        }
+        asm::Access::DecisionVarLen => {
+            access::decision_var_len(&access.solution.this_data().decision_variables, stack)
+        }
         asm::Access::MutKeys => access::push_mut_keys(access.solution, stack),
+        asm::Access::PubVarKeys => access::push_pub_var_keys(access.solution.transient_data, stack),
         asm::Access::State => access::state(access.state_slots, stack),
-        asm::Access::StateRange => access::state_range(access.state_slots, stack),
         asm::Access::StateLen => access::state_len(access.state_slots, stack),
-        asm::Access::StateLenRange => access::state_len_range(access.state_slots, stack),
         asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
         asm::Access::ThisContractAddress => {
             access::this_contract_address(access.solution.this_data(), stack)
         }
         asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
-        asm::Access::Transient => access::transient(stack, access.solution),
-        asm::Access::TransientLen => access::transient_len(stack, access.solution),
+        asm::Access::PubVar => access::pub_var(stack, access.solution.transient_data),
+        asm::Access::PubVarLen => access::pub_var_len(stack, access.solution.transient_data),
         asm::Access::PredicateAt => access::predicate_at(stack, access.solution.data),
-        asm::Access::ThisTransientLen => {
-            access::this_transient_len(stack, access.solution.this_transient_data())
-        }
-        asm::Access::ThisTransientContains => {
-            access::this_transient_contains(stack, access.solution.this_transient_data())
-        }
     }
 }
 

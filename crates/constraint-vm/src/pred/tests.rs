@@ -1,3 +1,5 @@
+use crate::error::DecodeError;
+
 use super::*;
 
 #[test]
@@ -26,21 +28,6 @@ fn test_eq_empty_range() {
     stack.push(0).unwrap();
     eq_range(&mut stack).unwrap();
     assert_eq!(stack.pop().unwrap(), 1);
-}
-
-#[test]
-fn test_decode_set() {
-    let set = [0, 1, 2, 3, 3, 4, 5, 3, 6, 1];
-    let expect: [&[Word]; 3] = [&[0, 1, 2], &[3, 4, 5], &[6]];
-    let lhs = unflatten_keys(&set)
-        .collect::<Result<HashSet<_>, _>>()
-        .unwrap();
-    let rhs = expect.into_iter().collect();
-    assert_eq!(lhs, rhs);
-
-    let set = [0, 1, 2, 4, 3, 4, 5, 3, 6, 1];
-    let res = unflatten_keys(&set).collect::<Result<Vec<_>, _>>();
-    assert!(matches!(res.unwrap_err(), OpError::Decode(DecodeError::Set(s)) if s == set));
 }
 
 #[test]

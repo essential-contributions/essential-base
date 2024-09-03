@@ -1,6 +1,10 @@
 //! Stack operation and related stack manipulation implementations.
 
-use crate::{asm::Word, error::StackError, StackResult};
+use crate::{
+    asm::Word,
+    error::{LenWordsError, StackError},
+    StackResult,
+};
 use essential_types::convert::bool_from_word;
 
 /// The VM's `Stack`, i.e. a `Vec` of `Word`s updated during each step of execution.
@@ -232,7 +236,20 @@ impl Stack {
         F: FnOnce(&[Word]) -> Result<O, E>,
         E: From<StackError>,
     {
-        let (rest, slice) = slice_split_len_words(self).ok_or(StackError::IndexOutOfBounds)?;
+        let (rest, slice) = slice_split_len_words(self).map_err(StackError::LenWords)?;
+        let out = f(slice)?;
+        self.0.truncate(rest.len());
+        Ok(out)
+    }
+
+    /// Provide the number of words from the top of the stack to the given function.
+    /// Then pop those words off the stack.
+    pub fn pop_words<F, O, E>(&mut self, num_words: usize, f: F) -> Result<O, E>
+    where
+        F: FnOnce(&[Word]) -> Result<O, E>,
+        E: From<StackError>,
+    {
+        let (rest, slice) = slice_split_len(self, num_words).map_err(StackError::LenWords)?;
         let out = f(slice)?;
         self.0.truncate(rest.len());
         Ok(out)
@@ -246,8 +263,8 @@ impl Stack {
         F: FnOnce(&[Word], &[Word]) -> Result<O, E>,
         E: From<StackError>,
     {
-        let (rest, rhs) = slice_split_len_words(self).ok_or(StackError::IndexOutOfBounds)?;
-        let (rest, lhs) = slice_split_len_words(rest).ok_or(StackError::IndexOutOfBounds)?;
+        let (rest, rhs) = slice_split_len_words(self).map_err(StackError::LenWords)?;
+        let (rest, lhs) = slice_split_len_words(rest).map_err(StackError::LenWords)?;
         let out = f(lhs, rhs)?;
         self.0.truncate(rest.len());
         Ok(out)
@@ -267,11 +284,18 @@ impl Stack {
 ///
 /// Returns `None` if the slice is empty, or the length is greater than the rest
 /// of the slice.
-fn slice_split_len_words(slice: &[Word]) -> Option<(&[Word], &[Word])> {
-    let (len, rest) = slice.split_last()?;
-    let len = usize::try_from(*len).ok()?;
-    let ix = rest.len().checked_sub(len)?;
-    Some(rest.split_at(ix))
+fn slice_split_len_words(slice: &[Word]) -> Result<(&[Word], &[Word]), LenWordsError> {
+    let (len, rest) = slice.split_last().ok_or(LenWordsError::MissingLength)?;
+    let len = usize::try_from(*len).map_err(|_| LenWordsError::InvalidLength(*len))?;
+    slice_split_len(rest, len)
+}
+
+fn slice_split_len(slice: &[Word], len: usize) -> Result<(&[Word], &[Word]), LenWordsError> {
+    let ix = slice
+        .len()
+        .checked_sub(len)
+        .ok_or(LenWordsError::OutOfBounds(len as Word))?;
+    Ok(slice.split_at(ix))
 }
 
 impl From<Stack> for Vec<Word> {

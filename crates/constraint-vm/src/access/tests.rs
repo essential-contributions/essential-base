@@ -3,6 +3,7 @@ use crate::{
     asm,
     error::{AccessError, ConstraintError, OpError},
     eval_ops, exec_ops,
+    sets::decode_set,
     test_util::*,
 };
 use essential_types::{
@@ -12,19 +13,7 @@ use essential_types::{
 
 macro_rules! check_dec_var {
     ($d:expr, $s:expr, $f:ident) => {{
-        let d = [SolutionData {
-            predicate_to_solve: TEST_PREDICATE_ADDR,
-            decision_variables: $d,
-            state_mutations: Default::default(),
-            transient_data: Default::default(),
-        }];
-        let access = SolutionAccess {
-            data: &d,
-            index: 0,
-            mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
-        };
-        $f(access, $s)
+        $f(&$d, $s)
     }};
 }
 
@@ -44,13 +33,15 @@ fn test_decision_var() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
-        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+        OpError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
     );
 
     // Slot index in-bounds but value is empty
     let d = vec![vec![]];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    stack.push(1).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
         OpError::Access(AccessError::DecisionIndexOutOfBounds)
@@ -60,6 +51,8 @@ fn test_decision_var() {
     let d = vec![vec![42]];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    stack.push(1).unwrap();
     check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(stack.pop().unwrap(), 42);
 
@@ -67,6 +60,8 @@ fn test_decision_var() {
     let d = vec![(0..10).collect()];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    stack.push(1).unwrap();
     check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(stack.pop().unwrap(), 0);
 
@@ -74,44 +69,57 @@ fn test_decision_var() {
     let d = vec![(0..10).collect(), (10..20).collect()];
     let mut stack = Stack::default();
     stack.push(1).unwrap();
+    stack.push(0).unwrap();
+    stack.push(1).unwrap();
     check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(stack.pop().unwrap(), 10);
 }
 
 #[test]
 fn test_decision_var_at() {
-    let d = vec![vec![42]];
+    let d = vec![vec![42], vec![9, 20]];
 
     // Empty stack.
     let mut stack = Stack::default();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
         OpError::Stack(StackError::Empty)
     );
 
-    // Missing var index
+    // Missing value index
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
+        OpError::Stack(StackError::Empty)
+    );
+
+    // Missing length
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    matches!(
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
         OpError::Stack(StackError::Empty)
     );
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
-    stack.push(1).unwrap();
+    stack.push(2).unwrap();
     stack.push(0).unwrap();
+    stack.push(1).unwrap();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
-        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
+        OpError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
     );
 
     // Index out-of-bounds.
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
+    stack.push(1).unwrap();
     matches!(
-        check_dec_var!(d, &mut stack, decision_var_at).unwrap_err(),
+        check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
         OpError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
@@ -120,17 +128,28 @@ fn test_decision_var_at() {
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
+    stack.push(1).unwrap();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap_err(),
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
         OpError::Access(AccessError::DecisionIndexOutOfBounds)
     );
+
+    // Slot index in-bounds, value is empty and length is 0
+    let d = vec![vec![]];
+    let mut stack = Stack::default();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    stack.push(0).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    assert!(stack.is_empty());
 
     // Slot index in-bounds and value is not empty
     let d = vec![vec![42]];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap();
+    stack.push(1).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(stack.pop().unwrap(), 42);
 
     // Get's word,
@@ -138,7 +157,8 @@ fn test_decision_var_at() {
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(5).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap();
+    stack.push(1).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(stack.pop().unwrap(), 5);
 
     // Get's word with multiple slots,
@@ -146,46 +166,30 @@ fn test_decision_var_at() {
     let mut stack = Stack::default();
     stack.push(1).unwrap();
     stack.push(5).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_at).unwrap();
+    stack.push(1).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(stack.pop().unwrap(), 15);
 }
 
 #[test]
 fn test_decision_var_range() {
-    let d = vec![vec![42, 43]];
+    let d = vec![vec![42, 43], vec![44, 45, 46]];
 
     // Empty stack.
     let mut stack = Stack::default();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
-        OpError::Stack(StackError::Empty)
-    );
-
-    // Missing var index
-    let mut stack = Stack::default();
-    stack.push(0).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
-        OpError::Stack(StackError::Empty)
-    );
-
-    // Missing len
-    let mut stack = Stack::default();
-    stack.push(0).unwrap();
-    stack.push(0).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
         OpError::Stack(StackError::Empty)
     );
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
-    stack.push(1).unwrap();
+    stack.push(2).unwrap();
     stack.push(0).unwrap();
-    stack.push(1).unwrap();
+    stack.push(0).unwrap();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
-        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
+        OpError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
     );
 
     // Index out-of-bounds.
@@ -194,7 +198,7 @@ fn test_decision_var_range() {
     stack.push(2).unwrap();
     stack.push(1).unwrap();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
         OpError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
@@ -204,7 +208,7 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     stack.push(3).unwrap();
     matches!(
-        check_dec_var!(d, &mut stack, decision_var_range).unwrap_err(),
+        check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
         OpError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
@@ -215,7 +219,7 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     stack.push(1).unwrap();
     matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap_err(),
+        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
         OpError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
@@ -225,7 +229,7 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(2).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(stack.pop().unwrap(), 43);
     assert_eq!(stack.pop().unwrap(), 42);
 
@@ -235,7 +239,7 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     stack.push(5).unwrap();
     stack.push(3).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(*stack, vec![5, 6, 7]);
 
     // Get's word with multiple slots,
@@ -244,7 +248,7 @@ fn test_decision_var_range() {
     stack.push(1).unwrap();
     stack.push(5).unwrap();
     stack.push(3).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_range).unwrap();
+    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
     assert_eq!(*stack, vec![15, 16, 17]);
 }
 
@@ -264,7 +268,7 @@ fn test_decision_var_len() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap_err(),
-        OpError::Access(AccessError::DecisionSlotOutOfBounds)
+        OpError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
     );
 
     // Slot index in-bounds but value is empty
@@ -290,7 +294,7 @@ fn test_decision_var_len() {
 }
 
 #[test]
-fn decision_var_ops() {
+fn decision_var_single_word_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
@@ -307,6 +311,8 @@ fn decision_var_ops() {
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
+        asm::Stack::Push(0).into(), // Value index.
+        asm::Stack::Push(1).into(), // Length.
         asm::Access::DecisionVar.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
@@ -314,7 +320,7 @@ fn decision_var_ops() {
 }
 
 #[test]
-fn decision_var_range_ops() {
+fn decision_var_ops() {
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
@@ -333,7 +339,7 @@ fn decision_var_range_ops() {
         asm::Stack::Push(0).into(), // Slot.
         asm::Stack::Push(0).into(), // Index.
         asm::Stack::Push(3).into(), // Range length.
-        asm::Access::DecisionVarRange.into(),
+        asm::Access::DecisionVar.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     assert_eq!(&stack[..], &[7, 8, 9]);
@@ -357,11 +363,14 @@ fn decision_var_slot_oob_ops() {
     };
     let ops = &[
         asm::Stack::Push(1).into(), // Slot index.
+        asm::Stack::Push(0).into(),
+        asm::Stack::Push(1).into(),
         asm::Access::DecisionVar.into(),
     ];
     let res = exec_ops(ops, access);
     match res {
-        Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotOutOfBounds))) => {}
+        Err(ConstraintError::Op(_, OpError::Access(AccessError::DecisionSlotIxOutOfBounds(_)))) => {
+        }
         _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
     }
 }
@@ -453,7 +462,7 @@ fn mut_keys_push_eq() {
 }
 
 #[test]
-fn state_pre_mutation() {
+fn state_single_word_pre_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
@@ -463,6 +472,8 @@ fn state_pre_mutation() {
     };
     let ops = &[
         asm::Stack::Push(1).into(), // Slot index.
+        asm::Stack::Push(0).into(), // Value index.
+        asm::Stack::Push(1).into(), // Length.
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
         asm::Access::State.into(),
     ];
@@ -471,7 +482,7 @@ fn state_pre_mutation() {
 }
 
 #[test]
-fn state_post_mutation() {
+fn state_single_word_post_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
@@ -481,6 +492,8 @@ fn state_post_mutation() {
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
+        asm::Stack::Push(0).into(), // Value index.
+        asm::Stack::Push(1).into(), // Length.
         asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
         asm::Access::State.into(),
     ];
@@ -499,12 +512,14 @@ fn state_pre_mutation_oob() {
     };
     let ops = &[
         asm::Stack::Push(2).into(), // Slot index (out-of-bounds).
+        asm::Stack::Push(0).into(), // Value index.
+        asm::Stack::Push(1).into(), // Length.
         asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
         asm::Access::State.into(),
     ];
     let res = exec_ops(ops, access);
     match res {
-        Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotOutOfBounds))) => (),
+        Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotIxOutOfBounds(2)))) => (),
         _ => panic!("expected state slot out-of-bounds error, got {res:?}"),
     }
 }
@@ -520,6 +535,8 @@ fn invalid_state_slot_delta() {
     };
     let ops = &[
         asm::Stack::Push(1).into(), // Slot index.
+        asm::Stack::Push(0).into(), // Value index.
+        asm::Stack::Push(1).into(), // Length.
         asm::Stack::Push(2).into(), // Delta (invalid).
         asm::Access::State.into(),
     ];
@@ -541,6 +558,8 @@ fn state_slot_was_none() {
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
+        asm::Stack::Push(0).into(), // Value index.
+        asm::Stack::Push(0).into(), // Length.
         asm::Stack::Push(0).into(), // Delta.
         asm::Access::State.into(),
     ];
@@ -549,7 +568,7 @@ fn state_slot_was_none() {
 }
 
 #[test]
-fn state_range_pre_mutation() {
+fn state_pre_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
@@ -558,17 +577,22 @@ fn state_range_pre_mutation() {
         },
     };
     let ops = &[
-        asm::Stack::Push(0).into(), // Slot index.
-        asm::Stack::Push(3).into(), // Range length.
-        asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-        asm::Access::StateRange.into(),
+        asm::Stack::Push(3).into(), // Num repeats
+        asm::Stack::Push(1).into(), // Count up
+        asm::Stack::Repeat.into(),
+        asm::Access::RepeatCounter.into(), // Slot index.
+        asm::Stack::Push(0).into(),        // Value index.
+        asm::Stack::Push(1).into(),        // Range length.
+        asm::Stack::Push(0).into(),        // Delta (0 for pre-mutation state).
+        asm::Access::State.into(),
+        asm::Stack::RepeatEnd.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     assert_eq!(&stack[..], &[10, 20, 30]);
 }
 
 #[test]
-fn state_range_post_mutation() {
+fn state_post_mutation() {
     let access = Access {
         solution: *test_solution_access(),
         state_slots: StateSlots {
@@ -577,10 +601,17 @@ fn state_range_post_mutation() {
         },
     };
     let ops = &[
-        asm::Stack::Push(1).into(), // Slot index.
-        asm::Stack::Push(2).into(), // Range length.
-        asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-        asm::Access::StateRange.into(),
+        asm::Stack::Push(2).into(), // Num repeats
+        asm::Stack::Push(1).into(), // Count up
+        asm::Stack::Repeat.into(),
+        asm::Access::RepeatCounter.into(), // Slot index.
+        asm::Stack::Push(1).into(),        // Slot index.
+        asm::Alu::Add.into(),              // Slot index.
+        asm::Stack::Push(0).into(),        // Value index.
+        asm::Stack::Push(1).into(),        // Range length.
+        asm::Stack::Push(1).into(),        // Delta (1 for post-mutation state).
+        asm::Access::State.into(),
+        asm::Stack::RepeatEnd.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     assert_eq!(&stack[..], &[40, 50]);
@@ -638,10 +669,13 @@ fn state_is_some_range_pre_mutation() {
         },
     };
     let ops = &[
-        asm::Stack::Push(0).into(), // Slot index.
-        asm::Stack::Push(3).into(), // Range length.
-        asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-        asm::Access::StateLenRange.into(),
+        asm::Stack::Push(3).into(), // Num repeats
+        asm::Stack::Push(1).into(), // Count up
+        asm::Stack::Repeat.into(),
+        asm::Access::RepeatCounter.into(), // Slot index.
+        asm::Stack::Push(0).into(),        // Delta (0 for pre-mutation state).
+        asm::Access::StateLen.into(),
+        asm::Stack::RepeatEnd.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     // Expect true, false, true for `vec![10], vec![], vec![30]`.
@@ -658,10 +692,13 @@ fn state_is_some_range_post_mutation() {
         },
     };
     let ops = &[
-        asm::Stack::Push(0).into(), // Slot index.
-        asm::Stack::Push(3).into(), // Range length.
-        asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-        asm::Access::StateLenRange.into(),
+        asm::Stack::Push(3).into(), // Num repeats
+        asm::Stack::Push(1).into(), // Count up
+        asm::Stack::Repeat.into(),
+        asm::Access::RepeatCounter.into(), // Slot index.
+        asm::Stack::Push(1).into(),        // Delta (1 for post-mutation state).
+        asm::Access::StateLen.into(),
+        asm::Stack::RepeatEnd.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     // Expect false, true, false for `vec![], vec![40], vec![]`.
@@ -699,10 +736,12 @@ fn transient() {
         state_slots: StateSlots::EMPTY,
     };
     let ops = &[
-        asm::Stack::Push(3).into(),
-        asm::Stack::Push(1).into(),
-        asm::Stack::Push(0).into(),
-        asm::Access::Transient.into(),
+        asm::Stack::Push(0).into(), // Pathway index.
+        asm::Stack::Push(3).into(), // Key.
+        asm::Stack::Push(1).into(), // Key length.
+        asm::Stack::Push(0).into(), // Value index.
+        asm::Stack::Push(1).into(), // Value length.
+        asm::Access::PubVar.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     assert_eq!(&stack[..], &[2]);
@@ -723,10 +762,10 @@ fn transient_len() {
         state_slots: StateSlots::EMPTY,
     };
     let ops = &[
+        asm::Stack::Push(0).into(),
         asm::Stack::Push(3).into(),
         asm::Stack::Push(1).into(),
-        asm::Stack::Push(0).into(),
-        asm::Access::TransientLen.into(),
+        asm::Access::PubVarLen.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     assert_eq!(&stack[..], &[1]);
@@ -762,55 +801,31 @@ fn predicate_at() {
 }
 
 #[test]
-fn this_transient_len() {
-    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
-        .into_iter()
-        .collect();
-    let data = [SolutionData {
-        predicate_to_solve: TEST_PREDICATE_ADDR,
-        decision_variables: vec![],
-        state_mutations: vec![],
-        transient_data: vec![],
-    }];
+fn pub_var_keys_eq() {
+    let transient_data = [(
+        0,
+        [(vec![3, 7], vec![2]), (vec![100, -46], vec![])]
+            .into_iter()
+            .collect(),
+    )]
+    .into_iter()
+    .collect();
     let access = Access {
         solution: SolutionAccess {
-            data: &data,
+            data: test_solution_data_arr(),
             index: 0,
             mutable_keys: test_empty_keys(),
             transient_data: &transient_data,
         },
         state_slots: StateSlots::EMPTY,
     };
-    let ops = &[asm::Access::ThisTransientLen.into()];
+    let ops = &[asm::Stack::Push(0).into(), asm::Access::PubVarKeys.into()];
     let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[1]);
-}
-
-#[test]
-fn this_transient_contains() {
-    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
-        .into_iter()
+    assert_eq!(stack.len(), 7);
+    let got: HashSet<_> = decode_set(&stack[..6])
+        .map(Result::unwrap)
+        .map(Vec::from)
         .collect();
-    let data = [SolutionData {
-        predicate_to_solve: TEST_PREDICATE_ADDR,
-        decision_variables: vec![],
-        state_mutations: vec![],
-        transient_data: vec![],
-    }];
-    let access = Access {
-        solution: SolutionAccess {
-            data: &data,
-            index: 0,
-            mutable_keys: test_empty_keys(),
-            transient_data: &transient_data,
-        },
-        state_slots: StateSlots::EMPTY,
-    };
-    let ops = &[
-        asm::Stack::Push(3).into(),
-        asm::Stack::Push(1).into(),
-        asm::Access::ThisTransientContains.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[1]);
+    let expected: HashSet<_> = transient_data[&0].keys().cloned().collect();
+    assert_eq!(got, expected);
 }

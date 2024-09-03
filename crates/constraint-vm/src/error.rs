@@ -84,38 +84,106 @@ pub enum OpError {
     /// An error occurred while decoding some data.
     #[error("decoding error: {0}")]
     Decode(#[from] DecodeError),
+    /// An error occurred while encoding some data.
+    #[error("encoding error: {0}")]
+    Encode(#[from] EncodeError),
 }
 
 /// Access operation error.
 #[derive(Debug, Error)]
 pub enum AccessError {
     /// A decision variable slot was out of bounds.
-    #[error("decision variable slot out of bounds")]
-    DecisionSlotOutOfBounds,
+    #[error("decision variable slot out of bounds: {0}")]
+    DecisionSlotIxOutOfBounds(Word),
     /// A decision variable slot index was out of bounds.
     #[error("decision variable slot index out of bounds")]
     DecisionIndexOutOfBounds,
     /// A decision variable length was too large.
     #[error("the length of a decision variable slot is too large: {0}")]
     DecisionLengthTooLarge(usize),
+    /// A decision var index was out of bounds.
+    #[error("decision var value_ix out of bounds: {0}..{1}")]
+    DecisionValueRangeOutOfBounds(Word, Word),
     /// A solution data index provided by a transient decision variable was out of bounds.
     #[error("solution data index out of bounds")]
     SolutionDataOutOfBounds,
-    /// A transient data index was out of bounds.
-    #[error("transient data index out of bounds")]
-    TransientDataOutOfBounds,
-    /// A transient data key was out of bounds.
-    #[error("transient data key out of bounds")]
-    TransientDataKeyOutOfBounds,
+    /// Pub var data range was out of bounds.
+    #[error("pub var data range was out of bounds")]
+    PubVarDataOutOfBounds,
+    /// Pub var key was out of bounds.
+    #[error("pub var key out of bounds")]
+    PubVarKeyOutOfBounds,
     /// A state slot index was out of bounds.
-    #[error("state slot out of bounds")]
-    StateSlotOutOfBounds,
+    #[error("state slot_ix out of bounds: {0}")]
+    StateSlotIxOutOfBounds(Word),
+    /// A state slot index was out of bounds.
+    #[error("state value_ix out of bounds: {0}..{1}")]
+    StateValueRangeOutOfBounds(Word, Word),
     /// A state slot delta value was invalid. Must be `0` (pre) or `1` (post).
     #[error("invalid state slot delta: expected `0` or `1`, found {0}")]
     InvalidStateSlotDelta(Word),
     /// The total length of the set of state mutations was too large.
     #[error("the total length of the set of state mutations was too large: {0}")]
     StateMutationsLengthTooLarge(usize),
+    /// The state slot value was too large.
+    #[error("the state slot value was too large: {0}")]
+    StateValueTooLarge(usize),
+    /// The pathway index was out of bounds.
+    #[error("pathway index out of bounds: {0}")]
+    PathwayOutOfBounds(Word),
+    /// Key length was out of bounds.
+    #[error("key length out of bounds: {0}")]
+    KeyLengthOutOfBounds(Word),
+    /// The access range was invalid
+    #[error("invalid access range")]
+    InvalidAccessRange,
+    /// Missing argument error.
+    #[error("missing `Access` argument: {0}")]
+    MissingArg(#[from] MissingAccessArgError),
+}
+
+/// Missing argument error.
+#[derive(Debug, Error)]
+pub enum MissingAccessArgError {
+    /// Missing `pathway_ix`` argument for `PubVar` operation.
+    #[error("missing `pathway_ix` argument for `PubVar` operation")]
+    PubVarPathwayIx,
+    /// Missing `key` argument for `PubVar` operation.
+    #[error("missing `key` argument for `PubVar` operation")]
+    PubVarKey,
+    /// Missing `key_len` argument for `PubVar` operation.
+    #[error("missing `key_len` argument for `PubVar` operation")]
+    PubVarKeyLen,
+    /// Missing `value_ix` argument for `PubVar` operation.
+    #[error("missing `value_ix` argument for `PubVar` operation")]
+    PubVarValueIx,
+    /// Missing `value_len` argument for `PubVar` operation.
+    #[error("missing `value_len` argument for `PubVar` operation")]
+    PubVarValueLen,
+    /// Missing `delta` argument for `State` operation.
+    #[error("missing `delta` argument for `State` operation")]
+    StateDelta,
+    /// Missing `len` argument for `State` operation.
+    #[error("missing `len` argument for `State` operation")]
+    StateLen,
+    /// Missing `value_ix` argument for `State` operation.
+    #[error("missing `value_ix` argument for `State` operation")]
+    StateValueIx,
+    /// Missing `slot_ix` argument for `State` operation.
+    #[error("missing `slot_ix` argument for `State` operation")]
+    StateSlotIx,
+    /// Missing `len` argument for `DecisionVar` operation.
+    #[error("missing `len` argument for `DecisionVar` operation")]
+    DecVarLen,
+    /// Missing `value_ix` argument for `DecisionVar` operation.
+    #[error("missing `value_ix` argument for `DecisionVar` operation")]
+    DecVarValueIx,
+    /// Missing `slot_ix` argument for `DecisionVar` operation.
+    #[error("missing `slot_ix` argument for `DecisionVar` operation")]
+    DecVarSlotIx,
+    /// Missing `pathway_ix` argument for `PushPubVarKeys` operation.
+    #[error("missing `pathway_ix` argument for `PushPubVarKeys` operation")]
+    PushPubVarKeysPathwayIx,
 }
 
 /// ALU operation error.
@@ -168,6 +236,26 @@ pub enum StackError {
         found:    {0}"
     )]
     InvalidCondition(Word),
+    /// There was an error while calling a `len words` function.
+    #[error(transparent)]
+    LenWords(#[from] LenWordsError),
+}
+
+/// A `len words` error.
+#[derive(Debug, Error)]
+pub enum LenWordsError {
+    /// A `len words` function was called with a missing length.
+    #[error("missing length argument for `len words` operation")]
+    MissingLength,
+    /// A `len words` function was called with an invalid length.
+    #[error("invalid length argument for `len words` operation: {0}")]
+    InvalidLength(Word),
+    /// A `len words` function was called with an out-of-bounds length.
+    #[error("length argument for `len words` operation out of bounds: {0}")]
+    OutOfBounds(Word),
+    /// The additional length was too large for the `len words` function.
+    #[error("additional length too large for `len words` operation: {0} + {1}")]
+    AdditionalOutOfBounds(usize, usize),
 }
 
 /// Shorthand for a `Result` where the error type is a `RepeatError`.
@@ -230,6 +318,17 @@ pub enum DecodeError {
     /// Decoding a set failed.
     #[error("failed to decode set: {0:?}")]
     Set(Vec<Word>),
+    /// Decoding item failed because it was too large.
+    #[error("item length too large: {0}")]
+    ItemLengthTooLarge(usize),
+}
+
+/// Encode error.
+#[derive(Debug, Error)]
+pub enum EncodeError {
+    /// Encoding item failed because it was too large.
+    #[error("item length too large: {0}")]
+    ItemLengthTooLarge(usize),
 }
 
 impl fmt::Display for ConstraintErrors {
@@ -255,5 +354,10 @@ impl fmt::Display for ConstraintsUnsatisfied {
 impl From<core::convert::Infallible> for OpError {
     fn from(err: core::convert::Infallible) -> Self {
         match err {}
+    }
+}
+impl From<MissingAccessArgError> for OpError {
+    fn from(err: MissingAccessArgError) -> Self {
+        AccessError::MissingArg(err).into()
     }
 }

@@ -20,49 +20,23 @@ async fn test_encoding_sig_and_pub_key() {
         constraints: vec![constraint_vm::asm::to_bytes([
             // Get the secp256k1 public key. It is 5 slots.
             constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(1).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(2).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(3).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(4).into(),
+            constraint_vm::asm::Stack::Push(0).into(),
+            constraint_vm::asm::Stack::Push(5).into(),
             constraint_vm::asm::Access::DecisionVar.into(),
             // Hash the key.
             constraint_vm::asm::Stack::Push(5).into(),
             constraint_vm::asm::Crypto::Sha256.into(),
-            // Get the secp256k1 signature. It is 8 slots.
-            constraint_vm::asm::Stack::Push(5).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(6).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(7).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(8).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
+            // Get the secp256k1 signature. It is 9 slots.
+            constraint_vm::asm::Stack::Push(1).into(),
+            constraint_vm::asm::Stack::Push(0).into(),
             constraint_vm::asm::Stack::Push(9).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(10).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(11).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(12).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(13).into(),
             constraint_vm::asm::Access::DecisionVar.into(),
             // Recover the public key.
             constraint_vm::asm::Crypto::RecoverSecp256k1.into(),
             // Get the secp256k1 public key. It is 5 slots.
             constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(1).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(2).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(3).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(4).into(),
+            constraint_vm::asm::Stack::Push(0).into(),
+            constraint_vm::asm::Stack::Push(5).into(),
             constraint_vm::asm::Access::DecisionVar.into(),
             // Compare the two public keys.
             constraint_vm::asm::Stack::Push(5).into(),
@@ -90,9 +64,7 @@ async fn test_encoding_sig_and_pub_key() {
     let sig = secp.sign_ecdsa_recoverable(&secp256k1::Message::from_digest(hash), &sk);
     let encoded_sig = essential_sign::encode::signature(&sig);
 
-    let mut decision_variables = vec![];
-    decision_variables.extend(encoded_pk.iter().map(|&i| vec![i]));
-    decision_variables.extend(encoded_sig.iter().map(|&i| vec![i]));
+    let decision_variables = vec![encoded_pk.to_vec(), encoded_sig.to_vec()];
 
     let solution = Solution {
         data: vec![SolutionData {

@@ -6,6 +6,8 @@ use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 #[test]
 fn test_forall_in_asm() {
+    #[cfg(feature = "tracing")]
+    let _ = tracing_subscriber::fmt::try_init();
     let mutable_keys = HashSet::with_capacity(0);
     let transient_data = HashMap::with_capacity(0);
     let access = Access {
@@ -15,7 +17,7 @@ fn test_forall_in_asm() {
                     contract: ContentAddress([0; 32]),
                     predicate: ContentAddress([0; 32]),
                 },
-                decision_variables: vec![vec![2], vec![4], vec![6], vec![8], vec![12]],
+                decision_variables: vec![vec![2], vec![4, 6], vec![8, 12]],
                 state_mutations: vec![],
                 transient_data: vec![],
             }],
@@ -32,25 +34,35 @@ fn test_forall_in_asm() {
     //
     // constraint forall i in 0..len { out[i] == list[i] * 2 };
     let ops = &[
-        asm::Stack::Push(1).into(), // 1
-        asm::Stack::Push(2).into(),
+        // true to AND with
         asm::Stack::Push(1).into(),
-        asm::Stack::Repeat.into(),         // 1
-        asm::Access::RepeatCounter.into(), // 1, counter
-        asm::Stack::Push(1).into(),        // 1, 1
-        asm::Alu::Add.into(),              // 1, counter + 1
-        asm::Stack::Dup.into(),            // 1, counter + 1, counter + 1
-        asm::Access::DecisionVar.into(),   // 1, counter + 1, elem
-        asm::Stack::Push(2).into(),        // 1, counter + 1, elem, 2
-        asm::Alu::Mul.into(),              // 1, counter + 1, elem * 2
-        asm::Stack::Swap.into(),           // 1, elem * 2, counter + 1
-        asm::Stack::Push(0).into(),        // 1, elem * 2, counter + 1, 0
-        asm::Access::DecisionVar.into(),   // 1, elem * 2, counter + 1, 2
-        asm::Alu::Add.into(),              // 1, elem * 2, counter + 1 + 2
-        asm::Access::DecisionVar.into(),   // 1, elem * 2, out[counter + 1 + 2]
+        // (0, 0..1) = len
+        asm::Stack::Push(0).into(),
+        asm::Stack::Push(0).into(),
+        asm::Stack::Push(1).into(),
+        asm::Access::DecisionVar.into(),
+        // count up true
+        asm::Stack::Push(1).into(),
+        // repeat len times
+        asm::Stack::Repeat.into(),
+        // (1, counter..(counter + 1)) = list[i]
+        asm::Stack::Push(1).into(),
+        asm::Access::RepeatCounter.into(),
+        asm::Stack::Push(1).into(),
+        asm::Access::DecisionVar.into(),
+        // list[i] * 2
+        asm::Stack::Push(2).into(),
+        asm::Alu::Mul.into(),
+        // (2, counter..(counter + 1)) = out[i]
+        asm::Stack::Push(2).into(),
+        asm::Access::RepeatCounter.into(),
+        asm::Stack::Push(1).into(),
+        asm::Access::DecisionVar.into(),
+        // out[i] == list[i] * 2
         asm::Pred::Eq.into(),
+        // true AND out[0] == list[0] * 2 ... AND out[len - 1] == list[len - 1] * 2
         asm::Pred::And.into(),
-        asm::Stack::RepeatEnd.into(), // elem_0, elem_1
+        asm::Stack::RepeatEnd.into(),
     ];
     let res = eval_ops(ops, access).unwrap();
     assert!(res)

@@ -176,7 +176,9 @@ pub fn test_predicate_42(entropy: Word) -> Predicate {
             constraint_vm::asm::Access::StateLen.into(),
             constraint_vm::asm::Stack::Push(0).into(),
             constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
+            constraint_vm::asm::Stack::Push(0).into(), // slot_ix
+            constraint_vm::asm::Stack::Push(0).into(), // value_ix
+            constraint_vm::asm::Stack::Push(1).into(), // len
             constraint_vm::asm::Stack::Push(1).into(), // post
             constraint_vm::asm::Access::State.into(),
             constraint_vm::asm::Stack::Push(42).into(),
