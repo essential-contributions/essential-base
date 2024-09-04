@@ -41,3 +41,13 @@ pub fn halt_if(stack: &mut Stack) -> OpResult<Option<ProgramControlFlow>> {
         Ok(None)
     }
 }
+
+pub fn panic_if(stack: &mut Stack) -> OpResult<Option<ProgramControlFlow>> {
+    let cond = stack.pop()?;
+    let cond = bool_from_word(cond).ok_or(TotalControlFlowError::InvalidHaltIfCondition)?;
+    if cond {
+        Err(TotalControlFlowError::Panic.into())
+    } else {
+        Ok(None)
+    }
+}

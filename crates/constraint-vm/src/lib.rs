@@ -338,6 +338,7 @@ pub fn step_on_total_control_flow(
         asm::TotalControlFlow::JumpForwardIf => total_control_flow::jump_forward_if(stack, pc),
         asm::TotalControlFlow::HaltIf => total_control_flow::halt_if(stack),
         asm::TotalControlFlow::Halt => Ok(Some(ProgramControlFlow::Halt)),
+        asm::TotalControlFlow::PanicIf => total_control_flow::panic_if(stack),
     }
 }
 

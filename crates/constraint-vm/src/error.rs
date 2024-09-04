@@ -296,6 +296,9 @@ pub enum TotalControlFlowError {
     /// Attempted to halt if with an invalid condition
     #[error("halt if requires a boolean condition")]
     InvalidHaltIfCondition,
+    /// Panic
+    #[error("panic")]
+    Panic,
 }
 
 /// Shorthand for a `Result` where the error type is a `TemporaryError`.
