@@ -359,7 +359,7 @@ StateRead:
             Sha256:
               opcode: 0x50
               description: Produce a SHA 256 hash from the specified data.
-              stack_in: [data, data_len]
+              stack_in: [data, data_len, padding_len]
               stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
 
             VerifyEd25519:
