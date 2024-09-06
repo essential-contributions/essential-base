@@ -28,9 +28,13 @@ impl StateSlotsMut {
     }
 
     /// Load a value at the given slot index.
-    pub fn load(&self, index: usize) -> StateSlotsResult<&[Word]> {
-        let slot = self.get(index).ok_or(StateSlotsError::IndexOutOfBounds)?;
-        Ok(slot)
+    pub fn load(&self, slot_ix: usize, range: std::ops::Range<usize>) -> StateSlotsResult<&[Word]> {
+        let value = self
+            .get(slot_ix)
+            .ok_or(StateSlotsError::IndexOutOfBounds)?
+            .get(range)
+            .ok_or(StateSlotsError::IndexOutOfBounds)?;
+        Ok(value)
     }
 
     /// Store the given value at the given slot `index`.
@@ -167,9 +171,12 @@ pub fn clear_range(vm: &mut Vm) -> OpSyncResult<()> {
 
 /// `StateSlots::Load` operation.
 pub fn load(vm: &mut Vm) -> OpSyncResult<()> {
-    let index = vm.stack.pop()?;
-    let index = usize::try_from(index).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    let value = vm.state_slots_mut.load(index)?;
+    let len = vm.stack.pop()?;
+    let value_ix = vm.stack.pop()?;
+    let slot_ix = vm.stack.pop()?;
+    let slot_ix = usize::try_from(slot_ix).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
+    let range = range_from_start_len(value_ix, len).ok_or(StateSlotsError::IndexOutOfBounds)?;
+    let value = vm.state_slots_mut.load(slot_ix, range)?;
     vm.stack.extend(value.iter().copied())?;
     Ok(())
 }

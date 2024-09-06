@@ -478,7 +478,7 @@ StateRead:
             Noop if the slot is empty.
           panics:
             - Index is out of bounds.
-          stack_in: [index]
+          stack_in: [slot_ix, value_ix, len]
           stack_out:
             elem: value_word
             len: value_len
