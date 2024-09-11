@@ -365,6 +365,32 @@ pub(crate) fn predicate_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult
     Ok(())
 }
 
+pub(crate) fn num_slots(
+    stack: &mut Stack,
+    state_slots: &StateSlots<'_>,
+    decision_variables: &[Value],
+) -> OpResult<()> {
+    const DEC_VAR_SLOTS: Word = 0;
+    const STATE_SLOTS: Word = 1;
+
+    let which_slots = stack.pop()?;
+
+    match which_slots {
+        DEC_VAR_SLOTS => {
+            let num_slots = Word::try_from(decision_variables.len())
+                .map_err(|_| AccessError::SlotsLengthTooLarge(decision_variables.len()))?;
+            stack.push(num_slots)?;
+        }
+        STATE_SLOTS => {
+            let num_slots = Word::try_from(state_slots.pre.len())
+                .map_err(|_| AccessError::SlotsLengthTooLarge(state_slots.pre.len()))?;
+            stack.push(num_slots)?;
+        }
+        _ => return Err(AccessError::InvalidSlotType(which_slots).into()),
+    }
+    Ok(())
+}
+
 fn map_key_len_err(e: OpError) -> OpError {
     match e {
         OpError::Stack(StackError::LenWords(e)) => match e {

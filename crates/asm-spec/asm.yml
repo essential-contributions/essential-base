@@ -351,6 +351,19 @@ StateRead:
               stack_in: [pathway, key_0, ...key_N, key_len]
               stack_out: [len]
 
+            NumSlots:
+              opcode: 0x3D
+              description: |
+                Get the number of decision var or state slots.
+
+                `which_slots`:
+                
+                - `0` for decision vars.
+                
+                - `1` for state slots.
+              stack_in: [which_slots]
+              stack_out: [len]
+
         # Byte 4 reserved for Access ops
 
         Crypto:
