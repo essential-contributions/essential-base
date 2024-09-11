@@ -68,6 +68,19 @@ impl StateSlotsMut {
         Ok(())
     }
 
+    /// Extend the slot at the given index with the value.
+    pub fn extend(&mut self, index: usize, value: &[Word]) -> StateSlotsResult<()> {
+        if value.len() > Self::VALUE_LIMIT {
+            return Err(StateSlotsError::Overflow);
+        }
+
+        let slot = self
+            .0
+            .get_mut(index)
+            .ok_or(StateSlotsError::IndexOutOfBounds)?;
+        slot.extend(value);
+        Ok(())
+    }
     /// Clear the value at the given slot index.
     pub fn clear(&mut self, index: usize) -> StateSlotsResult<()> {
         self.0
@@ -189,6 +202,15 @@ pub fn store(vm: &mut Vm) -> OpSyncResult<()> {
         .stack
         .pop_len_words::<_, _, StackError>(|value| Ok(value.to_vec()))?;
     vm.state_slots_mut.store(index, value)?;
+    Ok(())
+}
+
+/// `StateSlots::Extend` operation.
+pub fn extend(vm: &mut Vm) -> OpSyncResult<()> {
+    let index = vm.stack.pop()?;
+    let index = usize::try_from(index).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
+    vm.stack
+        .pop_len_words::<_, _, StackError>(|value| Ok(vm.state_slots_mut.extend(index, value)))??;
     Ok(())
 }
 

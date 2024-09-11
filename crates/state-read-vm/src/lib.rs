@@ -313,5 +313,6 @@ pub(crate) fn step_op_state_slots(op: asm::StateSlots, vm: &mut Vm) -> OpSyncRes
         asm::StateSlots::Store => state_slots_mut::store(vm),
         asm::StateSlots::LoadWord => state_slots_mut::load_word(vm),
         asm::StateSlots::StoreWord => state_slots_mut::store_word(vm),
+        asm::StateSlots::Extend => state_slots_mut::extend(vm),
     }
 }

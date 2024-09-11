@@ -533,6 +533,13 @@ StateRead:
           description: Get the current length of a given value at the index.
           stack_in: [index]
           stack_out: [length]
+        
+        Extend:
+          opcode: 0x89
+          description: Extend the slot at `slot_ix` by `len` words.
+          panics:
+            - slot_ix is out of bounds.
+          stack_in: [value_word_0, ...value_word_len, len, slot_ix]
 
     KeyRange:
       opcode: 0x90
