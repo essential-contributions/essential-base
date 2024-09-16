@@ -94,22 +94,22 @@ impl Display for PredicateError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PredicateError::StateReadTooLarge(s) => {
-                write!(f, "state read too large when encoding predicate")
+                write!(f, "state read too large when encoding predicate: {}", s)
             }
             PredicateError::ConstraintTooLarge(s) => {
-                write!(f, "constraint too large when encoding predicate")
+                write!(f, "constraint too large when encoding predicate: {}", s)
             }
             PredicateError::DirectiveTooLarge(s) => {
-                write!(f, "directive too large when encoding predicate")
+                write!(f, "directive too large when encoding predicate: {}", s)
             }
             PredicateError::TooManyStateReads(s) => {
-                write!(f, "too many state reads when encoding predicate")
+                write!(f, "too many state reads when encoding predicate: {}", s)
             }
             PredicateError::TooManyConstraints(s) => {
-                write!(f, "too many constraints when encoding predicate")
+                write!(f, "too many constraints when encoding predicate: {}", s)
             }
             PredicateError::PredicateTooLarge(s) => {
-                write!(f, "predicate too large when encoding predicate")
+                write!(f, "predicate too large when encoding predicate: {}", s)
             }
         }
     }

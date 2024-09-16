@@ -22,8 +22,8 @@ fn sign_predicate() {
     let contract = Contract::without_salt(vec![test_predicate()]);
     let signed = sign(contract, &sk);
     let expected_signature_hex = concat!(
-        "60d57533ecbcd6c7cbf462e5944cbd4aef416c2f5587b024dc800be9c6ace81d",
-        "1c2ad24bab4af6814394a32ff9023472171e98e59ce2561f44d16694f5306b41"
+        "b9c3a75deb001657b7c88d0e373cdcee7d1bf79b6f225d5d174e1a542f9ae6b8",
+        "566806889f00dd97770c76c45641765d8a1bbd55d8057463af754981b8891153"
     );
     let hex = hex::encode(signed.signature.0);
     assert_eq!(expected_signature_hex, hex);
