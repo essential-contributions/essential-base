@@ -97,7 +97,17 @@ impl Predicate {
     /// Decode a predicate from bytes.
     pub fn decode<B: AsRef<[u8]>>(bytes: B) -> Result<Self, header::DecodeError> {
         let bytes = bytes.as_ref();
+
+        // Decode the header.
         let header = header::DecodedHeader::decode(bytes)?;
+
+        // Check the buffer is large enough to hold
+        // the data that the header is pointing to.
+        if bytes.len() < header.bytes_len() {
+            return Err(header::DecodeError::BufferTooSmall);
+        }
+
+        // Decode the programs.
         let state_read = header.decode_state_read(bytes);
         let constraints = header.decode_constraints(bytes);
         Ok(Self {

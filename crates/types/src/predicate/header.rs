@@ -38,8 +38,7 @@
 //! The hash of the predicate is as follows:
 //! 1. Hash the bytes of the static part of the header.
 //! 2. Hash the bytes of the lens part of the header.
-//! 3. Hash the bytes of each [`Predicate::as_programs`] in the predicate
-//! (in the order of the iterator).
+//! 3. Hash the bytes of each [`Predicate::as_programs`] in the predicate (in the order of the iterator).
 //!
 //! [`num_state_reads`]: FixedSizeHeader::num_state_reads
 //! [`num_constraints`]: FixedSizeHeader::num_constraints
@@ -213,13 +212,18 @@ where
     S: Iterator<Item = usize>,
     C: Iterator<Item = usize>,
 {
+    // Check the number of programs is within the limits.
     if bounds.num_state_reads > Predicate::MAX_STATE_READS {
         return Err(PredicateError::TooManyStateReads(bounds.num_state_reads));
     }
     if bounds.num_constraints > Predicate::MAX_CONSTRAINTS {
         return Err(PredicateError::TooManyConstraints(bounds.num_constraints));
     }
+
+    // Count the total size of the state read programs.
     let mut state_read_lens_sum: usize = 0;
+
+    // Check the size of each program.
     if let Some(err) = bounds.state_read_lens.find_map(|len| {
         state_read_lens_sum = state_read_lens_sum.saturating_add(len);
         (len > Predicate::MAX_STATE_READ_SIZE_BYTES)
@@ -228,7 +232,10 @@ where
         return Err(err);
     }
 
+    // Count the total size of the constraint check programs.
     let mut constraint_lens_sum: usize = 0;
+
+    // Check the size of each program.
     if let Some(err) = bounds.constraint_lens.find_map(|len| {
         constraint_lens_sum = constraint_lens_sum.saturating_add(len);
         (len > Predicate::MAX_CONSTRAINT_SIZE_BYTES)
@@ -237,6 +244,12 @@ where
         return Err(err);
     }
 
+    // Check the directive size.
+    if bounds.directive_size > Predicate::MAX_DIRECTIVE_SIZE_BYTES {
+        return Err(PredicateError::DirectiveTooLarge(bounds.directive_size));
+    }
+
+    // Calculate the total encoded size of the predicate.
     let encoded_size = encoded_size(&EncodedSize {
         num_state_reads: bounds.num_state_reads,
         num_constraints: bounds.num_constraints,
@@ -245,13 +258,11 @@ where
         directive_size: bounds.directive_size,
     });
 
+    // Check the total size of the encoded predicate.
     if encoded_size > Predicate::MAX_BYTES {
         return Err(PredicateError::PredicateTooLarge(encoded_size));
     }
-    // Check the directive size.
-    if bounds.directive_size > Predicate::MAX_DIRECTIVE_SIZE_BYTES {
-        return Err(PredicateError::DirectiveTooLarge(bounds.directive_size));
-    }
+
     Ok(())
 }
 
@@ -299,8 +310,10 @@ impl TryFrom<&Predicate> for FixedSizeHeader {
     }
 }
 
-/// TODO: FIX THESE DOCS
+/// Encode the lengths of the [`Predicate::state_read`]
+/// and [`Predicate::constraints`] programs into bytes.
 ///
+/// Lengths are encoded as big-endian [`u16`] bytes.
 ///
 /// ## Warning
 /// It's the callers responsibility to ensure the lengths are within bounds
@@ -312,6 +325,7 @@ pub(super) fn encode_program_lengths(predicate: &Predicate) -> Vec<u8> {
         .iter()
         .map(Vec::as_slice)
         .flat_map(encode_bytes_length);
+
     let constraint_lens = predicate
         .constraints
         .iter()
@@ -323,6 +337,7 @@ pub(super) fn encode_program_lengths(predicate: &Predicate) -> Vec<u8> {
         .len()
         .saturating_add(predicate.constraints.len())
         .saturating_mul(2);
+
     let mut buf = Vec::with_capacity(lengths_size);
     buf.extend(state_read_lens);
     buf.extend(constraint_lens);
@@ -486,7 +501,7 @@ impl FixedSizeHeader {
         buf: &'b [u8],
     ) -> impl Iterator<Item = usize> + 'h {
         self.get_state_read_lens_bytes(buf)
-            .chunks_exact(2)
+            .chunks_exact(core::mem::size_of::<u16>())
             .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]) as usize)
     }
 
@@ -501,7 +516,7 @@ impl FixedSizeHeader {
         buf: &'b [u8],
     ) -> impl Iterator<Item = usize> + 'h {
         self.get_constraint_lens_bytes(buf)
-            .chunks_exact(2)
+            .chunks_exact(core::mem::size_of::<u16>())
             .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]) as usize)
     }
 
@@ -546,12 +561,14 @@ impl DecodedHeader {
     /// or the predicate bounds are beyond the limits.
     pub fn decode(buf: &[u8]) -> DecodeResult<Self> {
         use FixedSizeHeader as Fixed;
+
+        // Check the buffer is big enough to hold the fixed size part of the header.
         Fixed::check_len(buf.len())?;
 
+        // Decode the fixed size part of the header.
         let fh = Fixed::decode(buf)?;
 
-        // Following casts are safe because we have checked the buffer length.
-
+        // Always safe to cast u8 to usize.
         let num_state_reads = fh.num_state_reads as usize;
         let num_constraints = fh.num_constraints as usize;
 
@@ -561,9 +578,14 @@ impl DecodedHeader {
             directive: DecodedDirective::Satisfy,
         };
 
+        // Check the buffer is big enough to hold the full decoded header.
+        // This includes the fixed size part and the dynamic lengths part.
         fh.check_header_len_and_program_lens(buf.len())?;
 
+        // Get the position of the first program byte (end of the header).
         let mut last = fh.header_len_and_program_lens();
+
+        // Decode the lengths of the programs and calculate the ranges.
         let state_read_lens = fh.decode_state_read_lens(buf).map(|len| {
             let range = last..last + len;
             last += len;
@@ -572,6 +594,7 @@ impl DecodedHeader {
 
         header.state_reads.extend(state_read_lens);
 
+        // Decode the lengths of the programs and calculate the ranges.
         let constraint_lens = fh.decode_constraint_lens(buf).map(|len| {
             let range = last..last + len;
             last += len;
@@ -580,6 +603,7 @@ impl DecodedHeader {
 
         header.constraints.extend(constraint_lens);
 
+        // Decode the directive range.
         match fh.directive_tag {
             DirectiveTag::Satisfy => header.directive = DecodedDirective::Satisfy,
             DirectiveTag::Maximize => {
@@ -592,8 +616,10 @@ impl DecodedHeader {
             }
         }
 
+        // Check the decoded header is consistent with the fixed size part.
         header.check_consistency(&fh)?;
 
+        // Check the bounds of the predicate.
         let bounds = PredicateBounds {
             num_state_reads,
             num_constraints,
@@ -615,16 +641,21 @@ impl DecodedHeader {
             .state_reads
             .iter()
             .fold(0usize, |acc, p| acc.saturating_add(p.len()));
+
         let c = self
             .constraints
             .iter()
             .fold(0usize, |acc, p| acc.saturating_add(p.len()));
+
         let d = self.directive.len();
+
+        // Two bytes per length.
         let lens = self
             .state_reads
             .len()
             .saturating_add(self.constraints.len())
-            .saturating_mul(2);
+            .saturating_mul(core::mem::size_of::<u16>());
+
         EncodedFixedSizeHeader::SIZE
             .saturating_add(sr)
             .saturating_add(c)
