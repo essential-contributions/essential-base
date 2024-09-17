@@ -22,6 +22,16 @@ pub(crate) fn mod_(a: Word, b: Word) -> OpResult<Word> {
     a.checked_rem(b).ok_or(AluError::DivideByZero.into())
 }
 
+pub(crate) fn shl(a: Word, b: Word) -> OpResult<Word> {
+    let b = u32::try_from(b).map_err(|_| AluError::Overflow)?;
+    a.checked_shl(b).ok_or(AluError::Overflow.into())
+}
+
+pub(crate) fn shr(a: Word, b: Word) -> OpResult<Word> {
+    let b = u32::try_from(b).map_err(|_| AluError::Overflow)?;
+    a.checked_shr(b).ok_or(AluError::Overflow.into())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{

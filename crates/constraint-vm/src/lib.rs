@@ -280,6 +280,8 @@ pub fn step_op_alu(op: asm::Alu, stack: &mut Stack) -> OpResult<()> {
         asm::Alu::Mul => stack.pop2_push1(alu::mul),
         asm::Alu::Div => stack.pop2_push1(alu::div),
         asm::Alu::Mod => stack.pop2_push1(alu::mod_),
+        asm::Alu::Shl => stack.pop2_push1(alu::shl),
+        asm::Alu::Shr => stack.pop2_push1(alu::shr),
     }
 }
 
@@ -305,6 +307,8 @@ pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
         asm::Pred::Or => stack.pop2_push1(|a, b| Ok((a != 0 || b != 0).into())),
         asm::Pred::Not => stack.pop1_push1(|a| Ok((a == 0).into())),
         asm::Pred::EqSet => pred::eq_set(stack),
+        asm::Pred::BitAnd => stack.pop2_push1(|a, b| Ok(a & b)),
+        asm::Pred::BitOr => stack.pop2_push1(|a, b| Ok(a | b)),
     }
 }
 
