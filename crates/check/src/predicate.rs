@@ -58,7 +58,7 @@ pub fn check_contract(predicates: &[Predicate]) -> Result<(), InvalidContract> {
 
 /// Validate a single predicate.
 ///
-/// Validates the slots, directive, state reads, and constraints.
+/// Validates the slots, state reads, and constraints.
 pub fn check(predicate: &Predicate) -> Result<(), PredicateError> {
     predicate.check_predicate_bounds()?;
     Ok(())

@@ -1,6 +1,7 @@
 use essential_types::{
     contract::Contract, predicate::Predicate, solution::Solution, Block, ContentAddress,
 };
+use sha2::Digest;
 
 use crate::{hash, Address};
 

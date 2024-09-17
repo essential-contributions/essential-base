@@ -40,8 +40,6 @@ impl Predicate {
     pub const MAX_CONSTRAINTS: usize = u8::MAX as usize;
     /// Maximum size of constraint check programs of a predicate in bytes.
     pub const MAX_CONSTRAINT_SIZE_BYTES: usize = 10_000;
-    /// Maximum size of directive of a predicate.
-    pub const MAX_DIRECTIVE_SIZE_BYTES: usize = 1000;
     /// Maximum size of a predicate in bytes.
     pub const MAX_BYTES: usize = 1024 * 50;
 
@@ -123,7 +121,6 @@ impl Predicate {
             num_constraints: self.constraints.len(),
             state_read_lens: self.state_read.iter().map(|x| x.len()),
             constraint_lens: self.constraints.iter().map(|x| x.len()),
-            directive_size: self.directive.as_program().map_or(0, |x| x.len()),
         };
         check_predicate_bounds(bounds)
     }

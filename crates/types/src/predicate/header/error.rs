@@ -9,8 +9,6 @@ pub enum PredicateError {
     StateReadTooLarge(usize),
     /// Constraint too large.
     ConstraintTooLarge(usize),
-    /// Directive too large.
-    DirectiveTooLarge(usize),
     /// Too many state reads.
     TooManyStateReads(usize),
     /// Too many constraints.
@@ -26,14 +24,8 @@ pub enum DecodeError {
     MissingNumStateReads,
     /// Missing number of constraints when decoding predicate header.
     MissingNumConstraints,
-    /// Missing directive tag when decoding predicate header.
-    MissingDirectiveTag,
-    /// Missing directive length when decoding predicate header.
-    MissingDirectiveLen,
     /// Missing nested length when decoding predicate header.
     MissingNestedLen,
-    /// Invalid directive tag when decoding predicate header.
-    InvalidDirectiveTag,
     /// Overflow when decoding predicate.
     Overflow,
     /// Incorrect body length when decoding predicate.
@@ -62,17 +54,8 @@ impl Display for DecodeError {
                     "missing number of constraints when decoding predicate header"
                 )
             }
-            DecodeError::MissingDirectiveTag => {
-                write!(f, "missing directive tag when decoding predicate header")
-            }
-            DecodeError::MissingDirectiveLen => {
-                write!(f, "missing directive length when decoding predicate header")
-            }
             DecodeError::MissingNestedLen => {
                 write!(f, "missing nested length when decoding predicate header")
-            }
-            DecodeError::InvalidDirectiveTag => {
-                write!(f, "invalid directive tag when decoding predicate header")
             }
             DecodeError::Overflow => {
                 write!(f, "overflow when decoding predicate")
@@ -98,9 +81,6 @@ impl Display for PredicateError {
             }
             PredicateError::ConstraintTooLarge(s) => {
                 write!(f, "constraint too large when encoding predicate: {}", s)
-            }
-            PredicateError::DirectiveTooLarge(s) => {
-                write!(f, "directive too large when encoding predicate: {}", s)
             }
             PredicateError::TooManyStateReads(s) => {
                 write!(f, "too many state reads when encoding predicate: {}", s)
