@@ -16,14 +16,14 @@ fn test_predicate() -> Predicate {
 fn serialize_predicate() {
     let serialization = essential_hash::serialize(&test_predicate());
     let hex = hex::encode(serialization);
-    let expected_hex = "000000";
+    let expected_hex = "0000";
     assert_eq!(hex, expected_hex);
 }
 
 #[test]
 fn hash_predicate() {
     let hash = essential_hash::hash(&test_predicate());
-    let expected_hash_hex = "709e80c88487a2411e1ee4dfb9f22a861492d20c4765150c0c794abd70f8147c";
+    let expected_hash_hex = "96a296d224f285c67bee93c30f8a309157f0daa35dc5b87e410b78630a09cfc7";
     let hex = hex::encode(hash);
     assert_eq!(hex, expected_hash_hex);
 }
