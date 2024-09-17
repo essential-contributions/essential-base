@@ -365,7 +365,7 @@ where
         set.spawn(future);
     }
 
-    // Calculate and gas used.
+    // Calculate gas used.
     // TODO: Gas is only calculated for state reads.
     // Add gas tracking for constraint checking.
     let mut total_gas: u64 = 0;
