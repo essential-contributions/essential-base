@@ -10,7 +10,7 @@ use essential_state_read_vm as state_read_vm;
 use essential_state_read_vm::StateRead;
 use essential_types::{
     contract::{Contract, SignedContract},
-    predicate::{Directive, Predicate},
+    predicate::Predicate,
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, Key, PredicateAddress, Word,
 };
@@ -217,7 +217,6 @@ fn test_predicate_42(entropy: Word) -> Predicate {
             constraint_vm::asm::Pred::And.into(),
         ])
         .collect()],
-        directive: Directive::Satisfy,
     }
 }
 

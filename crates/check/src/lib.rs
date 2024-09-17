@@ -10,8 +10,6 @@
 //! - [`predicate::check_signed_contract`] validates a signed contract.
 //! - [`predicate::check_contract`] validates a contract.
 //! - [`predicate::check`] validate an individual predicate.
-//! - [`predicate::check_slots`] validate a predicate's slots.
-//! - [`predicate::check_directive`] validate a predicate's directive.
 //! - [`predicate::check_state_reads`] validate a predicate's state read bytecode.
 //! - [`predicate::check_constraints`] validate a predicate's constraint bytecode.
 //!

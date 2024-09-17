@@ -11,7 +11,7 @@ use crate::{
         SolutionAccess, StateRead, StateSlotSlice, StateSlots,
     },
     types::{
-        predicate::{Directive, Predicate},
+        predicate::Predicate,
         solution::{Solution, SolutionData, SolutionDataIndex},
         Key, PredicateAddress, StateReadBytecode, Word,
     },
@@ -115,9 +115,6 @@ pub enum PredicatesError<E> {
     /// One or more tasks failed to join.
     #[error("one or more spawned tasks failed to join: {0}")]
     Join(#[from] tokio::task::JoinError),
-    /// Summing solution data utility resulted in overflow.
-    #[error("summing solution data utility overflowed")]
-    UtilityOverflowed,
     /// Summing solution data gas resulted in overflow.
     #[error("summing solution data gas overflowed")]
     GasOverflowed,
@@ -158,29 +155,6 @@ pub enum PredicateConstraintsError {
     /// Constraint checking failed.
     #[error("check failed: {0}")]
     Check(#[from] constraint_vm::error::CheckError),
-    /// Failed to receive result from spawned task.
-    #[error("failed to recv: {0}")]
-    Recv(#[from] tokio::sync::oneshot::error::RecvError),
-    /// Failed to calculate the utility.
-    #[error("failed to calculate utility: {0}")]
-    Utility(#[from] UtilityError),
-}
-
-/// The utility score of a solution.
-pub type Utility = f64;
-
-/// `calculate_utility` error.
-#[derive(Debug, Error)]
-pub enum UtilityError {
-    /// The range specified by the predicate's directive is invalid.
-    #[error("the range specified by the directive [{0}..{1}] is invalid")]
-    InvalidDirectiveRange(Word, Word),
-    /// The stack returned from directive execution is invalid.
-    #[error("invalid stack result after directive execution: {0}")]
-    InvalidStack(#[from] constraint_vm::error::StackError),
-    /// Failed to execute the directive using the constraint VM.
-    #[error("directive execution with constraint VM failed: {0}")]
-    Execution(#[from] constraint_vm::error::ConstraintError),
     /// Failed to receive result from spawned task.
     #[error("failed to recv: {0}")]
     Recv(#[from] tokio::sync::oneshot::error::RecvError),
@@ -335,7 +309,7 @@ pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidSolution> 
 ///   solution. Calls to `predicate` must complete immediately. All necessary
 ///   predicates are assumed to have been read from storage and validated ahead of time.
 ///
-/// Returns the utility score of the solution alongside the total gas spent.
+/// Returns the total gas spent.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub async fn check_predicates<SA, SB>(
     pre_state: &SA,
@@ -343,7 +317,7 @@ pub async fn check_predicates<SA, SB>(
     solution: Arc<Solution>,
     get_predicate: impl Fn(&PredicateAddress) -> Arc<Predicate>,
     config: Arc<CheckPredicateConfig>,
-) -> Result<(Utility, Gas), PredicatesError<SA::Error>>
+) -> Result<Gas, PredicatesError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
     SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
@@ -391,15 +365,14 @@ where
         set.spawn(future);
     }
 
-    // Calculate total utility and gas used.
+    // Calculate gas used.
     // TODO: Gas is only calculated for state reads.
     // Add gas tracking for constraint checking.
     let mut total_gas: u64 = 0;
-    let mut utility: f64 = 0.0;
     let mut failed = vec![];
     while let Some(res) = set.join_next().await {
         let (solution_data_ix, res) = res?;
-        let (u, g) = match res {
+        let g = match res {
             Ok(ok) => ok,
             Err(e) => {
                 failed.push((solution_data_ix, e));
@@ -410,11 +383,6 @@ where
                 }
             }
         };
-        utility += u;
-
-        if utility == f64::INFINITY {
-            return Err(PredicatesError::UtilityOverflowed);
-        }
 
         total_gas = total_gas
             .checked_add(g)
@@ -426,7 +394,7 @@ where
         return Err(PredicateErrors(failed).into());
     }
 
-    Ok((utility, total_gas))
+    Ok(total_gas)
 }
 
 /// Checks a solution against a single predicate using the solution data at the given index.
@@ -444,7 +412,7 @@ where
 /// - `solution_data_index` represents the data within `solution.data` that claims
 ///   to solve this predicate.
 ///
-/// Returns the utility score of the solution alongside the total gas spent.
+/// Returns the total gas spent.
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(
@@ -463,7 +431,7 @@ pub async fn check_predicate<SA, SB>(
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
     transient_data: Arc<TransientData>,
-) -> Result<(Utility, Gas), PredicateError<SA::Error>>
+) -> Result<Gas, PredicateError<SA::Error>>
 where
     SA: StateRead,
     SB: StateRead<Error = SA::Error>,
@@ -480,7 +448,7 @@ where
     .await?;
 
     // Check constraints.
-    let utility = check_predicate_constraints(
+    check_predicate_constraints(
         solution,
         solution_data_index,
         predicate.clone(),
@@ -491,7 +459,7 @@ where
     )
     .await?;
 
-    Ok((utility, state_read_gas))
+    Ok(state_read_gas)
 }
 
 /// Pre-state slots generated from state reads.
@@ -617,8 +585,6 @@ where
 
 /// Checks if the given solution data at the given index satisfies the
 /// constraints of the given predicate.
-///
-/// Returns the utility of the solution for the given predicate.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, "check"))]
 pub async fn check_predicate_constraints(
     solution: Arc<Solution>,
@@ -628,8 +594,8 @@ pub async fn check_predicate_constraints(
     post_slots: Arc<StateSlotSlice>,
     config: &CheckPredicateConfig,
     transient_data: Arc<TransientData>,
-) -> Result<Utility, PredicateConstraintsError> {
-    match check_predicate_constraints_parallel(
+) -> Result<(), PredicateConstraintsError> {
+    let r = check_predicate_constraints_parallel(
         solution.clone(),
         solution_data_index,
         predicate.clone(),
@@ -638,40 +604,12 @@ pub async fn check_predicate_constraints(
         config,
         transient_data.clone(),
     )
-    .await
-    {
-        Ok(()) => {
-            #[cfg(feature = "tracing")]
-            tracing::trace!("constraint check complete");
-
-            match calculate_utility(
-                solution,
-                solution_data_index,
-                predicate.clone(),
-                pre_slots,
-                post_slots,
-                transient_data,
-            )
-            .await
-            {
-                Ok(util) => {
-                    #[cfg(feature = "tracing")]
-                    tracing::trace!("utility: {}", util);
-                    Ok(util)
-                }
-                Err(err) => {
-                    #[cfg(feature = "tracing")]
-                    tracing::trace!("error calculating utility: {}", err);
-                    Err(err.into())
-                }
-            }
-        }
-        Err(err) => {
-            #[cfg(feature = "tracing")]
-            tracing::trace!("error checking constraints: {}", err);
-            Err(err)
-        }
+    .await;
+    #[cfg(feature = "tracing")]
+    if let Err(ref err) = r {
+        tracing::trace!("error checking constraints: {}", err);
     }
+    r
 }
 
 /// Check predicates in parallel without sleeping any threads.
@@ -777,80 +715,4 @@ async fn check_predicate_constraints_parallel(
         return Err(CheckError::from(ConstraintsUnsatisfied(unsatisfied)).into());
     }
     Ok(())
-}
-
-/// Calculates utility of solution for predicate.
-///
-/// Returns utility.
-async fn calculate_utility(
-    solution: Arc<Solution>,
-    solution_data_index: SolutionDataIndex,
-    predicate: Arc<Predicate>,
-    pre_slots: Arc<StateSlotSlice>,
-    post_slots: Arc<StateSlotSlice>,
-    transient_data: Arc<TransientData>,
-) -> Result<Utility, UtilityError> {
-    match &predicate.directive {
-        Directive::Satisfy => return Ok(1.0),
-        Directive::Maximize(_) | Directive::Minimize(_) => (),
-    }
-
-    // Spawn this sync code onto a rayon thread.
-    let (tx, rx) = tokio::sync::oneshot::channel();
-
-    #[cfg(feature = "tracing")]
-    let span = tracing::Span::current();
-
-    rayon::spawn(move || {
-        #[cfg(feature = "tracing")]
-        let span = tracing::trace_span!(parent: &span, "utility");
-        #[cfg(feature = "tracing")]
-        let guard = span.enter();
-
-        let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-        let solution_access = SolutionAccess::new(
-            &solution,
-            solution_data_index,
-            &mutable_keys,
-            &transient_data,
-        );
-        let access = Access {
-            solution: solution_access,
-            state_slots: StateSlots {
-                pre: &pre_slots,
-                post: &post_slots,
-            },
-        };
-        // Extract the directive code.
-        let code = match predicate.directive {
-            Directive::Maximize(ref code) | Directive::Minimize(ref code) => code,
-            _ => unreachable!("As this is already checked above"),
-        };
-
-        // Execute the directive code.
-        let res = constraint_vm::exec_bytecode_iter(code.iter().copied(), access)
-            .map_err(UtilityError::from)
-            .and_then(|mut stack| {
-                let [start, end, value] = stack.pop3()?;
-                let util = normalize_utility(value, start, end)?;
-                Ok(util)
-            });
-
-        // Send errors are ignored as if the recv is dropped.
-        let _ = tx.send(res);
-
-        #[cfg(feature = "tracing")]
-        drop(guard)
-    });
-
-    // Await the result of the utility calculation.
-    rx.await?
-}
-
-fn normalize_utility(value: Word, start: Word, end: Word) -> Result<Utility, UtilityError> {
-    if start >= end {
-        return Err(UtilityError::InvalidDirectiveRange(start, end));
-    }
-    let normalized = (value - start) as f64 / (end - start) as f64;
-    Ok(normalized.clamp(0.0, 1.0))
 }
