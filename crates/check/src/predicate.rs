@@ -2,10 +2,7 @@
 
 use crate::{
     sign::secp256k1,
-    types::{
-        predicate::{Directive, Predicate},
-        ConstraintBytecode, StateReadBytecode,
-    },
+    types::{predicate::Predicate, ConstraintBytecode, StateReadBytecode},
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
@@ -37,42 +34,12 @@ pub enum InvalidContract {
 /// [`check`] error indicating part of a predicate was invalid.
 #[derive(Debug, Error)]
 pub enum InvalidPredicate {
-    /// The predicate's slots are invalid.
-    #[error("invalid slots: {0}")]
-    Slots(#[from] InvalidSlots),
-    /// The predicate's directive is invalid.
-    #[error("invalid directive: {0}")]
-    Directive(#[from] InvalidDirective),
     /// The predicate's state reads are invalid.
     #[error("invalid state reads: {0}")]
     StateReads(#[from] InvalidStateReads),
     /// The predicate's constraints are invalid.
     #[error("invalid constraints: {0}")]
     Constraints(#[from] InvalidConstraints),
-}
-
-/// [`check_slots`] error.
-#[derive(Debug, Error)]
-pub enum InvalidSlots {
-    /// The predicate expects too many decision variables.
-    #[error("the number of decision vars ({0}) exceeds the limit ({MAX_DECISION_VARIABLES})")]
-    TooManyDecisionVariables(u32),
-    /// The number of state slots exceeds the limit.
-    #[error("the number of state slots ({0}) exceeds the limit ({MAX_NUM_STATE_SLOTS})")]
-    TooManyStateSlots(usize),
-    /// The total length of all state slots exceeds the limit.
-    ///
-    /// `None` in the case that the length exceeds `u32::MAX`.
-    #[error("the total length of all state slots ({0:?}) exceeds the limit ({MAX_STATE_LEN})")]
-    StateSlotLengthExceedsLimit(Option<u32>),
-}
-
-/// [`check_directive`] error.
-#[derive(Debug, Error)]
-pub enum InvalidDirective {
-    /// The length of the bytecode exceeds the limit.
-    #[error("the length of the bytecode ({0}) exceeds the limit ({MAX_DIRECTIVE_SIZE})")]
-    TooManyBytes(usize),
 }
 
 /// [`check_state_reads`] error.
@@ -129,8 +96,6 @@ pub const MAX_DECISION_VARIABLES: u32 = 100;
 pub const MAX_NUM_STATE_SLOTS: usize = 1000;
 /// Maximum length of state slots of a predicate.
 pub const MAX_STATE_LEN: u32 = 1000;
-/// Maximum size of directive of a predicate.
-pub const MAX_DIRECTIVE_SIZE: usize = 1000;
 
 /// Validate a signed contract of predicates.
 ///
@@ -159,21 +124,10 @@ pub fn check_contract(predicates: &[Predicate]) -> Result<(), InvalidContract> {
 
 /// Validate a single predicate.
 ///
-/// Validates the slots, directive, state reads, and constraints.
+/// Validates the slots, state reads, and constraints.
 pub fn check(predicate: &Predicate) -> Result<(), InvalidPredicate> {
-    check_directive(&predicate.directive)?;
     check_state_reads(&predicate.state_read)?;
     check_constraints(&predicate.constraints)?;
-    Ok(())
-}
-
-/// Validate a predicate's directive.
-pub fn check_directive(directive: &Directive) -> Result<(), InvalidDirective> {
-    if let Directive::Maximize(program) | Directive::Minimize(program) = directive {
-        if program.len() > MAX_DIRECTIVE_SIZE {
-            return Err(InvalidDirective::TooManyBytes(program.len()));
-        }
-    }
     Ok(())
 }
 

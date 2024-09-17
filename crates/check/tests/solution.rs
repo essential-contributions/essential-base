@@ -3,7 +3,7 @@ use essential_check::{predicate, solution};
 use essential_constraint_vm as constraint_vm;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
-    predicate::{Directive, Predicate},
+    predicate::Predicate,
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, PredicateAddress, Word,
 };
@@ -159,8 +159,8 @@ async fn check_predicate_42_with_solution() {
         predicate.clone()
     };
 
-    // Run the check, and ensure util and gas aren't 0.
-    let (util, gas) = solution::check_predicates(
+    // Run the check, and ensure ok and gas isn't 0.
+    let gas = solution::check_predicates(
         &pre_state,
         &post_state,
         Arc::new(solution),
@@ -170,8 +170,6 @@ async fn check_predicate_42_with_solution() {
     .await
     .unwrap();
 
-    // Util should be 1 - only one solved predicate.
-    assert_eq!(util, 1.0);
     assert!(gas > 0);
 }
 
@@ -272,7 +270,6 @@ async fn predicate_with_multiple_state_reads_and_slots() {
     let predicate = Predicate {
         state_read: vec![read_three_slots, read_two_slots],
         constraints: vec![constraint_vm::asm::to_bytes(constraints).collect()],
-        directive: Directive::Satisfy,
     };
 
     let (sk, _pk) = random_keypair([1; 32]);
@@ -328,8 +325,8 @@ async fn predicate_with_multiple_state_reads_and_slots() {
         predicate.clone()
     };
 
-    // Run the check, and ensure util and gas aren't 0.
-    let (util, gas) = solution::check_predicates(
+    // Run the check, and ensure ok and gas aren't 0.
+    let gas = solution::check_predicates(
         &pre_state,
         &post_state,
         Arc::new(solution),
@@ -339,7 +336,5 @@ async fn predicate_with_multiple_state_reads_and_slots() {
     .await
     .unwrap();
 
-    // Util should be 1 - only one solved predicate.
-    assert_eq!(util, 1.0);
     assert!(gas > 0);
 }

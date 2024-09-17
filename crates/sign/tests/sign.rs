@@ -1,9 +1,5 @@
 use essential_sign::contract::sign;
-use essential_types::{
-    contract::Contract,
-    predicate::{Directive, Predicate},
-    Signature,
-};
+use essential_types::{contract::Contract, predicate::Predicate, Signature};
 use rand::SeedableRng;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
@@ -11,7 +7,6 @@ fn test_predicate() -> Predicate {
     Predicate {
         state_read: Default::default(),
         constraints: Default::default(),
-        directive: Directive::Satisfy,
     }
 }
 

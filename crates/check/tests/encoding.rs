@@ -3,7 +3,7 @@ use std::sync::Arc;
 use essential_check::constraint_vm;
 use essential_types::{
     contract::Contract,
-    predicate::{Directive, Predicate},
+    predicate::Predicate,
     solution::{Solution, SolutionData},
     Hash, PredicateAddress,
 };
@@ -43,7 +43,6 @@ async fn test_encoding_sig_and_pub_key() {
             constraint_vm::asm::Pred::EqRange.into(),
         ])
         .collect()],
-        directive: Directive::Satisfy,
     };
 
     let contract = Contract::without_salt(vec![predicate]);
@@ -84,8 +83,8 @@ async fn test_encoding_sig_and_pub_key() {
         predicate.clone()
     };
 
-    // Run the check, and ensure util is 1.
-    let (util, _) = essential_check::solution::check_predicates(
+    // Run the check, and ensure it returns ok.
+    essential_check::solution::check_predicates(
         &pre_state,
         &post_state,
         Arc::new(solution),
@@ -94,7 +93,4 @@ async fn test_encoding_sig_and_pub_key() {
     )
     .await
     .unwrap();
-
-    // Util should be 1 - only one solved predicate.
-    assert_eq!(util, 1.0);
 }

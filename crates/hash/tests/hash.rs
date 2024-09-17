@@ -1,6 +1,6 @@
 use essential_types::{
     contract::Contract,
-    predicate::{Directive, Predicate},
+    predicate::Predicate,
     solution::{Solution, SolutionData},
     Block, ContentAddress, PredicateAddress,
 };
@@ -9,7 +9,6 @@ fn test_predicate() -> Predicate {
     Predicate {
         state_read: Default::default(),
         constraints: Default::default(),
-        directive: Directive::Satisfy,
     }
 }
 

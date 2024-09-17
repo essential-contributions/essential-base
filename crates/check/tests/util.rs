@@ -4,7 +4,7 @@ use essential_check::{
     state_read_vm,
     state_read_vm::StateRead,
     types::{
-        predicate::{Directive, Predicate},
+        predicate::Predicate,
         solution::{Mutation, Solution, SolutionData},
         ContentAddress, Key, PredicateAddress, Word,
     },
@@ -133,7 +133,6 @@ pub fn empty_predicate() -> Predicate {
     Predicate {
         state_read: Default::default(),
         constraints: Default::default(),
-        directive: Directive::Satisfy,
     }
 }
 
@@ -186,7 +185,6 @@ pub fn test_predicate_42(entropy: Word) -> Predicate {
             constraint_vm::asm::Pred::And.into(),
         ])
         .collect()],
-        directive: Directive::Satisfy,
     }
 }
 

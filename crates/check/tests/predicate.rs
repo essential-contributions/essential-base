@@ -1,5 +1,4 @@
 use essential_check::predicate;
-use essential_types::predicate::Directive;
 use util::{empty_predicate, random_keypair};
 
 pub mod util;
@@ -31,17 +30,6 @@ fn too_many_predicates() {
         predicate::check_signed_contract(&signed).unwrap_err(),
         predicate::InvalidSignedContract::Set(predicate::InvalidContract::TooManyPredicates(n))
             if n == predicate::MAX_PREDICATES + 1
-    ));
-}
-
-#[test]
-fn directive_too_large() {
-    let mut predicate = empty_predicate();
-    predicate.directive = Directive::Maximize(vec![0; predicate::MAX_DIRECTIVE_SIZE + 1]);
-    assert!(matches!(
-        predicate::check(&predicate).unwrap_err(),
-        predicate::InvalidPredicate::Directive(predicate::InvalidDirective::TooManyBytes(n))
-            if n == predicate::MAX_DIRECTIVE_SIZE + 1
     ));
 }
 
