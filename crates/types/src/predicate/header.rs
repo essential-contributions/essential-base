@@ -36,7 +36,7 @@
 //! The hash of the predicate is as follows:
 //! 1. Hash the bytes of the static part of the header.
 //! 2. Hash the bytes of the lens part of the header.
-//! 3. Hash the bytes of each [`Predicate::as_programs`] in the predicate (in the order of the iterator).
+//! 3. Hash the bytes of each [`Predicate::programs`] in the predicate (in the order of the iterator).
 //!
 //! [`num_state_reads`]: FixedSizeHeader::num_state_reads
 //! [`num_constraints`]: FixedSizeHeader::num_constraints
@@ -61,6 +61,8 @@ pub use error::PredicateError;
 mod error;
 #[cfg(test)]
 mod tests;
+
+pub(super) const LEN_SIZE_BYTES: usize = core::mem::size_of::<u16>();
 
 /// The encoded [`Predicate`] header.
 ///
@@ -91,33 +93,11 @@ pub struct FixedSizeHeader {
 /// The header of a [`Predicate`] decoded.
 /// This contains the indices of the [`Predicate`]'s data in a buffer.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DecodedHeader {
+pub struct DecodedHeader<'a> {
     /// The indices of the state read programs in a buffer.
-    pub state_reads: Vec<core::ops::Range<usize>>,
+    pub state_reads: &'a [u8],
     /// The indices of the constraint check programs in a buffer.
-    pub constraints: Vec<core::ops::Range<usize>>,
-}
-
-/// Encoded [`Predicate`] bytes with the [`DecodedHeader`].
-/// This allows access to the programs without decoding
-/// to an actually [`Predicate`] struct.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PredicateBytes {
-    /// The decoded header that points into the bytes.
-    pub header: DecodedHeader,
-    /// The bytes of the encoded [`Predicate`].
-    pub bytes: Vec<u8>,
-}
-
-/// A reference to the encoded [`Predicate`] bytes with the [`DecodedHeader`].
-/// This allows access to the programs without decoding
-/// to an actually [`Predicate`] struct or cloning the bytes.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PredicateBytesRef<'a> {
-    /// The decoded header that points into the bytes.
-    pub header: DecodedHeader,
-    /// The bytes of the encoded [`Predicate`].
-    pub bytes: &'a [u8],
+    pub constraints: &'a [u8],
 }
 
 /// Inputs to compute the size in bytes of a [`Predicate`] encoded to bytes.
@@ -152,8 +132,8 @@ pub(super) struct PredicateBounds<S, C> {
 /// The size in bytes of an encoded [`Predicate`].
 pub(super) fn encoded_size(sizes: &EncodedSize) -> usize {
     EncodedFixedSizeHeader::SIZE
-        + sizes.num_state_reads * core::mem::size_of::<u16>()
-        + sizes.num_constraints * core::mem::size_of::<u16>()
+        + sizes.num_state_reads * LEN_SIZE_BYTES
+        + sizes.num_constraints * LEN_SIZE_BYTES
         + sizes.state_read_lens_sum
         + sizes.constraint_lens_sum
 }
@@ -219,43 +199,6 @@ where
     Ok(())
 }
 
-impl TryFrom<&Predicate> for EncodedHeader {
-    type Error = PredicateError;
-
-    /// Creates the encoded header from a [`Predicate`].
-    fn try_from(predicate: &Predicate) -> Result<Self, Self::Error> {
-        let static_header = EncodedFixedSizeHeader::try_from(predicate)?;
-        let lens = encode_program_lengths(predicate);
-        Ok(Self {
-            fixed_size_header: static_header,
-            lens,
-        })
-    }
-}
-
-impl TryFrom<&Predicate> for EncodedFixedSizeHeader {
-    type Error = PredicateError;
-
-    fn try_from(predicate: &Predicate) -> Result<Self, Self::Error> {
-        Ok(EncodedFixedSizeHeader::from(FixedSizeHeader::try_from(
-            predicate,
-        )?))
-    }
-}
-
-impl TryFrom<&Predicate> for FixedSizeHeader {
-    type Error = PredicateError;
-
-    fn try_from(predicate: &Predicate) -> Result<Self, Self::Error> {
-        predicate.check_predicate_bounds()?;
-
-        Ok(Self {
-            num_state_reads: predicate.state_read.len() as u8,
-            num_constraints: predicate.constraints.len() as u8,
-        })
-    }
-}
-
 /// Encode the lengths of the [`Predicate::state_read`]
 /// and [`Predicate::constraints`] programs into bytes.
 ///
@@ -312,13 +255,13 @@ impl EncodedFixedSizeHeader {
 }
 
 impl FixedSizeHeader {
-    /// Get the [`Self::num_state_reads`] indices for within a buffer.
-    pub const fn num_state_reads_ix() -> core::ops::Range<usize> {
+    /// Get the range of the [`Self::num_state_reads`] value within a buffer.
+    const fn num_state_reads_ix() -> core::ops::Range<usize> {
         0..core::mem::size_of::<u8>()
     }
 
-    /// Get the [`Self::num_constraints`] indices for within a buffer.
-    pub const fn num_constraints_ix() -> core::ops::Range<usize> {
+    /// Get the range of the [`Self::num_constraints`] value within a buffer.
+    const fn num_constraints_ix() -> core::ops::Range<usize> {
         let end = Self::num_state_reads_ix().end + core::mem::size_of::<u8>();
         Self::num_state_reads_ix().end..end
     }
@@ -329,7 +272,7 @@ impl FixedSizeHeader {
     /// Panics if the buffer is too small.
     /// Lengths must be checked before calling this method.
     /// Check with [`FixedSizeHeader::check_len`].
-    pub fn get_num_state_reads(buf: &[u8]) -> u8 {
+    fn get_num_state_reads(buf: &[u8]) -> u8 {
         buf[Self::num_state_reads_ix().start]
     }
 
@@ -339,7 +282,7 @@ impl FixedSizeHeader {
     /// Panics if the buffer is too small.
     /// Lengths must be checked before calling this method.
     /// Check with [`FixedSizeHeader::check_len`].
-    pub fn get_num_constraints(buf: &[u8]) -> u8 {
+    fn get_num_constraints(buf: &[u8]) -> u8 {
         buf[Self::num_constraints_ix().start]
     }
 
@@ -349,7 +292,7 @@ impl FixedSizeHeader {
     /// Panics if the buffer is too small.
     /// Lengths must be checked before calling this method.
     /// Check with [`FixedSizeHeader::check_len`].
-    pub fn decode(buf: &[u8]) -> Self {
+    fn decode(buf: &[u8]) -> Self {
         let num_state_reads = Self::get_num_state_reads(buf);
         let num_constraints = Self::get_num_constraints(buf);
         Self {
@@ -364,7 +307,7 @@ impl FixedSizeHeader {
     /// Panics if the buffer is too small.
     /// Lengths must be checked before calling this method.
     /// Check with [`FixedSizeHeader::check_header_len_and_program_lens`].
-    pub fn get_state_read_lens_bytes<'a>(&self, buf: &'a [u8]) -> &'a [u8] {
+    fn get_state_read_lens_bytes<'a>(&self, buf: &'a [u8]) -> &'a [u8] {
         let start = Self::num_constraints_ix().end;
         let end = start + (self.num_state_reads as usize).saturating_mul(2);
         &buf[start..end]
@@ -376,48 +319,18 @@ impl FixedSizeHeader {
     /// Panics if the buffer is too small.
     /// Lengths must be checked before calling this method.
     /// Check with [`FixedSizeHeader::check_header_len_and_program_lens`].
-    pub fn get_constraint_lens_bytes<'a>(&self, buf: &'a [u8]) -> &'a [u8] {
+    fn get_constraint_lens_bytes<'a>(&self, buf: &'a [u8]) -> &'a [u8] {
         let start =
             Self::num_constraints_ix().end + (self.num_state_reads as usize).saturating_mul(2);
         let end = start + (self.num_constraints as usize).saturating_mul(2);
         &buf[start..end]
     }
 
-    /// Decode the state read lengths from a buffer.
-    ///
-    /// # Panics
-    /// Panics if the buffer is too small.
-    /// Lengths must be checked before calling this method.
-    /// Check with [`FixedSizeHeader::check_header_len_and_program_lens`].
-    pub fn decode_state_read_lens<'h, 'b: 'h>(
-        &'h self,
-        buf: &'b [u8],
-    ) -> impl Iterator<Item = usize> + 'h {
-        self.get_state_read_lens_bytes(buf)
-            .chunks_exact(core::mem::size_of::<u16>())
-            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]) as usize)
-    }
-
-    /// Decode the constraint lengths from a buffer.
-    ///
-    /// # Panics
-    /// Panics if the buffer is too small.
-    /// Lengths must be checked before calling this method.
-    /// Check with [`FixedSizeHeader::check_header_len_and_program_lens`].
-    pub fn decode_constraint_lens<'h, 'b: 'h>(
-        &'h self,
-        buf: &'b [u8],
-    ) -> impl Iterator<Item = usize> + 'h {
-        self.get_constraint_lens_bytes(buf)
-            .chunks_exact(core::mem::size_of::<u16>())
-            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]) as usize)
-    }
-
     /// Check the length is big enough to hold the static part of the header.
     ///
     /// # Errors
     /// Returns an error if the buffer is too small.
-    pub const fn check_len(len: usize) -> DecodeResult<()> {
+    const fn check_len(len: usize) -> DecodeResult<()> {
         if len < EncodedFixedSizeHeader::SIZE {
             return Err(DecodeError::BufferTooSmall);
         }
@@ -429,29 +342,58 @@ impl FixedSizeHeader {
     ///
     /// # Errors
     /// Returns an error if the buffer is too small.
-    pub fn check_header_len_and_program_lens(&self, len: usize) -> DecodeResult<()> {
-        if len < self.header_len_and_program_lens() {
+    fn check_header_len_and_program_lens(&self, len: usize) -> DecodeResult<()> {
+        if len
+            < state_len_buffer_offset(self.num_state_reads as usize, self.num_constraints as usize)
+        {
             return Err(DecodeError::BufferTooSmall);
         }
         Ok(())
     }
-
-    /// The length of bytes of the header and the lengths of the programs.
-    pub fn header_len_and_program_lens(&self) -> usize {
-        EncodedFixedSizeHeader::SIZE
-            + self.num_state_reads as usize * core::mem::size_of::<u16>()
-            + self.num_constraints as usize * core::mem::size_of::<u16>()
-    }
 }
 
-impl DecodedHeader {
+impl<'a> DecodedHeader<'a> {
+    /// The number of bytes this header points to.
+    ///
+    /// This includes the [`EncodedFixedSizeHeader::SIZE`]
+    /// and the lengths of the programs as well as the programs themselves.
+    pub fn bytes_len(&self) -> usize {
+        let sr = self
+            .state_reads
+            .chunks_exact(LEN_SIZE_BYTES)
+            .fold(0usize, |acc, chunk| acc.saturating_add(decode_len(chunk)));
+
+        let c = self
+            .constraints
+            .chunks_exact(LEN_SIZE_BYTES)
+            .fold(0usize, |acc, chunk| acc.saturating_add(decode_len(chunk)));
+
+        let lens = self
+            .state_reads
+            .len()
+            .saturating_add(self.constraints.len());
+
+        EncodedFixedSizeHeader::SIZE
+            .saturating_add(sr)
+            .saturating_add(c)
+            .saturating_add(lens)
+    }
+
+    pub(super) fn num_state_reads(&self) -> usize {
+        self.state_reads.len() / LEN_SIZE_BYTES
+    }
+
+    pub(super) fn num_constraints(&self) -> usize {
+        self.constraints.len() / LEN_SIZE_BYTES
+    }
+
     /// Decode a header from bytes.
     ///
     /// # Errors
     /// Returns an error if the buffer is too small
     /// or the header is inconsistent
     /// or the predicate bounds are beyond the limits.
-    pub fn decode(buf: &[u8]) -> DecodeResult<Self> {
+    pub fn decode(buf: &'a [u8]) -> DecodeResult<Self> {
         use FixedSizeHeader as Fixed;
 
         // Check the buffer is big enough to hold the fixed size part of the header.
@@ -464,35 +406,14 @@ impl DecodedHeader {
         let num_state_reads = fh.num_state_reads as usize;
         let num_constraints = fh.num_constraints as usize;
 
-        let mut header = DecodedHeader {
-            state_reads: Vec::with_capacity(num_state_reads),
-            constraints: Vec::with_capacity(num_constraints),
-        };
-
         // Check the buffer is big enough to hold the full decoded header.
         // This includes the fixed size part and the dynamic lengths part.
         fh.check_header_len_and_program_lens(buf.len())?;
 
-        // Get the position of the first program byte (end of the header).
-        let mut last = fh.header_len_and_program_lens();
-
-        // Decode the lengths of the programs and calculate the ranges.
-        let state_read_lens = fh.decode_state_read_lens(buf).map(|len| {
-            let range = last..last + len;
-            last += len;
-            range
-        });
-
-        header.state_reads.extend(state_read_lens);
-
-        // Decode the lengths of the programs and calculate the ranges.
-        let constraint_lens = fh.decode_constraint_lens(buf).map(|len| {
-            let range = last..last + len;
-            last += len;
-            range
-        });
-
-        header.constraints.extend(constraint_lens);
+        let header = Self {
+            state_reads: fh.get_state_read_lens_bytes(buf),
+            constraints: fh.get_constraint_lens_bytes(buf),
+        };
 
         // Check the decoded header is consistent with the fixed size part.
         header.check_consistency(&fh)?;
@@ -501,82 +422,46 @@ impl DecodedHeader {
         let bounds = PredicateBounds {
             num_state_reads,
             num_constraints,
-            state_read_lens: header.state_reads.iter().map(ExactSizeIterator::len),
-            constraint_lens: header.constraints.iter().map(ExactSizeIterator::len),
+            state_read_lens: header
+                .state_reads
+                .chunks_exact(LEN_SIZE_BYTES)
+                .map(decode_len),
+            constraint_lens: header
+                .constraints
+                .chunks_exact(LEN_SIZE_BYTES)
+                .map(decode_len),
         };
         check_predicate_bounds(bounds)?;
 
         Ok(header)
     }
 
-    /// The number of bytes this header points to.
-    ///
-    /// This includes the [`EncodedFixedSizeHeader::SIZE`]
-    /// and the lengths of the programs as well as the programs themselves.
-    pub fn bytes_len(&self) -> usize {
-        let sr = self
-            .state_reads
-            .iter()
-            .fold(0usize, |acc, p| acc.saturating_add(p.len()));
-
-        let c = self
-            .constraints
-            .iter()
-            .fold(0usize, |acc, p| acc.saturating_add(p.len()));
-
-        // Two bytes per length.
-        let lens = self
-            .state_reads
-            .len()
-            .saturating_add(self.constraints.len())
-            .saturating_mul(core::mem::size_of::<u16>());
-
-        EncodedFixedSizeHeader::SIZE
-            .saturating_add(sr)
-            .saturating_add(c)
-            .saturating_add(lens)
-    }
-
-    /// Decode the state read programs from a buffer.
-    /// This simply re-nests the programs from the flat buffer.
-    /// The underlying data is not modified.
-    ///
-    /// # Panics
-    /// Panics if the buffer is too small.
-    /// Lengths must be checked before calling this method.
-    /// Check with [`Self::bytes_len`].
-    pub fn decode_state_read(&self, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.state_reads
-            .iter()
-            .map(|range| buf[range.clone()].to_vec())
-            .collect()
-    }
-
-    /// Decode the constraint check programs from a buffer.
-    /// This simply re-nests the programs from the flat buffer.
-    /// The underlying data is not modified.
-    ///
-    /// # Panics
-    /// Panics if the buffer is too small.
-    /// Lengths must be checked before calling this method.
-    /// Check with [`Self::bytes_len`].
-    pub fn decode_constraints(&self, buf: &[u8]) -> Vec<Vec<u8>> {
-        self.constraints
-            .iter()
-            .map(|range| buf[range.clone()].to_vec())
-            .collect()
-    }
-
     /// Check the [`DecodedHeader`] is consistent with the [`FixedSizeHeader`].
-    pub fn check_consistency(&self, header: &FixedSizeHeader) -> DecodeResult<()> {
-        if self.state_reads.len() != header.num_state_reads as usize {
+    fn check_consistency(&self, header: &FixedSizeHeader) -> DecodeResult<()> {
+        if self.state_reads.len() / LEN_SIZE_BYTES != header.num_state_reads as usize {
             return Err(DecodeError::IncorrectBodyLength);
         }
-        if self.constraints.len() != header.num_constraints as usize {
+        if self.constraints.len() / LEN_SIZE_BYTES != header.num_constraints as usize {
             return Err(DecodeError::IncorrectBodyLength);
         }
         Ok(())
     }
+}
+
+/// Decode a length from two u8 bytes.
+/// Creates a [`u16::from_be_bytes`] and casts to a [`usize`].
+///
+/// # Panics
+/// Must be called only if the buffer is at least 2 bytes.
+fn decode_len(chunk: &[u8]) -> usize {
+    u16::from_be_bytes([chunk[0], chunk[1]]) as usize
+}
+
+/// The length of bytes of the header and the lengths of the programs.
+pub(super) fn state_len_buffer_offset(num_state_reads: usize, num_constraints: usize) -> usize {
+    EncodedFixedSizeHeader::SIZE
+        + num_state_reads * LEN_SIZE_BYTES
+        + num_constraints * LEN_SIZE_BYTES
 }
 
 impl From<FixedSizeHeader> for EncodedFixedSizeHeader {

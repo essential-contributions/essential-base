@@ -20,7 +20,7 @@ impl Address for Predicate {
         let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
         hasher.update(header.fixed_size_header.0);
         hasher.update(header.lens);
-        for item in self.as_programs() {
+        for item in self.programs() {
             hasher.update(item);
         }
         ContentAddress(hasher.finalize().into())

@@ -44,7 +44,7 @@ impl Predicate {
     pub const MAX_BYTES: usize = 1024 * 50;
 
     /// Iterator over the programs in the predicate.
-    pub fn as_programs(&self) -> impl Iterator<Item = &[u8]> {
+    pub fn programs(&self) -> impl Iterator<Item = &[u8]> {
         self.state_read
             .iter()
             .chain(self.constraints.iter())
@@ -58,7 +58,12 @@ impl Predicate {
 
     /// Generate the encoding header for this predicate.
     pub fn encoded_header(&self) -> Result<header::EncodedHeader, PredicateError> {
-        (self).try_into()
+        let static_header = self.fixed_size_header()?.into();
+        let lens = header::encode_program_lengths(self);
+        Ok(header::EncodedHeader {
+            fixed_size_header: static_header,
+            lens,
+        })
     }
 
     /// Encode the predicate into a bytes iterator.
@@ -66,7 +71,7 @@ impl Predicate {
         let header = self.encoded_header()?;
         Ok(header
             .into_iter()
-            .chain(self.as_programs().flat_map(|x| x.iter().copied())))
+            .chain(self.programs().flat_map(|x| x.iter().copied())))
     }
 
     /// The size of the encoded predicate in bytes.
@@ -93,9 +98,7 @@ impl Predicate {
     }
 
     /// Decode a predicate from bytes.
-    pub fn decode<B: AsRef<[u8]>>(bytes: B) -> Result<Self, header::DecodeError> {
-        let bytes = bytes.as_ref();
-
+    pub fn decode(bytes: &[u8]) -> Result<Self, header::DecodeError> {
         // Decode the header.
         let header = header::DecodedHeader::decode(bytes)?;
 
@@ -105,13 +108,44 @@ impl Predicate {
             return Err(header::DecodeError::BufferTooSmall);
         }
 
+        let num_state_reads = header.num_state_reads();
+        let num_constraints = header.num_constraints();
+
+        let mut predicate = Self {
+            state_read: Vec::with_capacity(num_state_reads),
+            constraints: Vec::with_capacity(num_constraints),
+        };
+        let mut offset = header::state_len_buffer_offset(num_state_reads, num_constraints);
+
         // Decode the programs.
-        let state_read = header.decode_state_read(bytes);
-        let constraints = header.decode_constraints(bytes);
-        Ok(Self {
-            state_read,
-            constraints,
-        })
+        predicate
+            .state_read
+            .extend(
+                header
+                    .state_reads
+                    .chunks_exact(header::LEN_SIZE_BYTES)
+                    .map(|chunk| {
+                        let len = u16::from_be_bytes([chunk[0], chunk[1]]) as usize;
+                        let start = offset;
+                        offset += len;
+                        bytes[start..offset].to_vec()
+                    }),
+            );
+        predicate
+            .constraints
+            .extend(
+                header
+                    .constraints
+                    .chunks_exact(header::LEN_SIZE_BYTES)
+                    .map(|chunk| {
+                        let len = u16::from_be_bytes([chunk[0], chunk[1]]) as usize;
+                        let start = offset;
+                        offset += len;
+                        bytes[start..offset].to_vec()
+                    }),
+            );
+
+        Ok(predicate)
     }
 
     /// Check the predicate is within the limits of a valid predicate.
@@ -123,5 +157,13 @@ impl Predicate {
             constraint_lens: self.constraints.iter().map(|x| x.len()),
         };
         check_predicate_bounds(bounds)
+    }
+
+    fn fixed_size_header(&self) -> Result<header::FixedSizeHeader, PredicateError> {
+        self.check_predicate_bounds()?;
+        Ok(header::FixedSizeHeader {
+            num_state_reads: self.state_read.len() as u8,
+            num_constraints: self.constraints.len() as u8,
+        })
     }
 }

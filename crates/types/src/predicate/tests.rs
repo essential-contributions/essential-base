@@ -6,7 +6,7 @@ fn test_programs() {
         state_read: (0..3).map(|i| vec![0_u8; i]).collect(),
         constraints: (255..259).map(|i| vec![0_u8; i]).collect(),
     };
-    let programs = predicate.as_programs().collect::<Vec<_>>();
+    let programs = predicate.programs().collect::<Vec<_>>();
     assert_eq!(programs.len(), 7);
 
     for (i, program) in programs[0..3].iter().enumerate() {
@@ -75,7 +75,7 @@ fn test_decode() {
         1, 2, 2, // state reads
         200, 200, 201, 201, // constraints
     ];
-    let predicate = Predicate::decode(bytes).unwrap();
+    let predicate = Predicate::decode(&bytes).unwrap();
 
     let expected = Predicate {
         state_read: (0..3).map(|i| vec![i as u8; i]).collect(),
@@ -128,6 +128,6 @@ fn test_round_trips() {
         constraints: (200..202).map(|i| vec![i as u8; 2]).collect(),
     };
     let bytes: Vec<u8> = predicate.encode().unwrap().collect();
-    let decoded = Predicate::decode(bytes).unwrap();
+    let decoded = Predicate::decode(&bytes).unwrap();
     assert_eq!(predicate, decoded);
 }

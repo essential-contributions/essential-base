@@ -36,7 +36,7 @@ fn test_content_addr() {
     let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
     hasher.update(header.fixed_size_header.0);
     hasher.update(header.lens);
-    for item in pred.as_programs() {
+    for item in pred.programs() {
         hasher.update(item);
     }
     let addr = ContentAddress(hasher.finalize().into());
