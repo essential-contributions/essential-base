@@ -29,7 +29,10 @@ pub(crate) fn shl(a: Word, b: Word) -> OpResult<Word> {
 
 pub(crate) fn shr(a: Word, b: Word) -> OpResult<Word> {
     let b = u32::try_from(b).map_err(|_| AluError::Overflow)?;
-    a.checked_shr(b).ok_or(AluError::Overflow.into())
+    (a as u64)
+        .checked_shr(b)
+        .map(|i| i as i64)
+        .ok_or(AluError::Overflow.into())
 }
 
 #[cfg(test)]
