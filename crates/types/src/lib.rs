@@ -33,9 +33,6 @@ pub type Value = Vec<Word>;
 /// Hash encoded as a 32 byte array.
 pub type Hash = [u8; 32];
 
-/// Externally owned account.
-pub type Eoa = [u8; 32];
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Recoverable ECDSA signature over some data.
 pub struct Signature(

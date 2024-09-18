@@ -1,4 +1,5 @@
 use essential_check::predicate;
+use essential_types::predicate::{header::PredicateError, Predicate};
 use util::{empty_predicate, random_keypair};
 
 pub mod util;
@@ -36,43 +37,43 @@ fn too_many_predicates() {
 #[test]
 fn too_many_state_reads() {
     let mut predicate = empty_predicate();
-    predicate.state_read = vec![vec![]; predicate::MAX_STATE_READS + 1];
+    predicate.state_read = vec![vec![]; Predicate::MAX_STATE_READS + 1];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
-        predicate::InvalidPredicate::StateReads(predicate::InvalidStateReads::TooMany(n))
-            if n == predicate::MAX_STATE_READS + 1
+        PredicateError::TooManyStateReads(n)
+            if n == Predicate::MAX_STATE_READS + 1
     ));
 }
 
 #[test]
 fn state_read_too_large() {
     let mut predicate = empty_predicate();
-    predicate.state_read = vec![vec![0u8; predicate::MAX_STATE_READ_SIZE_IN_BYTES + 1]];
+    predicate.state_read = vec![vec![0u8; Predicate::MAX_STATE_READ_SIZE_BYTES + 1]];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
-        predicate::InvalidPredicate::StateReads(predicate::InvalidStateReads::StateRead(0, predicate::InvalidStateRead::TooManyBytes(n)))
-            if n == predicate::MAX_STATE_READ_SIZE_IN_BYTES + 1
+        PredicateError::StateReadTooLarge(n)
+            if n == Predicate::MAX_STATE_READ_SIZE_BYTES + 1
     ));
 }
 
 #[test]
 fn too_many_constraints() {
     let mut predicate = empty_predicate();
-    predicate.constraints = vec![vec![]; predicate::MAX_CONSTRAINTS + 1];
+    predicate.constraints = vec![vec![]; Predicate::MAX_CONSTRAINTS + 1];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
-        predicate::InvalidPredicate::Constraints(predicate::InvalidConstraints::TooManyConstraints(n))
-            if n == predicate::MAX_CONSTRAINTS + 1
+        PredicateError::TooManyConstraints(n)
+            if n == Predicate::MAX_CONSTRAINTS + 1
     ));
 }
 
 #[test]
 fn constraint_too_large() {
     let mut predicate = empty_predicate();
-    predicate.constraints = vec![vec![0u8; predicate::MAX_CONSTRAINT_SIZE_IN_BYTES + 1]];
+    predicate.constraints = vec![vec![0u8; Predicate::MAX_CONSTRAINT_SIZE_BYTES + 1]];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
-        predicate::InvalidPredicate::Constraints(predicate::InvalidConstraints::Constraint(0, predicate::InvalidConstraint::TooManyBytes(n)))
-            if n == predicate::MAX_CONSTRAINT_SIZE_IN_BYTES + 1
+        PredicateError::ConstraintTooLarge(n)
+            if n == Predicate::MAX_CONSTRAINT_SIZE_BYTES + 1
     ));
 }

@@ -43,6 +43,9 @@ pub struct Contract {
 }
 
 impl Contract {
+    /// Maximum number of predicates in a contract.
+    pub const MAX_PREDICATES: usize = 100;
+
     /// Create a new contract with the given predicates but no salt.
     pub fn without_salt(predicates: Vec<Predicate>) -> Self {
         Self {

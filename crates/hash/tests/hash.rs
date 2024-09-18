@@ -4,6 +4,7 @@ use essential_types::{
     solution::{Solution, SolutionData},
     Block, ContentAddress, PredicateAddress,
 };
+use sha2::Digest;
 
 fn test_predicate() -> Predicate {
     Predicate {
@@ -30,9 +31,17 @@ fn hash_predicate() {
 
 #[test]
 fn test_content_addr() {
-    let addr = essential_hash::hash(&test_predicate());
+    let pred = &test_predicate();
+    let header = pred.encoded_header().unwrap();
+    let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+    hasher.update(header.fixed_size_header.0);
+    hasher.update(header.lens);
+    for item in pred.programs() {
+        hasher.update(item);
+    }
+    let addr = ContentAddress(hasher.finalize().into());
     let content_addr = essential_hash::content_addr(&test_predicate());
-    assert_eq!(content_addr.0, addr);
+    assert_eq!(content_addr, addr);
 
     let contract = Contract {
         salt: Default::default(),
