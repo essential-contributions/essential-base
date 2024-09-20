@@ -41,3 +41,15 @@ pub fn halt_if(stack: &mut Stack) -> OpResult<Option<ProgramControlFlow>> {
         Ok(None)
     }
 }
+
+/// Implementation of the `PanicIf` operation.
+pub fn panic_if(stack: &mut Stack) -> OpResult<()> {
+    let cond = stack.pop()?;
+    let cond = bool_from_word(cond).ok_or(TotalControlFlowError::InvalidPanicIfCondition)?;
+    if cond {
+        let stack = stack.iter().copied().collect();
+        Err(TotalControlFlowError::Panic(stack).into())
+    } else {
+        Ok(())
+    }
+}

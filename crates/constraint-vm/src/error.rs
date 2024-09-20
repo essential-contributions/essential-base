@@ -299,6 +299,12 @@ pub enum TotalControlFlowError {
     /// Attempted to halt if with an invalid condition
     #[error("halt if requires a boolean condition")]
     InvalidHaltIfCondition,
+    /// Attempted to panic if with an invalid condition
+    #[error("panic if requires a boolean condition")]
+    InvalidPanicIfCondition,
+    /// The `PanicIf` operation was called with a `true` argument
+    #[error("program panicked with `PanicIf` operation. The stack at the time of panic: {0:?}")]
+    Panic(Vec<Word>),
 }
 
 /// Shorthand for a `Result` where the error type is a `TemporaryError`.
