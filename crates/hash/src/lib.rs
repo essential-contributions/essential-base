@@ -57,3 +57,19 @@ pub fn hash_words(words: &[Word]) -> Hash {
     hasher.update(&data);
     hasher.finalize().into()
 }
+
+/// Hash bytes without serializing them.
+pub fn hash_bytes(bytes: &[u8]) -> Hash {
+    let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+    hasher.update(bytes);
+    hasher.finalize().into()
+}
+
+/// Hash bytes without serializing them.
+pub fn hash_bytes_iter<'i>(iter: impl IntoIterator<Item = &'i [u8]>) -> Hash {
+    let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+    for bytes in iter {
+        hasher.update(bytes);
+    }
+    hasher.finalize().into()
+}
