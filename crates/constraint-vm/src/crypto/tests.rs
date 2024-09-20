@@ -9,7 +9,8 @@ use crate::{
         Hash,
     },
 };
-use essential_types::convert::u8_32_from_word_4;
+use essential_types::convert::{u8_32_from_word_4, word_from_bytes};
+use sha2::Digest;
 
 fn exec_ops_sha256(ops: &[Op]) -> Hash {
     let stack = exec_ops(ops, *test_access()).unwrap();
@@ -18,12 +19,19 @@ fn exec_ops_sha256(ops: &[Op]) -> Hash {
     bytes.try_into().unwrap()
 }
 
+fn hash(bytes: &[u8]) -> [u8; 32] {
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(bytes);
+    hasher.finalize().into()
+}
+
 #[test]
 #[rustfmt::skip]
 fn sha256_1_word() {
     let ops = &[
         Stack::Push(0x0000000000000000).into(), // Data
         Stack::Push(1).into(), // Data Length
+        Stack::Push(0).into(), // Padding
         Crypto::Sha256.into(),
     ];
     let hash = exec_ops_sha256(ops);
@@ -46,6 +54,7 @@ fn sha256_3_words() {
         Stack::Push(0x00000000000000FF).into(), // Data
         Stack::Push(0x00000000000000FF).into(), // Data
         Stack::Push(3).into(), // Data Length
+        Stack::Push(0).into(), // Padding
         Crypto::Sha256.into(),
     ];
     let hash = exec_ops_sha256(ops);
@@ -58,6 +67,67 @@ fn sha256_3_words() {
         0x00, 0xe2, 0xfc, 0x2d, 0xae, 0x75, 0x00, 0xd6,
     ];
     assert_eq!(&hash[..], &expected);
+}
+
+fn test_sha256_padding_inner(
+    bytes: &[u8],
+    extra_padding_len: Word,
+    data_len: Word,
+) -> crate::Stack {
+    let words = bytes.chunks(8).map(|chunk| {
+        if chunk.len() == 8 {
+            word_from_bytes(chunk.try_into().unwrap())
+        } else {
+            let mut word = [0; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            word_from_bytes(word)
+        }
+    });
+    let mut stack = crate::Stack::default();
+    for word in words {
+        stack.push(word).unwrap();
+    }
+    stack.push(data_len).unwrap();
+    stack.push(extra_padding_len).unwrap();
+    stack
+}
+
+#[test]
+fn test_sha256_padding() {
+    let bytes = [0x01; 33];
+    let extra_padding_len =
+        (core::mem::size_of::<Word>() - (bytes.len() % core::mem::size_of::<Word>())) as Word;
+    let len = (bytes.len() / core::mem::size_of::<Word>()) as Word + 1;
+
+    let mut stack = test_sha256_padding_inner(&bytes, extra_padding_len, len);
+    super::sha256(&mut stack).unwrap();
+    let result: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
+    assert_eq!(result, hash(&bytes));
+
+    let bytes = [0x01; 32];
+    let extra_padding_len = 0;
+    let len = (bytes.len() / core::mem::size_of::<Word>()) as Word;
+
+    let mut stack = test_sha256_padding_inner(&bytes, extra_padding_len, len);
+    super::sha256(&mut stack).unwrap();
+    let result: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
+    assert_eq!(result, hash(&bytes));
+
+    let bytes = [0x01; 34];
+    let extra_padding_len = 9;
+    let len = (bytes.len() / core::mem::size_of::<Word>()) as Word + 1;
+
+    let mut stack = test_sha256_padding_inner(&bytes, extra_padding_len, len);
+    super::sha256(&mut stack).unwrap_err();
+
+    let mut stack = test_sha256_padding_inner(&[], 0, 0);
+    super::sha256(&mut stack).unwrap();
+
+    let mut stack = test_sha256_padding_inner(&[], 1, 0);
+    super::sha256(&mut stack).unwrap_err();
+
+    let mut stack = test_sha256_padding_inner(&[1; 39], 7, 6);
+    super::sha256(&mut stack).unwrap_err();
 }
 
 // Generate some test operations for a successful ed25519 verification.

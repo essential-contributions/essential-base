@@ -15,9 +15,32 @@ mod tests;
 /// `Crypto::Sha256` implementation.
 pub(crate) fn sha256(stack: &mut Stack) -> OpResult<()> {
     use sha2::Digest;
-    let data = stack.pop_len_words::<_, Vec<_>, OpError>(|words| {
+    // Pop the extra padding length arg.
+    let extra_padding_len = stack.pop()?;
+
+    // Check that it's valid.
+    if extra_padding_len > core::mem::size_of::<Word>() as Word {
+        return Err(OpError::Crypto(CryptoError::InvalidPaddingSize(
+            extra_padding_len,
+        )));
+    }
+    let extra_padding_len: usize = extra_padding_len
+        .try_into()
+        .map_err(|_| OpError::Crypto(CryptoError::InvalidPaddingSize(extra_padding_len)))?;
+
+    // Pop the length and data from the stack.
+    let mut data = stack.pop_len_words::<_, Vec<_>, OpError>(|words| {
         Ok(bytes_from_words(words.iter().copied()).collect())
     })?;
+
+    // Calculate the new length after padding is removed.
+    let new_len = data.len().checked_sub(extra_padding_len).ok_or_else(|| {
+        OpError::Crypto(CryptoError::InvalidPaddingSize(extra_padding_len as Word))
+    })?;
+
+    // Truncate the padding.
+    data.truncate(new_len);
+
     let mut hasher = sha2::Sha256::new();
     hasher.update(&data);
     let hash_bytes: [u8; 32] = hasher.finalize().into();

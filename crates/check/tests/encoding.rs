@@ -25,6 +25,7 @@ async fn test_encoding_sig_and_pub_key() {
             constraint_vm::asm::Access::DecisionVar.into(),
             // Hash the key.
             constraint_vm::asm::Stack::Push(5).into(),
+            constraint_vm::asm::Stack::Push(0).into(),
             constraint_vm::asm::Crypto::Sha256.into(),
             // Get the secp256k1 signature. It is 9 slots.
             constraint_vm::asm::Stack::Push(1).into(),
