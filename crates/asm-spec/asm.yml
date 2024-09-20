@@ -427,6 +427,17 @@ StateRead:
                 - The jump is negative.
                 - The jump distance is zero.
               stack_in: [n_instruction, condition]
+            
+            PanicIf:
+              opcode: 0x64
+              description: |
+                Panic if the `condition` is true.
+
+                Returns the stack at the time of the panic
+                in the error message.
+              panics:
+                - The `condition` is true.
+              stack_in: [condition]
 
         Temporary:
           description: Operations for temporary memory.
