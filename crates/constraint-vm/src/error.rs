@@ -137,6 +137,12 @@ pub enum AccessError {
     /// The access range was invalid
     #[error("invalid access range")]
     InvalidAccessRange,
+    /// The length of the slots was too large large to fit in a `Word`.
+    #[error("the length of the slots was too large: {0}")]
+    SlotsLengthTooLarge(usize),
+    /// The `which_slots` argument was invalid.
+    #[error("invalid `which_slots` argument: {0}")]
+    InvalidSlotType(Word),
     /// Missing argument error.
     #[error("missing `Access` argument: {0}")]
     MissingArg(#[from] MissingAccessArgError),

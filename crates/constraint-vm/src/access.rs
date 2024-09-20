@@ -18,6 +18,8 @@ use std::collections::{HashMap, HashSet};
 #[cfg(test)]
 mod dec_vars;
 #[cfg(test)]
+mod num_slots;
+#[cfg(test)]
 mod pub_vars;
 #[cfg(test)]
 mod state;
@@ -362,6 +364,39 @@ pub(crate) fn predicate_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult
     let predicate_address = word_4_from_u8_32(address.predicate.0);
     stack.extend(contract_address)?;
     stack.extend(predicate_address)?;
+    Ok(())
+}
+
+/// Implementation of the `Access::NumSlots` operation.
+pub(crate) fn num_slots(
+    stack: &mut Stack,
+    state_slots: &StateSlots<'_>,
+    decision_variables: &[Value],
+) -> OpResult<()> {
+    const DEC_VAR_SLOTS: Word = 0;
+    const PRE_STATE_SLOTS: Word = 1;
+    const POST_STATE_SLOTS: Word = 2;
+
+    let which_slots = stack.pop()?;
+
+    match which_slots {
+        DEC_VAR_SLOTS => {
+            let num_slots = Word::try_from(decision_variables.len())
+                .map_err(|_| AccessError::SlotsLengthTooLarge(decision_variables.len()))?;
+            stack.push(num_slots)?;
+        }
+        PRE_STATE_SLOTS => {
+            let num_slots = Word::try_from(state_slots.pre.len())
+                .map_err(|_| AccessError::SlotsLengthTooLarge(state_slots.pre.len()))?;
+            stack.push(num_slots)?;
+        }
+        POST_STATE_SLOTS => {
+            let num_slots = Word::try_from(state_slots.post.len())
+                .map_err(|_| AccessError::SlotsLengthTooLarge(state_slots.post.len()))?;
+            stack.push(num_slots)?;
+        }
+        _ => return Err(AccessError::InvalidSlotType(which_slots).into()),
+    }
     Ok(())
 }
 

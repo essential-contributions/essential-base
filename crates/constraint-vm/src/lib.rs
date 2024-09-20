@@ -264,6 +264,11 @@ pub fn step_op_access(
         asm::Access::PubVar => access::pub_var(stack, access.solution.transient_data),
         asm::Access::PubVarLen => access::pub_var_len(stack, access.solution.transient_data),
         asm::Access::PredicateAt => access::predicate_at(stack, access.solution.data),
+        asm::Access::NumSlots => access::num_slots(
+            stack,
+            &access.state_slots,
+            &access.solution.this_data().decision_variables,
+        ),
     }
 }
 
