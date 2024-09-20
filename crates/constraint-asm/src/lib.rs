@@ -51,6 +51,12 @@ mod op {
     pub mod bytes_iter {
         essential_asm_gen::gen_constraint_op_bytes_iter!();
     }
+
+    /// Short hand names for the operations.
+    pub mod short {
+        use super::{Constraint as Op, *};
+        essential_asm_gen::gen_constraint_op_consts!();
+    }
 }
 
 /// Typed representation of the opcode, without any associated data.

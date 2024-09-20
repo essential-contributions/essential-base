@@ -41,6 +41,8 @@ pub struct Op {
     pub opcode: u8,
     pub description: String,
     #[serde(default)]
+    pub short: String,
+    #[serde(default)]
     pub panics: Vec<String>,
     #[serde(default)]
     pub num_arg_bytes: u8,
@@ -104,6 +106,11 @@ mod tests {
         // Panics internally on failure, but should never fail.
         let tree = tree();
         println!("{:#?}", tree);
+        std::fs::write(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/yeh.txt"),
+            format!("{:#?}", tree),
+        )
+        .unwrap();
     }
 
     #[test]
