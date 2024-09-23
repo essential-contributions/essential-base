@@ -69,7 +69,7 @@ pub struct PredicateAddress {
 /// A protocol block.
 pub struct Block {
     /// The block number.
-    pub number: u64,
+    pub number: Word,
     /// The timestamp of the block.
     pub timestamp: Duration,
     /// The solutions in the the block.

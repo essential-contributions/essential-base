@@ -2,6 +2,9 @@
 
 use crate::{asm::Word, error::AluError, OpResult};
 
+#[cfg(test)]
+mod shifts;
+
 pub(crate) fn add(a: Word, b: Word) -> OpResult<Word> {
     a.checked_add(b).ok_or(AluError::Overflow.into())
 }
@@ -20,6 +23,33 @@ pub(crate) fn div(a: Word, b: Word) -> OpResult<Word> {
 
 pub(crate) fn mod_(a: Word, b: Word) -> OpResult<Word> {
     a.checked_rem(b).ok_or(AluError::DivideByZero.into())
+}
+
+pub(crate) fn shl(a: Word, b: Word) -> OpResult<Word> {
+    check_shift_bounds(b)?;
+    Ok(a << b)
+}
+
+pub(crate) fn shr(a: Word, b: Word) -> OpResult<Word> {
+    check_shift_bounds(b)?;
+    // casts are safe and turn this into a logical shift
+    Ok(((a as u64) >> b) as Word)
+}
+
+pub(crate) fn arithmetic_shr(a: Word, b: Word) -> OpResult<Word> {
+    check_shift_bounds(b)?;
+    Ok(a >> b)
+}
+
+const BITS_IN_WORD: Word = core::mem::size_of::<Word>() as Word * 8;
+
+#[inline]
+fn check_shift_bounds(b: Word) -> OpResult<()> {
+    let bounds = 0..BITS_IN_WORD;
+    if !bounds.contains(&b) {
+        return Err(AluError::Overflow.into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
