@@ -171,6 +171,18 @@ StateRead:
                 Note this differs from `EqRange` in that there is a size given at the end of both sets.
               stack_in: [lhs, lhs_set_length, rhs, rhs_set_length]
               stack_out: [set(lhs) == set(rhs)]
+            
+            BitAnd:
+              opcode: 0x1A
+              description: Bitwise AND of two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs & rhs"]
+            
+            BitOr:
+              opcode: 0x1B
+              description: Bitwise OR of two words.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs | rhs"]
 
         Alu:
           description: Operations for computing arithmetic and logic.
@@ -204,6 +216,33 @@ StateRead:
               description: Modulus of lhs by rhs.
               stack_in: [lhs, rhs]
               stack_out: ["lhs % rhs"]
+
+            Shl:
+              opcode: 0x25
+              description: Logical shift left by number of bits.
+              panics:
+                - Number of bits is negative.
+                - Number of bits is greater than a Word.
+              stack_in: [lhs, rhs, num_bits]
+              stack_out: ["lhs << rhs"]
+
+            Shr:
+              opcode: 0x26
+              description: Logical shift right by number of bits.
+              panics:
+                - Number of bits is negative.
+                - Number of bits is greater than a Word.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs >> rhs"]
+            
+            ShrI:
+              opcode: 0x27
+              description: Arithmetic shift right by number of bits.
+              panics:
+                - Number of bits is negative.
+                - Number of bits is greater than a Word.
+              stack_in: [lhs, rhs]
+              stack_out: ["lhs >> rhs"]
 
         Access:
           description: Operations for accessing input data.
