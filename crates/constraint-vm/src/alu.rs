@@ -33,7 +33,7 @@ pub(crate) fn shl(a: Word, b: Word) -> OpResult<Word> {
 pub(crate) fn shr(a: Word, b: Word) -> OpResult<Word> {
     check_shift_bounds(b)?;
     // casts are safe and turn this into a logical shift
-    Ok(((a as u64) >> b) as i64)
+    Ok(((a as u64) >> b) as Word)
 }
 
 pub(crate) fn arithmetic_shr(a: Word, b: Word) -> OpResult<Word> {
