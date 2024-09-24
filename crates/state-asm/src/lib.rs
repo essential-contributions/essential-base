@@ -26,6 +26,12 @@ mod op {
         pub use essential_constraint_asm::bytes_iter::*;
         essential_asm_gen::gen_state_read_op_bytes_iter!();
     }
+
+    /// Short hand names for the operations.
+    pub mod short {
+        use super::{StateRead as Op, *};
+        essential_asm_gen::gen_state_op_consts!();
+    }
 }
 
 /// Typed representation of the opcode, without any associated data.

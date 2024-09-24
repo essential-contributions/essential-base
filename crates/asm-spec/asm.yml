@@ -29,6 +29,7 @@ StateRead:
 
             DupFrom:
               opcode: 0x04
+              short: DUPF
               description: |
                 Duplicate the word at the given stack depth index.
 
@@ -44,6 +45,7 @@ StateRead:
 
             SwapIndex:
               opcode: 0x06
+              short: SWAPI
               description: |
                 Swap the top word on the stack with the word at the given stack depth index.
 
@@ -55,6 +57,7 @@ StateRead:
 
             Select:
               opcode: 0x07
+              short: SLT
               description: |
                 Conditionally keep one of the top two elements on the stack.
 
@@ -64,6 +67,7 @@ StateRead:
 
             SelectRange:
               opcode: 0x08
+              short: SLTR
               description: |
                 Conditionally keep one of the top two ranges on the stack.
 
@@ -77,6 +81,7 @@ StateRead:
 
             Repeat:
               opcode: 0x09
+              short: REP
               description: |
                 Repeat a section of code the number of times.
                 Takes a boolean to either count from 0 up or from the number of repeats down to 0.
@@ -84,6 +89,7 @@ StateRead:
 
             RepeatEnd:
               opcode: 0x0A
+              short: REPE
               description: |
                 Increment or decrements the top counter on the repeat stack.
                 If the counter is counting up and `counter == limit - 1`
@@ -107,6 +113,7 @@ StateRead:
 
             EqRange:
               opcode: 0x11
+              short: EQRA
               description: |
                 Check equality of two ranges on the stack.
 
@@ -160,6 +167,7 @@ StateRead:
 
             EqSet:
               opcode: 0x19
+              short: EQST
               description: |
                 Pop two sets off the stack and check if they are equal.
                 This is set equality so order does not matter.
@@ -174,12 +182,14 @@ StateRead:
             
             BitAnd:
               opcode: 0x1A
+              short: BAND
               description: Bitwise AND of two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs & rhs"]
             
             BitOr:
               opcode: 0x1B
+              short: BOR
               description: Bitwise OR of two words.
               stack_in: [lhs, rhs]
               stack_out: ["lhs | rhs"]
@@ -249,6 +259,7 @@ StateRead:
           group:
             ThisAddress:
               opcode: 0x30
+              short: THIS
               description: |
                 Get the content hash of this predicate.
 
@@ -257,6 +268,7 @@ StateRead:
 
             ThisContractAddress:
               opcode: 0x31
+              short: THISC
               description: |
                 Get the content hash of the contract this predicate belongs to.
 
@@ -265,6 +277,7 @@ StateRead:
 
             ThisPathway:
               opcode: 0x32
+              short: PATH
               description: |
                 Get the pathway of this predicate.
 
@@ -273,6 +286,7 @@ StateRead:
             
             PredicateAt:
               opcode: 0x33
+              short: PRED
               description: Get the predicate at solution data pathway.
               stack_in: [pathway]
               stack_out:
@@ -289,6 +303,7 @@ StateRead:
             
             MutKeys:
               opcode: 0x34
+              short: MKEY
               description: |
                 Push the keys of the proposed state mutations onto the stack.
 
@@ -299,6 +314,7 @@ StateRead:
             
             PubVarKeys:
               opcode: 0x35
+              short: PKEY
               description: |
                 Push the keys of the pub vars at `pathway_id` onto the stack.
                 Note the order is non-deterministic because this is a set.
@@ -308,11 +324,13 @@ StateRead:
 
             RepeatCounter:
               opcode: 0x36
+              short: REPC
               description: Access the top repeat counters current value.
               stack_out: [counter_value]
 
             DecisionVar:
               opcode: 0x37
+              short: VAR
               description: |
                 Access a range of `len` words starting from `value_ix` within the decision variable located at `slot_ix`.
 
@@ -327,6 +345,7 @@ StateRead:
 
             DecisionVarLen:
               opcode: 0x38
+              short: VLEN
               description: Get the length of a the decision variable value located at `slot_ix`.
               panics:
                 - slot_ix is out of range.
@@ -353,6 +372,7 @@ StateRead:
 
             StateLen:
               opcode: 0x3A
+              short: SLEN
               description: |
                 Get the length of a state value at a specified `slot_ix`.
 
@@ -368,6 +388,7 @@ StateRead:
 
             PubVar:
               opcode: 0x3B
+              short: PVAR
               description: |
                 Access a range of public decision variable words at `pathway_ix` 
                 and key `key_0, ...key_N`.
@@ -384,6 +405,7 @@ StateRead:
 
             PubVarLen:
               opcode: 0x3C
+              short: PLEN
               description: |
                 Get the length of the value indexed by `pathway_ix`
                 and key `key_0, ...key_N`.
@@ -392,6 +414,7 @@ StateRead:
 
             NumSlots:
               opcode: 0x3D
+              short: NSLT
               description: |
                 Get the number of decision var or state slots.
 
@@ -412,6 +435,7 @@ StateRead:
           group:
             Sha256:
               opcode: 0x50
+              short: SHA2
               description: |
                 Produce a SHA 256 hash from the specified data.
                 
@@ -423,6 +447,7 @@ StateRead:
 
             VerifyEd25519:
               opcode: 0x51
+              short: VRFYED
               description: |
                 Validate an Ed25519 signature against a public key.
 
@@ -448,6 +473,7 @@ StateRead:
 
             RecoverSecp256k1:
               opcode: 0x52
+              short: RSECP
               description: |
                 Recover the public key from a secp256k1 signature.
 
@@ -475,15 +501,18 @@ StateRead:
           group:
             Halt:
               opcode: 0x60
+              short: HLT
               description: End the execution of the program.
 
             HaltIf:
               opcode: 0x61
+              short: HLTIF
               description: Halt the program if the value is true.
               stack_in: [value]
 
             JumpForwardIf:
               opcode: 0x63
+              short: JMPIF
               description: Jump forward the given number of instructions if the value is true.
               panics:
                 - The jump is negative.
@@ -492,6 +521,7 @@ StateRead:
             
             PanicIf:
               opcode: 0x64
+              short: PNCIF
               description: |
                 Panic if the `condition` is true.
 
@@ -506,6 +536,7 @@ StateRead:
           group:
             Alloc:
               opcode: 0x70
+              short: TALC
               description: |
                 Allocate new memory to the end of the temporary memory.
                 Sets new memory to 0.
@@ -517,6 +548,7 @@ StateRead:
 
             Load:
               opcode: 0x71
+              short: TLD
               description: Load the value at the index of temporary memory onto the stack.
               panics:
                 - Index is out of bounds.
@@ -525,6 +557,7 @@ StateRead:
 
             Store:
               opcode: 0x72
+              short: TSTR
               description: Store the value at the index of temporary memory.
               panics:
                 - Index is out of bounds.
@@ -535,11 +568,13 @@ StateRead:
       group:
         AllocSlots:
           opcode: 0x80
+          short: SALC
           description: Allocate new slots to the end of the memory.
           stack_in: [size]
 
         Load:
           opcode: 0x81
+          short: SLD
           description: |
             Load the value at the index of a slot onto the stack.
 
@@ -553,6 +588,7 @@ StateRead:
 
         Store:
           opcode: 0x82
+          short: SSTR
           description: Store the value at the index of state slots.
           panics:
             - Index is out of bounds.
@@ -560,6 +596,7 @@ StateRead:
 
         LoadWord:
           opcode: 0x83
+          short: SLDW
           description: |
             Load the word at the index of the value at
             the slot onto the stack.
@@ -570,6 +607,7 @@ StateRead:
 
         StoreWord:
           opcode: 0x84
+          short: SSTRW
           description: |
             Store the word at the index of the value
             at the slot.
@@ -579,6 +617,7 @@ StateRead:
 
         Clear:
           opcode: 0x85
+          short: SCLR
           description: Clear the value at the index.
           panics:
             - Index is out of bounds.
@@ -586,6 +625,7 @@ StateRead:
 
         ClearRange:
           opcode: 0x86
+          short: SCLRR
           description: Clear a range of values.
           panics:
             - The range is out of bounds.
@@ -593,17 +633,20 @@ StateRead:
 
         Length:
           opcode: 0x87
+          short: SMLEN
           description: Get the current length of the memory.
           stack_out: [length]
 
         ValueLen:
           opcode: 0x88
+          short: SVLEN
           description: Get the current length of a given value at the index.
           stack_in: [index]
           stack_out: [length]
 
     KeyRange:
       opcode: 0x90
+      short: KRNG
       description: |
         Read a range of values at each key from state starting at the key
         into state slots starting at the slot index.
@@ -616,6 +659,7 @@ StateRead:
 
     KeyRangeExtern:
       opcode: 0x91
+      short: KREX
       description: |
         Read a range of values at each key from external state starting at the key
         into state slots starting at the slot index.
