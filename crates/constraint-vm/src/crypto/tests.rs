@@ -124,24 +124,44 @@ fn ed25519_error() {
 
 #[test]
 fn test_secp256k1() {
-    use rand::SeedableRng;
-    use secp256k1::{Message, PublicKey, Secp256k1};
+    use k256::ecdsa::SigningKey;
+    use k256::elliptic_curve::{NonZeroScalar, PrimeField, Scalar};
+    use k256::Secp256k1;
 
-    let secp = Secp256k1::new();
-    let mut rng = rand::rngs::SmallRng::from_seed([0x00; 32]);
-    let (secret_key, public_key) = secp.generate_keypair(&mut rng);
+    let s = NonZeroScalar::new(
+        Scalar::<Secp256k1>::from_repr(
+            [
+                0xbb, 0x48, 0x8a, 0xef, 0x41, 0x6a, 0x41, 0xd7, 0x68, 0x0d, 0x1c, 0xf0, 0x1d, 0x70,
+                0xf5, 0x9b, 0x60, 0xd7, 0xf5, 0xf7, 0x7e, 0x30, 0xe7, 0x8b, 0x8b, 0xf9, 0xd2, 0xd8,
+                0x82, 0xf1, 0x56, 0xa6,
+            ]
+            .into(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let signing_key = SigningKey::from(s);
+    let verifying_key = signing_key.verifying_key();
+    let mut verifying_key_bytes = [0; 33];
+    verifying_key_bytes.copy_from_slice(&verifying_key.to_sec1_bytes());
+    let public_key = verifying_key_bytes;
 
-    let message = Message::from_digest([0; 32]);
+    let message = [
+        0xe3, 0x35, 0x80, 0xeb, 0x6e, 0xd0, 0x22, 0xae, 0xd6, 0xaf, 0x20, 0xd9, 0x22, 0x37, 0x63,
+        0x5e, 0x7c, 0x20, 0xc5, 0xf1, 0xbc, 0xd6, 0xae, 0xe8, 0x81, 0x82, 0xed, 0x71, 0x80, 0xf6,
+        0xe2, 0x67,
+    ];
 
-    let secp = Secp256k1::new();
-    let sig = secp.sign_ecdsa_recoverable(&message, &secret_key);
-    let (rec_id, sig_bytes) = sig.serialize_compact();
+    let (sig, rec_id) = signing_key.sign_prehash_recoverable(&message).unwrap();
+    let mut sig_bytes = [0; 64];
+    sig_bytes.copy_from_slice(sig.to_bytes().as_slice());
+    let sig = sig_bytes;
 
-    let check = |sig_bytes, message: [u8; 32]| {
+    let check = |sig: [u8; 64], message: [u8; 32]| {
         let mut stack = crate::Stack::default();
         stack.extend(word_4_from_u8_32(message)).unwrap();
-        stack.extend(word_8_from_u8_64(sig_bytes)).unwrap();
-        let rec_id_word = Word::from(rec_id.to_i32());
+        stack.extend(word_8_from_u8_64(sig)).unwrap();
+        let rec_id_word = Word::from(rec_id.to_byte());
         stack.push(rec_id_word).unwrap();
 
         recover_secp256k1(&mut stack).unwrap();
@@ -155,17 +175,17 @@ fn test_secp256k1() {
         bytes
     };
 
-    let result = PublicKey::from_slice(&check(sig_bytes, *message.as_ref())).unwrap();
+    let result = check(sig, message);
 
-    // Recovered successfully
+    // Recovered successfully as hex
     assert_eq!(result, public_key);
 
-    let result = PublicKey::from_slice(&check(sig_bytes, [1; 32])).unwrap();
+    let result = check(sig, [1; 32]);
 
     // Recovered wrong public key
     assert_ne!(result, public_key);
 
-    let result = check([0; 64], *message.as_ref());
+    let result = check([0; 64], message);
 
     // Invalid signature
     assert_eq!(result, [0u8; 33]);

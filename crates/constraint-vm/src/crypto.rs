@@ -51,46 +51,41 @@ pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
 
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
-    use secp256k1::{
-        ecdsa::{RecoverableSignature, RecoveryId},
-        Message, Secp256k1,
-    };
+    use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 
     // Pop the stack.
     let recover_bit = stack.pop()?;
     let signature_words = stack.pop8()?;
     let message_hash = stack.pop4()?;
 
-    // Parse the recovery ID.
-    let recovery_id: i32 = recover_bit
-        .try_into()
-        .map_err(|_| CryptoError::Secp256k1RecoveryId)?;
-    let recovery_id = RecoveryId::from_i32(recovery_id).map_err(CryptoError::Secp256k1)?;
-
-    // Parse the signature
-    let signature_bytes = u8_64_from_word_8(signature_words);
-    let recoverable_signature = RecoverableSignature::from_compact(&signature_bytes, recovery_id)
-        .map_err(CryptoError::Secp256k1)?;
+    // Parse the signature data.
+    let digest = u8_32_from_word_4(message_hash);
+    let signature = match Signature::from_slice(&u8_64_from_word_8(signature_words)) {
+        Ok(signature) => signature,
+        Err(_) => {
+            // Invalid signature.
+            // Push zeros and return early.
+            stack.extend([0; 5])?;
+            return Ok(());
+        }
+    };
+    let recovery_id = RecoveryId::new(recover_bit & 1 != 0, false);
 
     #[cfg(feature = "tracing")]
-    tracing::trace!("{:?}", recoverable_signature);
-
-    // Parse the message hash.
-    let message_hash = u8_32_from_word_4(message_hash);
-    let message = Message::from_digest(message_hash);
+    tracing::trace!("{:?}", signature);
 
     // Recover the public key.
-    let secp = Secp256k1::new();
-    match secp.recover_ecdsa(&message, &recoverable_signature) {
+    match VerifyingKey::recover_from_prehash(&digest, &signature, recovery_id) {
         Ok(public_key) => {
             #[cfg(feature = "tracing")]
             tracing::trace!("{:?}", public_key);
             // Serialize the public key.
             // Note the public key is 33 bytes long.
-            let [public_key @ .., end] = public_key.serialize();
-            let public_key_word = word_4_from_u8_32(public_key);
+            let encoded_point = public_key.to_encoded_point(true);
+            let public_key_bytes = encoded_point.as_bytes();
+            let public_key_word = word_4_from_u8_32(public_key_bytes[..32].try_into().unwrap());
             let mut end_word = [0u8; 8];
-            end_word[7] = end;
+            end_word[7] = public_key_bytes[32];
             let end_word = word_from_bytes(end_word);
 
             // Push the public key.
