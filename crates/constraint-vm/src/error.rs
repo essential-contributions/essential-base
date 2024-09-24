@@ -218,9 +218,6 @@ pub enum CryptoError {
     /// Failed to parse SECP256k1 recovery id
     #[error("failed to parse secp256k1 recovery id")]
     Secp256k1RecoveryId,
-    /// Invalid Padding Size
-    #[error("invalid sha extra padding size: {0}")]
-    InvalidPaddingSize(Word),
 }
 
 /// Shorthand for a `Result` where the error type is a `StackError`.

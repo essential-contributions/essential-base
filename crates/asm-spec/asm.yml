@@ -376,18 +376,17 @@ StateRead:
               description: |
                 Produce a SHA 256 hash from the specified data.
                 
-                Hashes are byte aligned. Use `extra_padding_len` to remove 
-                padding from the end of the data.
+                Hashes are byte aligned so length is number of bytes **not** number of words.
               panics:
-                - extra_padding_len is greater than 8.
-                - data_len is 0 and padding length is not 0.
-                - data_len is longer than the data.
-              stack_in: [data, data_len, extra_padding_len]
+                - data_len * 8 is longer than the data.
+              stack_in: [data, data_len]
               stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
 
             VerifyEd25519:
               opcode: 0x51
-              description: Validate an Ed25519 signature against a public key.
+              description: |
+                Validate an Ed25519 signature against a public key.
+                Data is byte aligned so length is number of bytes **not** number of words.
               stack_in:
                 [
                   data,
