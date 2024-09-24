@@ -386,6 +386,7 @@ StateRead:
               opcode: 0x51
               description: |
                 Validate an Ed25519 signature against a public key.
+
                 Data is byte aligned so length is number of bytes **not** number of words.
               stack_in:
                 [

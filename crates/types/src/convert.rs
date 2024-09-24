@@ -16,8 +16,8 @@ pub fn word_from_bytes(bytes: [u8; 8]) -> Word {
 ///
 /// Ignores any bytes beyond the first 8.
 pub fn word_from_bytes_slice(bytes: &[u8]) -> Word {
-    let mut word = [0; 8];
-    let len = bytes.len().min(core::mem::size_of::<Word>());
+    let mut word = [0; core::mem::size_of::<Word>()];
+    let len = bytes.len().min(word.len());
     word[..len].copy_from_slice(&bytes[..len]);
     word_from_bytes(word)
 }
