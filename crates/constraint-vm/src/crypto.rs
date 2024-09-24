@@ -2,7 +2,7 @@
 
 use crate::{
     asm::Word,
-    error::{CryptoError, OpError},
+    error::{CryptoError, StackError},
     OpResult, Stack,
 };
 use essential_types::convert::{
@@ -15,9 +15,9 @@ mod tests;
 /// `Crypto::Sha256` implementation.
 pub(crate) fn sha256(stack: &mut Stack) -> OpResult<()> {
     use sha2::Digest;
-    let data = stack.pop_len_words::<_, Vec<_>, OpError>(|words| {
-        Ok(bytes_from_words(words.iter().copied()).collect())
-    })?;
+
+    let data = pop_bytes(stack)?;
+
     let mut hasher = sha2::Sha256::new();
     hasher.update(&data);
     let hash_bytes: [u8; 32] = hasher.finalize().into();
@@ -32,9 +32,9 @@ pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
     let pubkey_words = stack.pop4()?;
     let signature_words = stack.pop8()?;
-    let data = stack.pop_len_words::<_, Vec<_>, OpError>(|words| {
-        Ok(bytes_from_words(words.iter().copied()).collect())
-    })?;
+
+    let data = pop_bytes(stack)?;
+
     let pubkey_bytes = u8_32_from_word_4(pubkey_words);
     let pubkey = VerifyingKey::from_bytes(&pubkey_bytes).map_err(CryptoError::Ed25519)?;
     let signature_bytes = u8_64_from_word_8(signature_words);
@@ -102,6 +102,22 @@ pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
     }
 
     Ok(())
+}
+
+/// Pop a length in bytes and that number of bytes from the stack.
+///
+/// Note that this will pop the words `ceil(bytes_len / 8)` from the stack.
+fn pop_bytes(stack: &mut Stack) -> Result<Vec<u8>, StackError> {
+    let bytes_len = stack.pop()?;
+    let bytes_len: usize = bytes_len.try_into().map_err(|_| StackError::Overflow)?;
+    let num_words = bytes_len.div_ceil(core::mem::size_of::<Word>());
+
+    // Pop the bytes from the stack.
+    stack.pop_words::<_, _, StackError>(num_words, |words| {
+        Ok(bytes_from_words(words.iter().copied())
+            .take(bytes_len)
+            .collect())
+    })
 }
 
 fn bytes_from_words(words: impl IntoIterator<Item = Word>) -> impl Iterator<Item = u8> {

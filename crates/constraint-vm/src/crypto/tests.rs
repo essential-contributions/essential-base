@@ -9,7 +9,10 @@ use crate::{
         Hash,
     },
 };
-use essential_types::convert::u8_32_from_word_4;
+use essential_types::convert::{u8_32_from_word_4, word_from_bytes_slice};
+use sha2::Digest;
+
+use super::pop_bytes;
 
 fn exec_ops_sha256(ops: &[Op]) -> Hash {
     let stack = exec_ops(ops, *test_access()).unwrap();
@@ -18,12 +21,18 @@ fn exec_ops_sha256(ops: &[Op]) -> Hash {
     bytes.try_into().unwrap()
 }
 
+fn hash(bytes: &[u8]) -> [u8; 32] {
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(bytes);
+    hasher.finalize().into()
+}
+
 #[test]
 #[rustfmt::skip]
 fn sha256_1_word() {
     let ops = &[
         Stack::Push(0x0000000000000000).into(), // Data
-        Stack::Push(1).into(), // Data Length
+        Stack::Push(8).into(), // Data Length
         Crypto::Sha256.into(),
     ];
     let hash = exec_ops_sha256(ops);
@@ -45,7 +54,7 @@ fn sha256_3_words() {
         Stack::Push(0x00000000000000FF).into(), // Data
         Stack::Push(0x00000000000000FF).into(), // Data
         Stack::Push(0x00000000000000FF).into(), // Data
-        Stack::Push(3).into(), // Data Length
+        Stack::Push(3 * 8).into(), // Data Length
         Crypto::Sha256.into(),
     ];
     let hash = exec_ops_sha256(ops);
@@ -60,14 +69,62 @@ fn sha256_3_words() {
     assert_eq!(&hash[..], &expected);
 }
 
+fn test_sha256_inner(bytes: &[u8], data_len: usize) -> crate::Stack {
+    let words: Vec<Word> = bytes.chunks(8).map(word_from_bytes_slice).collect();
+    let mut stack = crate::Stack::default();
+    for word in words {
+        stack.push(word).unwrap();
+    }
+    stack.push(data_len as Word).unwrap();
+    stack
+}
+
+#[test]
+fn test_sha256_bytes() {
+    let bytes = [0x01; 33];
+
+    let mut stack = test_sha256_inner(&bytes, bytes.len());
+    super::sha256(&mut stack).unwrap();
+    let result: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
+    assert_eq!(result, hash(&bytes));
+
+    let bytes = [0x01; 32];
+
+    let mut stack = test_sha256_inner(&bytes, bytes.len());
+    super::sha256(&mut stack).unwrap();
+    let result: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
+    assert_eq!(result, hash(&bytes));
+
+    // Hash of empty bytes.
+    let mut stack = test_sha256_inner(&[], 0);
+    super::sha256(&mut stack).unwrap();
+    let result: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
+    assert_eq!(result, hash(&[]));
+
+    let mut stack = test_sha256_inner(&[1; 39], 40);
+    super::sha256(&mut stack).unwrap();
+    let result: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
+
+    let mut expected = vec![1; 39];
+    // Because the length is 40 and incorrect, an extra byte is
+    // pulled from the word.
+    expected.push(0);
+    assert_eq!(result, hash(&expected));
+
+    let mut stack = test_sha256_inner(&[1; 39], 41);
+    super::sha256(&mut stack).unwrap_err();
+}
+
 // Generate some test operations for a successful ed25519 verification.
-fn test_ed25519_ops() -> Vec<Op> {
+fn test_ed25519_ops(num_bytes: usize) -> Vec<Op> {
     use ed25519_dalek::{Signer, SigningKey};
     use rand::{Rng, SeedableRng};
 
     // Test data.
     let data: &[Word] = &[7, 3, 5, 7];
-    let data_bytes: Vec<_> = bytes_from_words(data.iter().copied()).collect();
+    let data_bytes: Vec<_> = bytes_from_words(data.iter().copied())
+        .take(num_bytes)
+        .collect();
 
     // Generate keys.
     let mut rng = rand::rngs::SmallRng::from_seed([0x00; 32]);
@@ -84,7 +141,7 @@ fn test_ed25519_ops() -> Vec<Op> {
     // Push the data, length, signature, pubkey and finally the `VerifyEd25519` op.
     data.iter()
         .copied()
-        .chain(Some(Word::try_from(data.len()).unwrap()))
+        .chain(Some(Word::try_from(data_bytes.len()).unwrap()))
         .chain(word_8_from_u8_64(signature_bytes))
         .chain(word_4_from_u8_32(pubkey_bytes))
         .map(Stack::Push)
@@ -95,20 +152,26 @@ fn test_ed25519_ops() -> Vec<Op> {
 
 #[test]
 fn verify_ed25519_true() {
-    let ops = test_ed25519_ops();
+    let ops = test_ed25519_ops(8 * 4);
+    assert!(eval_ops(&ops, *test_access()).unwrap());
+}
+
+#[test]
+fn verify_ed25519_bytes_true() {
+    let ops = test_ed25519_ops(8 * 3 + 2);
     assert!(eval_ops(&ops, *test_access()).unwrap());
 }
 
 #[test]
 fn verify_ed25519_false() {
-    let mut ops = test_ed25519_ops();
+    let mut ops = test_ed25519_ops(8 * 4);
     ops[0] = Stack::Push(0).into(); // Invalidate data.
     assert!(!eval_ops(&ops, *test_access()).unwrap());
 }
 
 #[test]
 fn ed25519_error() {
-    let mut ops = test_ed25519_ops();
+    let mut ops = test_ed25519_ops(8 * 4);
     // Invalidate pubkey.
     let key_ix = ops.len() - 5;
     ops[key_ix] = Stack::Push(1).into();
@@ -169,4 +232,26 @@ fn test_secp256k1() {
 
     // Invalid signature
     assert_eq!(result, [0u8; 33]);
+}
+
+#[test]
+fn test_pop_bytes() {
+    let mut stack = crate::Stack::default();
+
+    let word = 0xFF << 56;
+    stack.push(word).unwrap();
+    stack.push(1).unwrap();
+
+    let byte = pop_bytes(&mut stack).unwrap();
+    assert_eq!(stack.len(), 0);
+    assert_eq!(byte.as_slice(), &[0xFF]);
+
+    let bytes: Vec<u8> = (0..20).collect();
+    let words: Vec<Word> = bytes.chunks(8).map(word_from_bytes_slice).collect();
+
+    stack.extend(words).unwrap();
+    stack.push(bytes.len() as Word).unwrap();
+    let result = pop_bytes(&mut stack).unwrap();
+    assert_eq!(stack.len(), 0);
+    assert_eq!(result, bytes);
 }

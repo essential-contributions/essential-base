@@ -412,13 +412,21 @@ StateRead:
           group:
             Sha256:
               opcode: 0x50
-              description: Produce a SHA 256 hash from the specified data.
+              description: |
+                Produce a SHA 256 hash from the specified data.
+                
+                Hashes are byte aligned so length is number of bytes **not** number of words.
+              panics:
+                - data_len * 8 is longer than the data.
               stack_in: [data, data_len]
               stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
 
             VerifyEd25519:
               opcode: 0x51
-              description: Validate an Ed25519 signature against a public key.
+              description: |
+                Validate an Ed25519 signature against a public key.
+
+                Data is byte aligned so length is number of bytes **not** number of words.
               stack_in:
                 [
                   data,
