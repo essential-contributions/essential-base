@@ -229,7 +229,7 @@ async fn read_pre_post_state_and_check_constraints() {
     // A simple state read program that reads words directly to the slots.
     let ops = &[
         asm::Stack::Push(3).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2

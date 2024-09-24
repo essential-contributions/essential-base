@@ -27,7 +27,7 @@ async fn state_read_3_42s() {
     let num_words = 3;
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -61,7 +61,7 @@ async fn state_read_some_none_some() {
     let num_words = 3;
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -95,7 +95,7 @@ async fn state_read_ext() {
     let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(addr0).into(),
         asm::Stack::Push(addr1).into(),
         asm::Stack::Push(addr2).into(),
@@ -132,7 +132,7 @@ async fn state_read_ext_nones() {
     let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(addr0).into(),
         asm::Stack::Push(addr1).into(),
         asm::Stack::Push(addr2).into(),
@@ -181,7 +181,7 @@ async fn state_read_various_size_values() {
     let num_values = 5;
     let ops = &[
         asm::Stack::Push(num_values).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -223,7 +223,7 @@ async fn state_read_various_key_sizes() {
     let mut vm = Vm::default();
     let ops = &[
         asm::Stack::Push(5).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(1).into(), // key length
         asm::Stack::Push(3).into(), // num keys
@@ -267,7 +267,7 @@ async fn state_read_slot_index_overflow() {
     let mut vm = Vm::default();
     let ops = &[
         asm::Stack::Push(1).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(1).into(), // key length
         asm::Stack::Push(1).into(), // num keys

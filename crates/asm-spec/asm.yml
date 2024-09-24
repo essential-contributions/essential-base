@@ -563,7 +563,7 @@ StateRead:
                 - Index is out of bounds.
               stack_in: [index, value]
 
-    StateSlots:
+    StateMemory:
       description: Operations for controlling mutable state slots.
       group:
         AllocSlots:
@@ -576,72 +576,49 @@ StateRead:
           opcode: 0x81
           short: LODS
           description: |
-            Load the value at the index of a slot onto the stack.
+            Access a range of `len` words starting from `value_ix` within 
+            the memory slot located at `slot_ix`.
 
-            Noop if the slot is empty.
+            Returns a list of words with length equal to the specified len.
           panics:
-            - Index is out of bounds.
-          stack_in: [index]
+            - slot_ix is out of bounds.
+            - The range `value_ix..(value_ix + len)` is out of range.
+          stack_in: [slot_ix, value_ix, len]
           stack_out:
-            elem: value_word
-            len: value_len
+            elem: word
+            len: len
 
         Store:
           opcode: 0x82
           short: STOS
-          description: Store the value at the index of state slots.
+          description: |
+            Store `len` words of data at the `slot_ix` starting at `value_ix`.
           panics:
-            - Index is out of bounds.
-          stack_in: [value_word_0, ...value_word_len, len, index]
+            - slot_ix is out of bounds.
+            - value_ix > ValueLen.
+            - len is out of bounds.
+          stack_in: [slot_ix, value_ix, data, len]
 
-        LoadWord:
+        Truncate:
           opcode: 0x83
-          short: LODWS
+          short: TRUNC
           description: |
-            Load the word at the index of the value at
-            the slot onto the stack.
+            Truncate the memory slot located at `slot_ix` to `len` words.
           panics:
-            - Slot or Index is out of bounds.
-          stack_in: [slot, index]
-          stack_out: [Value_word]
-
-        StoreWord:
-          opcode: 0x84
-          short: STORWS
-          description: |
-            Store the word at the index of the value
-            at the slot.
-          panics:
-            - Slot or Index is out of bounds.
-          stack_in: [slot, index, word]
-
-        Clear:
-          opcode: 0x85
-          short: CLR
-          description: Clear the value at the index.
-          panics:
-            - Index is out of bounds.
-          stack_in: [index]
-
-        ClearRange:
-          opcode: 0x86
-          short: CLRR
-          description: Clear a range of values.
-          panics:
-            - The range is out of bounds.
-          stack_in: [index, amount]
+            - slot_ix is out of bounds.
+          stack_in: [slot_ix, len]
 
         Length:
-          opcode: 0x87
+          opcode: 0x84
           short: SMLEN
           description: Get the current length of the memory.
           stack_out: [length]
 
         ValueLen:
-          opcode: 0x88
-          short: SVLEN
-          description: Get the current length of a given value at the index.
-          stack_in: [index]
+          opcode: 0x85
+          short: SMVLEN
+          description: Get the current length of the value at the `slot_ix`.
+          stack_in: [slot_ix]
           stack_out: [length]
 
     KeyRange:
