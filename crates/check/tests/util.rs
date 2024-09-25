@@ -151,41 +151,50 @@ pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 pub fn test_predicate_42(entropy: Word) -> Predicate {
     Predicate {
         // State read program to read state slot 0.
-        state_read: vec![state_read_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::StateSlots::AllocSlots.into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(4).into(),
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::StateRead::KeyRange,
-            state_read_vm::asm::TotalControlFlow::Halt.into(),
-        ])
-        .collect()],
+        state_read: test_predicate_42_state_read(),
         // Program to check pre-mutation value is None and
         // post-mutation value is 42 at slot 0.
-        constraints: vec![constraint_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(entropy).into(),
-            state_read_vm::asm::Stack::Pop.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
-            constraint_vm::asm::Stack::Push(0).into(), // pre
-            constraint_vm::asm::Access::StateLen.into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot_ix
-            constraint_vm::asm::Stack::Push(0).into(), // value_ix
-            constraint_vm::asm::Stack::Push(1).into(), // len
-            constraint_vm::asm::Stack::Push(1).into(), // post
-            constraint_vm::asm::Access::State.into(),
-            constraint_vm::asm::Stack::Push(42).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Pred::And.into(),
-        ])
-        .collect()],
+        constraints: test_predicate_42_constraint(entropy),
     }
+}
+
+fn test_predicate_42_state_read() -> Vec<Vec<u8>> {
+    use state_read_vm::asm::short::*;
+    vec![state_read_vm::asm::to_bytes([
+        PUSH(1),
+        ALOCS,
+        PUSH(0),
+        PUSH(0),
+        PUSH(0),
+        PUSH(0),
+        PUSH(4),
+        PUSH(1),
+        PUSH(0),
+        KRNG,
+    ])
+    .collect()]
+}
+
+fn test_predicate_42_constraint(entropy: Word) -> Vec<Vec<u8>> {
+    use constraint_vm::asm::short::*;
+    vec![constraint_vm::asm::to_bytes([
+        PUSH(entropy),
+        POP,
+        PUSH(0), // slot_ix
+        PUSH(0), // pre
+        SLEN,
+        PUSH(0),
+        EQ,
+        PUSH(0), // slot_ix
+        PUSH(0), // value_ix
+        PUSH(1), // len
+        PUSH(1), // post
+        STATE,
+        PUSH(42),
+        EQ,
+        AND,
+    ])
+    .collect()]
 }
 
 pub fn contract_addr(predicates: &contract::SignedContract) -> ContentAddress {

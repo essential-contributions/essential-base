@@ -68,7 +68,12 @@ fn panic_docs(panic_reasons: &[String]) -> String {
 /// Generate the docstring for an `Op` variant.
 fn op_docs(op: &Op) -> String {
     let arg_docs = bytecode_arg_docs(op.num_arg_bytes);
-    let opcode_docs = format!("`0x{:02X}`\n\n", op.opcode);
+    let short_docs = if op.short.is_empty() {
+        String::new()
+    } else {
+        format!(": `{}`", op.short)
+    };
+    let opcode_docs = format!("`0x{:02X}`{}\n\n", op.opcode, short_docs);
     let desc = &op.description;
     let stack_in_docs = stack_in_docs(&op.stack_in);
     let stack_out_docs = stack_out_docs(&op.stack_out);
@@ -657,6 +662,62 @@ fn op_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
     impls
 }
 
+/// Build const expression for an op variant.
+fn op_const_expr(names: &[String], insert_word: bool) -> syn::Expr {
+    let last = syn::Ident::new(names.last().unwrap(), Span::call_site());
+    let last: syn::Expr = if insert_word {
+        syn::parse_quote!(#last(word))
+    } else {
+        syn::parse_quote!(#last)
+    };
+    names[1..(names.len() - 1)].iter().rev().fold(
+        syn::parse_quote!(#last),
+        |acc: syn::Expr, name| {
+            let name = syn::Ident::new(name, Span::call_site());
+            syn::parse_quote!(#name(#name::#acc))
+        },
+    )
+}
+
+/// Generate the const declarations for the given op.
+fn op_consts(names: &[String], op: &Op) -> Vec<syn::Item> {
+    let const_name = if op.short.is_empty() {
+        syn::Ident::new(&names.last().unwrap().to_uppercase(), Span::call_site())
+    } else {
+        syn::Ident::new(&op.short, Span::call_site())
+    };
+    let docs = format!("## {}\n\n{}", names.last().unwrap(), op_docs(op));
+
+    if op.num_arg_bytes == 0 {
+        let full_name = op_const_expr(names, false);
+        let s = syn::parse_quote! {
+            #[doc = #docs]
+            pub const #const_name: Op = Op::#full_name;
+        };
+        vec![syn::Item::Const(s)]
+    } else {
+        let full_name = op_const_expr(names, true);
+        let mod_name = syn::Ident::new(&names.last().unwrap().to_lowercase(), Span::call_site());
+        let mut v = vec![];
+        let s = syn::parse_quote! {
+            #[doc = #docs]
+            pub const #const_name: fn(i64) -> Op = #mod_name::#mod_name;
+        };
+        v.push(syn::Item::Const(s));
+        let s = syn::parse_quote! {
+            mod #mod_name {
+                use super::*;
+                pub(super) fn #mod_name(word: i64) -> Op {
+                    Op::#full_name
+                }
+
+            }
+        };
+        v.push(syn::Item::Mod(s));
+        v
+    }
+}
+
 /// Generate the implementation for the opcode enum.
 fn opcode_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
     let name = names.last().unwrap();
@@ -724,6 +785,24 @@ fn constraint_opcode_enum_impls(tree: &Tree) -> Vec<syn::Item> {
                 .into_iter()
                 .map(syn::Item::Impl),
         );
+    });
+    items
+}
+
+/// Generate all op const declarations for constraint execution.
+fn constraint_op_consts(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::constraint_ops(tree, &mut |names, op| {
+        items.extend(op_consts(names, op));
+    });
+    items
+}
+
+/// Generate all op const declarations for state read execution.
+fn state_op_consts(tree: &Tree) -> Vec<syn::Item> {
+    let mut items = vec![];
+    visit::ops(tree, &mut |names, op| {
+        items.extend(op_consts(names, op));
     });
     items
 }
@@ -876,6 +955,14 @@ pub fn gen_constraint_opcode_impls(_input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn gen_constraint_op_consts(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = constraint_op_consts(&tree);
+
+    token_stream_from_items(items)
+}
+
+#[proc_macro]
 pub fn gen_state_read_op_decls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
     let items = state_read_op_enum_decls(&tree);
@@ -922,4 +1009,12 @@ pub fn gen_ops_docs_table(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
     let lit_str = ops_docs_table(&tree);
     lit_str.into_token_stream().into()
+}
+
+#[proc_macro]
+pub fn gen_state_op_consts(_input: TokenStream) -> TokenStream {
+    let tree = essential_asm_spec::tree();
+    let items = state_op_consts(&tree);
+
+    token_stream_from_items(items)
 }
