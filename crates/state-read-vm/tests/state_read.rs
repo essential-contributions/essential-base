@@ -41,8 +41,8 @@ async fn state_read_3_42s() {
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
         .unwrap();
-    assert_eq!(&vm.state_slots_mut[..], &[vec![42], vec![42], vec![42]]);
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert_eq!(&vm.state_memory[..], &[vec![42], vec![42], vec![42]]);
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -75,8 +75,8 @@ async fn state_read_some_none_some() {
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
         .unwrap();
-    assert_eq!(&vm.state_slots_mut[..], &[vec![42], vec![], vec![42]]);
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert_eq!(&vm.state_memory[..], &[vec![42], vec![], vec![42]]);
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -119,8 +119,8 @@ async fn state_read_ext() {
     )
     .await
     .unwrap();
-    assert_eq!(&vm.state_slots_mut[..], &[vec![40], vec![41], vec![42]]);
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert_eq!(&vm.state_memory[..], &[vec![40], vec![41], vec![42]]);
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -156,8 +156,8 @@ async fn state_read_ext_nones() {
     )
     .await
     .unwrap();
-    assert!(vm.state_slots_mut.iter().all(Vec::is_empty));
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert!(vm.state_memory.iter().all(Vec::is_empty));
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -196,10 +196,10 @@ async fn state_read_various_size_values() {
         .await
         .unwrap();
     assert_eq!(
-        &vm.state_slots_mut[..],
+        &vm.state_memory[..],
         &[vec![0; 2], vec![1; 22], vec![2; 14], vec![], vec![4; 12]]
     );
-    assert_eq!(vm.state_slots_mut.len(), 5);
+    assert_eq!(vm.state_memory.len(), 5);
 }
 
 #[tokio::test]
@@ -245,10 +245,10 @@ async fn state_read_various_key_sizes() {
         .await
         .unwrap();
     assert_eq!(
-        &vm.state_slots_mut[..],
+        &vm.state_memory[..],
         &[vec![0; 2], vec![1; 22], vec![], vec![2; 14], vec![]]
     );
-    assert_eq!(vm.state_slots_mut.len(), 5);
+    assert_eq!(vm.state_memory.len(), 5);
 }
 
 // TODO: Test slot index overflow

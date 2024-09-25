@@ -20,8 +20,8 @@ pub type OpSyncResult<T> = Result<T, OpSyncError>;
 /// Shorthand for a `Result` where the error type is an `OpAsyncError`.
 pub type OpAsyncResult<T, E> = Result<T, OpAsyncError<E>>;
 
-/// Shorthand for a `Result` where the error type is a `StateSlotsError`.
-pub type StateSlotsResult<T> = Result<T, StateSlotsError>;
+/// Shorthand for a `Result` where the error type is a [`StateMemoryError`].
+pub type StateMemoryResult<T> = Result<T, StateMemoryError>;
 
 /// State read execution failure.
 #[derive(Debug, Error)]
@@ -79,7 +79,7 @@ pub enum OpSyncError {
     TotalControlFlow(#[from] ControlFlowError),
     /// An error occurred during a `StateSlots` operation.
     #[error("state slots operation error: {0}")]
-    StateSlots(#[from] StateSlotsError),
+    StateSlots(#[from] StateMemoryError),
     /// The next program counter would overflow.
     #[error("the next program counter would overflow")]
     PcOverflow,
@@ -93,7 +93,7 @@ pub enum OpAsyncError<E> {
     StateRead(E),
     /// A `StateSlots` access related error occurred.
     #[error("state slots error: {0}")]
-    Memory(#[from] StateSlotsError),
+    Memory(#[from] StateMemoryError),
     /// An error occurred during a `Stack` operation.
     #[error("stack operation error: {0}")]
     Stack(#[from] StackError),
@@ -112,13 +112,13 @@ pub enum ControlFlowError {
     InvalidJumpIfCondition(Word),
 }
 
-/// Errors occuring during `StateSlots` operation.
+/// Errors occuring during [`crate::StateMemory`] operation.
 #[derive(Debug, Error)]
-pub enum StateSlotsError {
-    /// Attempted to access a state slot index that was out of bounds.
+pub enum StateMemoryError {
+    /// Attempted to access a state memory slot index that was out of bounds.
     #[error("index out of bounds")]
     IndexOutOfBounds,
-    /// An operation would have caused state slots to overflow.
+    /// An operation would have caused state memory to overflow.
     #[error("operation would cause state slots to overflow")]
     Overflow,
 }

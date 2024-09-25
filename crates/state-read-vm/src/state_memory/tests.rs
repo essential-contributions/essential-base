@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_sm_alloc() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     slots.alloc_slots(5000).unwrap_err();
     slots.alloc_slots(4000).unwrap();
     slots.alloc_slots(4000).unwrap_err();
@@ -10,7 +10,7 @@ fn test_sm_alloc() {
 
 #[test]
 fn test_sm_load() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     slots.load(0, 0..0).unwrap_err();
     slots.alloc_slots(1).unwrap();
     let r = slots.load(0, 0..0).unwrap();
@@ -26,7 +26,7 @@ fn test_sm_load() {
 
 #[test]
 fn test_sm_store() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     slots.store(0, 0, vec![1, 2, 3]).unwrap_err();
     slots.alloc_slots(3).unwrap();
     slots.store(4, 0, vec![1, 2, 3]).unwrap_err();
@@ -44,7 +44,7 @@ fn test_sm_store() {
 
 #[test]
 fn test_sm_truncate() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     slots.truncate(0, 0).unwrap_err();
     slots.alloc_slots(3).unwrap();
     slots.truncate(0, 0).unwrap();
@@ -64,7 +64,7 @@ fn test_sm_truncate() {
 
 #[test]
 fn test_alloc() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     let mut stack = Stack::default();
 
     alloc_slots(&mut stack, &mut slots).unwrap_err();
@@ -79,7 +79,7 @@ fn test_alloc() {
 
 #[test]
 fn test_length() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     let mut stack = Stack::default();
 
     length(&mut stack, &slots).unwrap();
@@ -92,7 +92,7 @@ fn test_length() {
 
 #[test]
 fn test_value_len() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     let mut stack = Stack::default();
 
     value_len(&mut stack, &slots).unwrap_err();
@@ -111,7 +111,7 @@ fn test_value_len() {
 
 #[test]
 fn test_truncate() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     let mut stack = Stack::default();
 
     truncate(&mut stack, &mut slots).unwrap_err();
@@ -141,7 +141,7 @@ fn test_truncate() {
 
 #[test]
 fn test_load() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
     let mut stack = Stack::default();
 
     slots.alloc_slots(30).unwrap();
@@ -181,7 +181,7 @@ fn test_load() {
 
 #[test]
 fn test_store() {
-    let mut slots = StateSlotsMut::default();
+    let mut slots = StateMemory::default();
 
     slots.alloc_slots(30).unwrap();
 

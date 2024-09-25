@@ -147,6 +147,6 @@ fn write_values_to_state_slots<E>(
     slot_index: usize,
     values: Vec<Vec<Word>>,
 ) -> OpAsyncResult<(), E> {
-    vm.state_slots_mut.store_slots_range(slot_index, values)?;
+    vm.state_memory.store_slots_range(slot_index, values)?;
     Ok(())
 }
