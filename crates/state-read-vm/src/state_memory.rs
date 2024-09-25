@@ -2,9 +2,12 @@
 
 use core::ops::Range;
 
-use essential_constraint_vm::error::StackError;
+use essential_constraint_vm::{error::StackError, Stack};
 
-use crate::{asm::Word, OpSyncResult, StateSlotsError, StateSlotsResult, Vm};
+use crate::{asm::Word, OpSyncResult, StateSlotsError, StateSlotsResult};
+
+#[cfg(test)]
+mod tests;
 
 /// A type representing the VM's mutable state slots.
 ///
@@ -120,63 +123,60 @@ impl From<StateSlotsMut> for Vec<Vec<Word>> {
 }
 
 /// `StateMemory::AllocSlots` operation.
-pub fn alloc_slots(vm: &mut Vm) -> OpSyncResult<()> {
-    let size = vm.stack.pop()?;
+pub fn alloc_slots(stack: &mut Stack, slots: &mut StateSlotsMut) -> OpSyncResult<()> {
+    let size = stack.pop()?;
     let size = usize::try_from(size).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    vm.state_slots_mut.alloc_slots(size)?;
+    slots.alloc_slots(size)?;
     Ok(())
 }
 
 /// `StateMemory::Length` operation.
-pub fn length(vm: &mut Vm) -> OpSyncResult<()> {
-    let len =
-        Word::try_from(vm.state_slots_mut.len()).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    vm.stack.push(len)?;
+pub fn length(stack: &mut Stack, slots: &StateSlotsMut) -> OpSyncResult<()> {
+    let len = Word::try_from(slots.len()).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
+    stack.push(len)?;
     Ok(())
 }
 
 /// `StateMemory::ValueLen` operation.
-pub fn value_len(vm: &mut Vm) -> OpSyncResult<()> {
-    let slot = vm.stack.pop()?;
+pub fn value_len(stack: &mut Stack, slots: &StateSlotsMut) -> OpSyncResult<()> {
+    let slot = stack.pop()?;
     let slot = usize::try_from(slot).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    let len = Word::try_from(vm.state_slots_mut.value_len(slot)?)
-        .map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    vm.stack.push(len)?;
+    let len =
+        Word::try_from(slots.value_len(slot)?).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
+    stack.push(len)?;
     Ok(())
 }
 
-/// `StateMemory::Clear` operation.
-pub fn truncate(vm: &mut Vm) -> OpSyncResult<()> {
-    let index = vm.stack.pop()?;
-    let len = vm.stack.pop()?;
-    let index = usize::try_from(index).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
+/// `StateMemory::Truncate` operation.
+pub fn truncate(stack: &mut Stack, slots: &mut StateSlotsMut) -> OpSyncResult<()> {
+    let len = stack.pop()?;
+    let index = stack.pop()?;
     let len = usize::try_from(len).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    vm.state_slots_mut.truncate(index, len)?;
+    let index = usize::try_from(index).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
+    slots.truncate(index, len)?;
     Ok(())
 }
 
 /// `StateMemory::Load` operation.
-pub fn load(vm: &mut Vm) -> OpSyncResult<()> {
-    let len = vm.stack.pop()?;
-    let value_ix = vm.stack.pop()?;
-    let slot_ix = vm.stack.pop()?;
+pub fn load(stack: &mut Stack, slots: &StateSlotsMut) -> OpSyncResult<()> {
+    let len = stack.pop()?;
+    let value_ix = stack.pop()?;
+    let slot_ix = stack.pop()?;
     let slot_ix = usize::try_from(slot_ix).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
     let range = range_from_start_len(value_ix, len).ok_or(StateSlotsError::IndexOutOfBounds)?;
-    let value = vm.state_slots_mut.load(slot_ix, range)?;
-    vm.stack.extend(value.iter().copied())?;
+    let value = slots.load(slot_ix, range)?;
+    stack.extend(value.iter().copied())?;
     Ok(())
 }
 
 /// `StateMemory::Store` operation.
-pub fn store(vm: &mut Vm) -> OpSyncResult<()> {
-    let data = vm
-        .stack
-        .pop_len_words::<_, _, StackError>(|value| Ok(value.to_vec()))?;
-    let value_ix = vm.stack.pop()?;
+pub fn store(stack: &mut Stack, slots: &mut StateSlotsMut) -> OpSyncResult<()> {
+    let data = stack.pop_len_words::<_, _, StackError>(|value| Ok(value.to_vec()))?;
+    let value_ix = stack.pop()?;
     let value_ix = usize::try_from(value_ix).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    let slot_ix = vm.stack.pop()?;
+    let slot_ix = stack.pop()?;
     let slot_ix = usize::try_from(slot_ix).map_err(|_| StateSlotsError::IndexOutOfBounds)?;
-    vm.state_slots_mut.store(slot_ix, value_ix, data)?;
+    slots.store(slot_ix, value_ix, data)?;
     Ok(())
 }
 

@@ -304,11 +304,15 @@ pub(crate) fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncRes
 /// Step forward state reading by the given state slot operation.
 pub(crate) fn step_op_state_slots(op: asm::StateMemory, vm: &mut Vm) -> OpSyncResult<()> {
     match op {
-        asm::StateMemory::AllocSlots => state_memory::alloc_slots(vm),
-        asm::StateMemory::Truncate => state_memory::truncate(vm),
-        asm::StateMemory::Length => state_memory::length(vm),
-        asm::StateMemory::ValueLen => state_memory::value_len(vm),
-        asm::StateMemory::Load => state_memory::load(vm),
-        asm::StateMemory::Store => state_memory::store(vm),
+        asm::StateMemory::AllocSlots => {
+            state_memory::alloc_slots(&mut vm.stack, &mut vm.state_slots_mut)
+        }
+        asm::StateMemory::Truncate => {
+            state_memory::truncate(&mut vm.stack, &mut vm.state_slots_mut)
+        }
+        asm::StateMemory::Length => state_memory::length(&mut vm.stack, &vm.state_slots_mut),
+        asm::StateMemory::ValueLen => state_memory::value_len(&mut vm.stack, &vm.state_slots_mut),
+        asm::StateMemory::Load => state_memory::load(&mut vm.stack, &vm.state_slots_mut),
+        asm::StateMemory::Store => state_memory::store(&mut vm.stack, &mut vm.state_slots_mut),
     }
 }
