@@ -162,7 +162,7 @@ fn test_predicate_42_state_read() -> Vec<Vec<u8>> {
     use state_read_vm::asm::short::*;
     vec![state_read_vm::asm::to_bytes([
         PUSH(1),
-        SALC,
+        ALOCS,
         PUSH(0),
         PUSH(0),
         PUSH(0),

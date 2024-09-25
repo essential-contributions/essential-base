@@ -57,7 +57,7 @@ StateRead:
 
             Select:
               opcode: 0x07
-              short: SLT
+              short: SEL
               description: |
                 Conditionally keep one of the top two elements on the stack.
 
@@ -303,7 +303,7 @@ StateRead:
             
             MutKeys:
               opcode: 0x34
-              short: MKEY
+              short: MKEYS
               description: |
                 Push the keys of the proposed state mutations onto the stack.
 
@@ -314,7 +314,7 @@ StateRead:
             
             PubVarKeys:
               opcode: 0x35
-              short: PKEY
+              short: PKEYS
               description: |
                 Push the keys of the pub vars at `pathway_id` onto the stack.
                 Note the order is non-deterministic because this is a set.
@@ -405,7 +405,7 @@ StateRead:
 
             PubVarLen:
               opcode: 0x3C
-              short: PLEN
+              short: PVLEN
               description: |
                 Get the length of the value indexed by `pathway_ix`
                 and key `key_0, ...key_N`.
@@ -536,7 +536,7 @@ StateRead:
           group:
             Alloc:
               opcode: 0x70
-              short: TALC
+              short: ALOCT
               description: |
                 Allocate new memory to the end of the temporary memory.
                 Sets new memory to 0.
@@ -548,7 +548,7 @@ StateRead:
 
             Load:
               opcode: 0x71
-              short: TLD
+              short: LOD
               description: Load the value at the index of temporary memory onto the stack.
               panics:
                 - Index is out of bounds.
@@ -557,7 +557,7 @@ StateRead:
 
             Store:
               opcode: 0x72
-              short: TSTR
+              short: STO
               description: Store the value at the index of temporary memory.
               panics:
                 - Index is out of bounds.
@@ -568,13 +568,13 @@ StateRead:
       group:
         AllocSlots:
           opcode: 0x80
-          short: SALC
+          short: ALOCS
           description: Allocate new slots to the end of the memory.
           stack_in: [size]
 
         Load:
           opcode: 0x81
-          short: SLD
+          short: LODS
           description: |
             Load the value at the index of a slot onto the stack.
 
@@ -588,7 +588,7 @@ StateRead:
 
         Store:
           opcode: 0x82
-          short: SSTR
+          short: STOS
           description: Store the value at the index of state slots.
           panics:
             - Index is out of bounds.
@@ -596,7 +596,7 @@ StateRead:
 
         LoadWord:
           opcode: 0x83
-          short: SLDW
+          short: LODWS
           description: |
             Load the word at the index of the value at
             the slot onto the stack.
@@ -607,7 +607,7 @@ StateRead:
 
         StoreWord:
           opcode: 0x84
-          short: SSTRW
+          short: STORWS
           description: |
             Store the word at the index of the value
             at the slot.
@@ -617,7 +617,7 @@ StateRead:
 
         Clear:
           opcode: 0x85
-          short: SCLR
+          short: CLR
           description: Clear the value at the index.
           panics:
             - Index is out of bounds.
@@ -625,7 +625,7 @@ StateRead:
 
         ClearRange:
           opcode: 0x86
-          short: SCLRR
+          short: CLRR
           description: Clear a range of values.
           panics:
             - The range is out of bounds.
