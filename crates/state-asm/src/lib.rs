@@ -87,8 +87,8 @@ mod tests {
         let ops: Vec<Op> = vec![
             Stack::Push(0x1234567812345678).into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-            StateSlots::AllocSlots.into(),
-            StateSlots::Length.into(),
+            StateMemory::AllocSlots.into(),
+            StateMemory::Length.into(),
         ];
         roundtrip(ops);
     }
@@ -107,11 +107,11 @@ mod tests {
     #[test]
     fn roundtrip_no_args() {
         let ops: Vec<Op> = vec![
-            StateSlots::Store.into(),
+            StateMemory::Store.into(),
             Access::ThisAddress.into(),
-            StateSlots::Load.into(),
+            StateMemory::Load.into(),
             Access::ThisContractAddress.into(),
-            StateSlots::Length.into(),
+            StateMemory::Length.into(),
         ];
         roundtrip(ops);
     }

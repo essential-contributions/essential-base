@@ -372,7 +372,7 @@ where
             tracing::trace!(
                 "{pc_op}\n  ├── {:?}\n  └── {:?}",
                 &vm.stack,
-                &vm.state_slots_mut
+                &vm.state_memory
             )
         }
         Err(ref err) => {

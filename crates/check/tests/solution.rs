@@ -177,7 +177,7 @@ async fn check_predicate_42_with_solution() {
 async fn predicate_with_multiple_state_reads_and_slots() {
     let read_three_slots = state_read_vm::asm::to_bytes([
         state_read_vm::asm::Stack::Push(3).into(),
-        state_read_vm::asm::StateSlots::AllocSlots.into(),
+        state_read_vm::asm::StateMemory::AllocSlots.into(),
         state_read_vm::asm::Stack::Push(0).into(), // Key
         state_read_vm::asm::Stack::Push(1).into(), // Key length
         state_read_vm::asm::Stack::Push(1).into(), // Num keys to read
@@ -193,7 +193,7 @@ async fn predicate_with_multiple_state_reads_and_slots() {
     .collect();
     let read_two_slots = state_read_vm::asm::to_bytes([
         state_read_vm::asm::Stack::Push(2).into(),
-        state_read_vm::asm::StateSlots::AllocSlots.into(),
+        state_read_vm::asm::StateMemory::AllocSlots.into(),
         state_read_vm::asm::Stack::Push(3).into(), // Key
         state_read_vm::asm::Stack::Push(1).into(), // Key length
         state_read_vm::asm::Stack::Push(2).into(), // Num keys to read

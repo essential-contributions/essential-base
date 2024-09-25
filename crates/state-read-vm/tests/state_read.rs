@@ -27,7 +27,7 @@ async fn state_read_3_42s() {
     let num_words = 3;
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -41,8 +41,8 @@ async fn state_read_3_42s() {
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
         .unwrap();
-    assert_eq!(&vm.state_slots_mut[..], &[vec![42], vec![42], vec![42]]);
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert_eq!(&vm.state_memory[..], &[vec![42], vec![42], vec![42]]);
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -61,7 +61,7 @@ async fn state_read_some_none_some() {
     let num_words = 3;
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -75,8 +75,8 @@ async fn state_read_some_none_some() {
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
         .unwrap();
-    assert_eq!(&vm.state_slots_mut[..], &[vec![42], vec![], vec![42]]);
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert_eq!(&vm.state_memory[..], &[vec![42], vec![], vec![42]]);
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -95,7 +95,7 @@ async fn state_read_ext() {
     let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(addr0).into(),
         asm::Stack::Push(addr1).into(),
         asm::Stack::Push(addr2).into(),
@@ -119,8 +119,8 @@ async fn state_read_ext() {
     )
     .await
     .unwrap();
-    assert_eq!(&vm.state_slots_mut[..], &[vec![40], vec![41], vec![42]]);
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert_eq!(&vm.state_memory[..], &[vec![40], vec![41], vec![42]]);
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -132,7 +132,7 @@ async fn state_read_ext_nones() {
     let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(num_words).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(addr0).into(),
         asm::Stack::Push(addr1).into(),
         asm::Stack::Push(addr2).into(),
@@ -156,8 +156,8 @@ async fn state_read_ext_nones() {
     )
     .await
     .unwrap();
-    assert!(vm.state_slots_mut.iter().all(Vec::is_empty));
-    assert_eq!(vm.state_slots_mut.len(), 3);
+    assert!(vm.state_memory.iter().all(Vec::is_empty));
+    assert_eq!(vm.state_memory.len(), 3);
 }
 
 #[tokio::test]
@@ -181,7 +181,7 @@ async fn state_read_various_size_values() {
     let num_values = 5;
     let ops = &[
         asm::Stack::Push(num_values).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -196,10 +196,10 @@ async fn state_read_various_size_values() {
         .await
         .unwrap();
     assert_eq!(
-        &vm.state_slots_mut[..],
+        &vm.state_memory[..],
         &[vec![0; 2], vec![1; 22], vec![2; 14], vec![], vec![4; 12]]
     );
-    assert_eq!(vm.state_slots_mut.len(), 5);
+    assert_eq!(vm.state_memory.len(), 5);
 }
 
 #[tokio::test]
@@ -223,7 +223,7 @@ async fn state_read_various_key_sizes() {
     let mut vm = Vm::default();
     let ops = &[
         asm::Stack::Push(5).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(1).into(), // key length
         asm::Stack::Push(3).into(), // num keys
@@ -245,10 +245,10 @@ async fn state_read_various_key_sizes() {
         .await
         .unwrap();
     assert_eq!(
-        &vm.state_slots_mut[..],
+        &vm.state_memory[..],
         &[vec![0; 2], vec![1; 22], vec![], vec![2; 14], vec![]]
     );
-    assert_eq!(vm.state_slots_mut.len(), 5);
+    assert_eq!(vm.state_memory.len(), 5);
 }
 
 // TODO: Test slot index overflow
@@ -267,7 +267,7 @@ async fn state_read_slot_index_overflow() {
     let mut vm = Vm::default();
     let ops = &[
         asm::Stack::Push(1).into(),
-        asm::StateSlots::AllocSlots.into(),
+        asm::StateMemory::AllocSlots.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(1).into(), // key length
         asm::Stack::Push(1).into(), // num keys

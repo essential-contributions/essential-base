@@ -179,7 +179,7 @@ fn test_predicate_42(entropy: Word) -> Predicate {
         // State read program to read state slot 0.
         state_read: vec![state_read_vm::asm::to_bytes([
             state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::StateSlots::AllocSlots.into(),
+            state_read_vm::asm::StateMemory::AllocSlots.into(),
             state_read_vm::asm::Stack::Push(0).into(),
             state_read_vm::asm::Stack::Push(0).into(),
             state_read_vm::asm::Stack::Push(0).into(),
