@@ -1,6 +1,6 @@
 [package]
 name = "essential-constraint-vm"
-version = "0.3.0"
+version = "0.4.0"
 description = "The Essential constraint checking VM"
 edition.workspace = true
 authors.workspace = true
@@ -20,7 +20,6 @@ tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
-once_cell = { workspace = true }
 rand = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand"]}
 test-case.workspace = true

@@ -361,6 +361,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef1a6892d9eef45c8fa6b9e0086428a2cca8491aca8f787c534a3d6d0bcb3ced"
 
 [[package]]
+name = "embedded-io"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -368,7 +374,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "essential-asm-gen"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "essential-asm-spec",
  "essential-types",
@@ -379,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "essential-asm-spec"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_yaml",
@@ -387,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "essential-check"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "criterion",
  "essential-constraint-vm",
@@ -407,7 +413,7 @@ dependencies = [
 
 [[package]]
 name = "essential-constraint-asm"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "essential-asm-gen",
  "essential-types",
@@ -416,13 +422,12 @@ dependencies = [
 
 [[package]]
 name = "essential-constraint-vm"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "criterion",
  "ed25519-dalek",
  "essential-constraint-asm",
  "essential-types",
- "once_cell",
  "rand",
  "rayon",
  "secp256k1",
@@ -435,7 +440,7 @@ dependencies = [
 
 [[package]]
 name = "essential-hash"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "essential-types",
  "hex",
@@ -450,7 +455,7 @@ version = "0.1.0"
 
 [[package]]
 name = "essential-sign"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "essential-hash",
  "essential-types",
@@ -461,7 +466,7 @@ dependencies = [
 
 [[package]]
 name = "essential-state-asm"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "essential-asm-gen",
  "essential-constraint-asm",
@@ -470,13 +475,12 @@ dependencies = [
 
 [[package]]
 name = "essential-state-read-vm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "essential-constraint-vm",
  "essential-state-asm",
  "essential-types",
  "futures",
- "once_cell",
  "rand",
  "thiserror",
  "tokio",
@@ -485,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "essential-types"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "hex",
  "schemars",
@@ -854,12 +858,13 @@ dependencies = [
 
 [[package]]
 name = "postcard"
-version = "1.0.8"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a55c51ee6c0db07e68448e336cf8ea4131a620edefebf9893e759b2d793420f8"
+checksum = "5f7f0a8d620d71c457dd1d47df76bb18960378da56af4527aaa10f515eee732e"
 dependencies = [
  "cobs",
- "embedded-io",
+ "embedded-io 0.4.0",
+ "embedded-io 0.6.1",
  "heapless",
  "serde",
 ]
@@ -1057,18 +1062,18 @@ checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 
 [[package]]
 name = "serde"
-version = "1.0.207"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5665e14a49a4ea1b91029ba7d3bca9f299e1f7cfa194388ccc20f14743e784f2"
+checksum = "c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.207"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6aea2634c86b0e8ef2cfdc0c340baede54ec27b1e46febd7f80dffb2aa44a00e"
+checksum = "243902eda00fad750862fc144cea25caca5e20d615af0a81bee94ca738f1df1f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1272,9 +1277,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.39.2"
+version = "1.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daa4fb1bc778bd6f04cbfc4bb2d06a7396a8f299dc33ea1900cedaa316f467b1"
+checksum = "e2b070231665d27ad9ec9b8df639893f46727666c6767db40317fbe920a5d998"
 dependencies = [
  "backtrace",
  "pin-project-lite",

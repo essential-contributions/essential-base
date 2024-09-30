@@ -399,42 +399,41 @@ pub(crate) mod test_util {
     };
 
     pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
-        static INSTANCE: once_cell::sync::OnceCell<HashSet<&[Word]>> =
-            once_cell::sync::OnceCell::new();
-        INSTANCE.get_or_init(|| HashSet::with_capacity(0))
+        static INSTANCE: std::sync::LazyLock<HashSet<&[Word]>> =
+            std::sync::LazyLock::new(|| HashSet::with_capacity(0));
+        &INSTANCE
     }
 
     pub(crate) fn test_transient_data(
     ) -> &'static HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>> {
-        static INSTANCE: once_cell::sync::OnceCell<
-            HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>>,
-        > = once_cell::sync::OnceCell::new();
-        INSTANCE.get_or_init(|| HashMap::with_capacity(0))
+        static INSTANCE: std::sync::LazyLock<HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>>> =
+            std::sync::LazyLock::new(|| HashMap::with_capacity(0));
+        &INSTANCE
     }
 
     pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
-        static INSTANCE: once_cell::sync::OnceCell<[SolutionData; 1]> =
-            once_cell::sync::OnceCell::new();
-        INSTANCE.get_or_init(|| [TEST_SOLUTION_DATA])
+        static INSTANCE: std::sync::LazyLock<[SolutionData; 1]> =
+            std::sync::LazyLock::new(|| [TEST_SOLUTION_DATA]);
+        &*INSTANCE
     }
 
     pub(crate) fn test_solution_access() -> &'static SolutionAccess<'static> {
-        static INSTANCE: once_cell::sync::OnceCell<SolutionAccess> =
-            once_cell::sync::OnceCell::new();
-        INSTANCE.get_or_init(|| SolutionAccess {
-            data: test_solution_data_arr(),
-            index: 0,
-            mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
-        })
+        static INSTANCE: std::sync::LazyLock<SolutionAccess> =
+            std::sync::LazyLock::new(|| SolutionAccess {
+                data: test_solution_data_arr(),
+                index: 0,
+                mutable_keys: test_empty_keys(),
+                transient_data: test_transient_data(),
+            });
+        &INSTANCE
     }
 
     pub(crate) fn test_access() -> &'static Access<'static> {
-        static INSTANCE: once_cell::sync::OnceCell<Access> = once_cell::sync::OnceCell::new();
-        INSTANCE.get_or_init(|| Access {
+        static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
             solution: *test_solution_access(),
             state_slots: StateSlots::EMPTY,
-        })
+        });
+        &INSTANCE
     }
 }
 
