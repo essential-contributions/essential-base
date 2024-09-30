@@ -20,7 +20,6 @@ tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
-once_cell = { workspace = true }
 rand = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand"]}
 test-case.workspace = true
