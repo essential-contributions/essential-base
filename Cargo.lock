@@ -368,7 +368,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "essential-asm-gen"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "essential-asm-spec",
  "essential-types",
@@ -379,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "essential-asm-spec"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_yaml",
@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "essential-check"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "criterion",
  "essential-constraint-vm",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "essential-constraint-asm"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "essential-asm-gen",
  "essential-types",
@@ -416,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "essential-constraint-vm"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "criterion",
  "ed25519-dalek",
@@ -435,7 +435,7 @@ dependencies = [
 
 [[package]]
 name = "essential-hash"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "essential-types",
  "hex",
@@ -450,7 +450,7 @@ version = "0.1.0"
 
 [[package]]
 name = "essential-sign"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "essential-hash",
  "essential-types",
@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "essential-state-asm"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "essential-asm-gen",
  "essential-constraint-asm",
@@ -470,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "essential-state-read-vm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "essential-constraint-vm",
  "essential-state-asm",
@@ -485,7 +485,7 @@ dependencies = [
 
 [[package]]
 name = "essential-types"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "hex",
  "schemars",
