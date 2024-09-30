@@ -23,20 +23,20 @@ essential-state-read-vm = { path = "crates/state-read-vm", version = "0.5.0" }
 essential-types = { path = "crates/types", version = "0.3.0" }
 futures = "0.3" # For `state-read-vm` tests.
 hex = "0.4.3"
-postcard = { version = "1.0.8", features = ["alloc"] }
+postcard = { version = "1.0.10", features = ["alloc"] }
 proc-macro2 = "1"
 quote = "1"
 rand = { version = "0.8", features = ["small_rng"] } # For VM tests.
 rayon = "1" # For `constraint-vm` parallelisation.
 schemars = "0.8.21"
 secp256k1 = { version = "0.29", features = ["recovery"] }
-serde = { version = "1.0.195", features = ["derive"] }
+serde = { version = "1.0.210", features = ["derive"] }
 serde_yaml = "0.9"
 sha2 = "0.10.8"
 syn = { version = "2", features = ["extra-traits", "full", "printing"] }
 tempfile = "3.9.0"
 test-case = "3.3.1"
 thiserror = "1"
-tokio = { version = "1.36", default-features = false, features = ["macros", "test-util"] }
+tokio = { version = "1.40", default-features = false, features = ["macros", "test-util"] }
 tracing = {version = "0.1", features = ["attributes"]}
 tracing-subscriber = "0.3.18"
