@@ -83,14 +83,12 @@ pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
             // Note the public key is 33 bytes long.
             let encoded_point = public_key.to_encoded_point(true);
             let public_key_bytes = encoded_point.as_bytes();
-            let public_key_word = word_4_from_u8_32(public_key_bytes[..32].try_into().unwrap());
-            let mut end_word = [0u8; 8];
-            end_word[7] = public_key_bytes[32];
-            let end_word = word_from_bytes(end_word);
+            let public_key_word = word_4_from_u8_32(public_key_bytes[1..33].try_into().unwrap());
+            let encoding_word = word_from_bytes([0, 0, 0, 0, 0, 0, 0, public_key_bytes[0]]);
 
             // Push the public key.
             stack.extend(public_key_word)?;
-            stack.push(end_word)?;
+            stack.push(encoding_word)?;
         }
         // If the public key could not be recovered, push zeros.
         Err(_) => stack.extend([0; 5])?,

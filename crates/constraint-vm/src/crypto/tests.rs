@@ -161,13 +161,14 @@ fn test_secp256k1() {
 
         recover_secp256k1(&mut stack).unwrap();
 
-        let end = stack.pop().unwrap();
-        let end = bytes_from_word(end);
-        let recovered = stack.pop4().unwrap();
-        let mut recovered = u8_32_from_word_4(recovered).to_vec();
-        recovered.push(end[7]);
-        let bytes: [u8; 33] = recovered.try_into().unwrap();
-        bytes
+        let encoding = bytes_from_word(stack.pop().unwrap());
+        let public_key = u8_32_from_word_4(stack.pop4().unwrap());
+
+        // recovered = [encoding[7], public_key]
+        let mut recovered = [0u8; 33];
+        recovered[0] = encoding[7];
+        recovered[1..].copy_from_slice(&public_key);
+        recovered
     };
 
     let result = check(sig, prehash);
