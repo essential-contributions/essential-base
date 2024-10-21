@@ -39,6 +39,7 @@ pub use access::{
 };
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
+pub use cached::LazyCache;
 #[doc(inline)]
 pub use error::{CheckResult, ConstraintResult, OpResult, StackResult};
 use error::{ConstraintError, ConstraintErrors, ConstraintsUnsatisfied};
@@ -61,6 +62,7 @@ pub use total_control_flow::ProgramControlFlow;
 mod access;
 mod alu;
 mod bytecode;
+mod cached;
 mod crypto;
 pub mod error;
 mod memory;
@@ -173,10 +175,11 @@ where
     let mut stack = Stack::default();
     let mut memory = Memory::new();
     let mut repeat = Repeat::new();
+    let cache = LazyCache::new();
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ConstraintError::Op(pc, err.into()))?;
 
-        let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat);
+        let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat, &cache);
 
         #[cfg(feature = "tracing")]
         trace_op_res(pc, &op, &stack, &memory, res.as_ref());
@@ -225,9 +228,10 @@ pub fn step_op(
     memory: &mut Memory,
     pc: usize,
     repeat: &mut Repeat,
+    cache: &LazyCache,
 ) -> OpResult<Option<ProgramControlFlow>> {
     match op {
-        Op::Access(op) => step_op_access(access, op, stack, repeat).map(|_| None),
+        Op::Access(op) => step_op_access(access, op, stack, repeat, cache).map(|_| None),
         Op::Alu(op) => step_op_alu(op, stack).map(|_| None),
         Op::Crypto(op) => step_op_crypto(op, stack).map(|_| None),
         Op::Pred(op) => step_op_pred(op, stack).map(|_| None),
@@ -243,6 +247,7 @@ pub fn step_op_access(
     op: asm::Access,
     stack: &mut Stack,
     repeat: &mut Repeat,
+    cache: &LazyCache,
 ) -> OpResult<()> {
     match op {
         asm::Access::DecisionVar => {
@@ -269,6 +274,9 @@ pub fn step_op_access(
             &access.state_slots,
             &access.solution.this_data().decision_variables,
         ),
+        asm::Access::PredicateExists => {
+            access::predicate_exists(stack, access.solution.data, cache)
+        }
     }
 }
 

@@ -32,6 +32,7 @@ use constraint::{ProgramControlFlow, Repeat};
 #[doc(inline)]
 pub use error::{OpAsyncResult, OpResult, OpSyncResult, StateMemoryResult, StateReadResult};
 use error::{OpError, OpSyncError, StateMemoryError, StateReadError};
+use essential_constraint_vm::LazyCache;
 #[doc(inline)]
 pub use essential_constraint_vm::{
     self as constraint, Access, OpAccess, SolutionAccess, Stack, StateSlotSlice, StateSlots,
@@ -62,6 +63,8 @@ pub struct Vm {
     pub temp_memory: essential_constraint_vm::Memory,
     /// The repeat stack.
     pub repeat: Repeat,
+    /// Lazily cached data for the VM.
+    pub cache: LazyCache,
     /// The state memory that will be written to by this program.
     pub state_memory: StateMemory,
 }
@@ -286,9 +289,10 @@ pub(crate) fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncRes
                 repeat,
                 pc,
                 temp_memory,
+                cache,
                 ..
             } = vm;
-            match constraint::step_op(access, op, stack, temp_memory, *pc, repeat)? {
+            match constraint::step_op(access, op, stack, temp_memory, *pc, repeat, cache)? {
                 Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
                 Some(ProgramControlFlow::Halt) => return Ok(None),
                 None => (),
