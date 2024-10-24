@@ -13,6 +13,9 @@ pub use op::{StateRead as Op, *};
 #[doc(inline)]
 pub use opcode::{InvalidOpcodeError, NotEnoughBytesError, StateRead as Opcode};
 
+/// Determine the state a program has access to.
+pub mod analyse_reads;
+
 /// Typed representation of an operation its associated data.
 mod op {
     pub use essential_constraint_asm::{
