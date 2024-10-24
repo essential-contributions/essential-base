@@ -1,13 +1,13 @@
 use essential_types::{
     contract::Contract,
-    predicate::Predicate,
+    predicate::OldPredicate,
     solution::{Solution, SolutionData},
     Block, ContentAddress, PredicateAddress,
 };
 use sha2::Digest;
 
-fn test_predicate() -> Predicate {
-    Predicate {
+fn test_predicate() -> OldPredicate {
+    OldPredicate {
         state_read: Default::default(),
         constraints: Default::default(),
     }

@@ -1,7 +1,7 @@
 //! # Predicates
 //! Types needed to represent a predicate.
 
-use crate::{serde::bytecode, ConstraintBytecode, StateReadBytecode};
+use crate::{serde::bytecode, ConstraintBytecode, ContentAddress, StateReadBytecode};
 use header::{check_predicate_bounds, encoded_size, EncodedSize, PredicateBounds, PredicateError};
 use serde::{Deserialize, Serialize};
 
@@ -13,10 +13,65 @@ mod tests;
 
 pub mod header;
 
+/// The state a program has access to.
+#[derive(
+    Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[repr(u8)]
+pub enum Reads {
+    /// State prior to mutations.
+    #[default]
+    Pre,
+    /// State post mutations.
+    Post,
+}
+
+/// A node in the graph.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Node {
+    /// The start of relevant edges to this node in the edge list of the graph.
+    ///
+    /// Specifying [`Edge::MAX`] indicates that this node is a leaf.
+    pub edge_start: Edge,
+    /// The content address of the [`Program`] that this node executes.
+    pub program_address: ContentAddress,
+    /// Which type of state this program has access to.
+    pub reads: Reads,
+}
+
+/// An edge in the graph.
+pub type Edge = u16;
+
+/// A program dependency graph.
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Predicate {
+    /// Programs in the graph.
+    pub nodes: Vec<Node>,
+    /// Dependencies between programs in the graph.
+    ///
+    /// Edges are directed.
+    /// The edge from `A` to `B` indicates that `B` depends on `A`, i.e., `B` is a child of `A`.
+    pub edges: Vec<Edge>,
+}
+
+/// A program to be executed.
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Program(
+    #[serde(
+        serialize_with = "bytecode::serialize",
+        deserialize_with = "bytecode::deserialize"
+    )]
+    pub Vec<u8>,
+);
+
+/// A set of programs.
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Programs(pub Vec<Program>);
+
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// An individual predicate to be solved.
-pub struct Predicate {
+pub struct OldPredicate {
     /// The programs that read state.
     #[serde(
         serialize_with = "bytecode::serialize_vec",
@@ -31,7 +86,7 @@ pub struct Predicate {
     pub constraints: Vec<ConstraintBytecode>,
 }
 
-impl Predicate {
+impl OldPredicate {
     /// Maximum number of state read programs of a predicate.
     pub const MAX_STATE_READS: usize = u8::MAX as usize;
     /// Maximum size of state read programs of a predicate in bytes.

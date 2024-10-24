@@ -1,7 +1,7 @@
 use crate::Address;
 use essential_types::{
     contract::Contract,
-    predicate::Predicate,
+    predicate::OldPredicate,
     solution::{Solution, SolutionData},
     Block, ContentAddress,
 };
@@ -13,7 +13,7 @@ impl Address for Block {
     }
 }
 
-impl Address for Predicate {
+impl Address for OldPredicate {
     fn content_address(&self) -> ContentAddress {
         let Ok(header) = self.encoded_header() else {
             // Invalid predicates can't be hashed.

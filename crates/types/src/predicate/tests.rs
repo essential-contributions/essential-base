@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_programs() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![0_u8; i]).collect(),
         constraints: (255..259).map(|i| vec![0_u8; i]).collect(),
     };
@@ -20,7 +20,7 @@ fn test_programs() {
 
 #[test]
 fn test_into_programs() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![0_u8; i]).collect(),
         constraints: (255..259).map(|i| vec![0_u8; i]).collect(),
     };
@@ -38,7 +38,7 @@ fn test_into_programs() {
 
 #[test]
 fn test_encode() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![i as u8; i]).collect(),
         constraints: (200..202).map(|i| vec![i as u8; 2]).collect(),
     };
@@ -55,7 +55,7 @@ fn test_encode() {
 
 #[test]
 fn test_encoded_size() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![i as u8; i]).collect(),
         constraints: (200..202).map(|i| vec![i as u8; 2]).collect(),
     };
@@ -75,9 +75,9 @@ fn test_decode() {
         1, 2, 2, // state reads
         200, 200, 201, 201, // constraints
     ];
-    let predicate = Predicate::decode(&bytes).unwrap();
+    let predicate = OldPredicate::decode(&bytes).unwrap();
 
-    let expected = Predicate {
+    let expected = OldPredicate {
         state_read: (0..3).map(|i| vec![i as u8; i]).collect(),
         constraints: (200..202).map(|i| vec![i as u8; 2]).collect(),
     };
@@ -86,48 +86,48 @@ fn test_decode() {
 
 #[test]
 fn check_predicate_bounds() {
-    let mut predicate = Predicate {
+    let mut predicate = OldPredicate {
         state_read: vec![],
         constraints: vec![],
     };
     predicate.check_predicate_bounds().unwrap();
 
-    predicate.state_read = (0..(Predicate::MAX_STATE_READS + 1))
+    predicate.state_read = (0..(OldPredicate::MAX_STATE_READS + 1))
         .map(|_| vec![])
         .collect();
     predicate.check_predicate_bounds().unwrap_err();
 
     predicate.state_read = vec![];
-    predicate.constraints = (0..(Predicate::MAX_CONSTRAINTS + 1))
+    predicate.constraints = (0..(OldPredicate::MAX_CONSTRAINTS + 1))
         .map(|_| vec![])
         .collect();
     predicate.check_predicate_bounds().unwrap_err();
 
     predicate.constraints = vec![];
-    predicate.state_read = vec![vec![0; Predicate::MAX_STATE_READ_SIZE_BYTES + 1]];
+    predicate.state_read = vec![vec![0; OldPredicate::MAX_STATE_READ_SIZE_BYTES + 1]];
     predicate.check_predicate_bounds().unwrap_err();
 
     predicate.state_read.pop();
     predicate.check_predicate_bounds().unwrap();
 
-    predicate.constraints = vec![vec![0; Predicate::MAX_CONSTRAINT_SIZE_BYTES + 1]];
+    predicate.constraints = vec![vec![0; OldPredicate::MAX_CONSTRAINT_SIZE_BYTES + 1]];
     predicate.check_predicate_bounds().unwrap_err();
 
     predicate.constraints.pop();
     predicate.check_predicate_bounds().unwrap();
 
-    predicate.state_read = (0..Predicate::MAX_STATE_READS).map(|_| vec![]).collect();
-    predicate.constraints = (0..Predicate::MAX_CONSTRAINTS).map(|_| vec![]).collect();
+    predicate.state_read = (0..OldPredicate::MAX_STATE_READS).map(|_| vec![]).collect();
+    predicate.constraints = (0..OldPredicate::MAX_CONSTRAINTS).map(|_| vec![]).collect();
     predicate.check_predicate_bounds().unwrap();
 }
 
 #[test]
 fn test_round_trips() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![i as u8; i]).collect(),
         constraints: (200..202).map(|i| vec![i as u8; 2]).collect(),
     };
     let bytes: Vec<u8> = predicate.encode().unwrap().collect();
-    let decoded = Predicate::decode(&bytes).unwrap();
+    let decoded = OldPredicate::decode(&bytes).unwrap();
     assert_eq!(predicate, decoded);
 }
