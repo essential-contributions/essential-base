@@ -11,6 +11,7 @@ use schemars::JsonSchema;
 #[cfg(test)]
 mod tests;
 
+pub mod encode_predicate;
 pub mod header;
 
 /// The state a program has access to.
@@ -21,7 +22,7 @@ pub mod header;
 pub enum Reads {
     /// State prior to mutations.
     #[default]
-    Pre,
+    Pre = 0,
     /// State post mutations.
     Post,
 }
@@ -84,6 +85,13 @@ pub struct OldPredicate {
         deserialize_with = "bytecode::deserialize_vec"
     )]
     pub constraints: Vec<ConstraintBytecode>,
+}
+
+impl Predicate {
+    /// Maximum number of nodes in a predicate.
+    pub const MAX_NODES: u16 = 1000;
+    /// Maximum number of edges in a predicate.
+    pub const MAX_EDGES: u16 = 1000;
 }
 
 impl OldPredicate {
