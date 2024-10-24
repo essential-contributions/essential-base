@@ -2,6 +2,7 @@
 //! Types needed to represent a predicate.
 
 use crate::{serde::bytecode, ConstraintBytecode, ContentAddress, StateReadBytecode};
+pub use encode_predicate::PredicateEncodeError;
 use header::{check_predicate_bounds, encoded_size, EncodedSize, PredicateBounds, PredicateError};
 use serde::{Deserialize, Serialize};
 
@@ -92,6 +93,21 @@ impl Predicate {
     pub const MAX_NODES: u16 = 1000;
     /// Maximum number of edges in a predicate.
     pub const MAX_EDGES: u16 = 1000;
+
+    /// Encode the predicate into a bytes iterator.
+    pub fn encode(&self) -> Result<impl Iterator<Item = u8> + '_, PredicateEncodeError> {
+        encode_predicate::encode_predicate(self)
+    }
+
+    /// The size of the encoded predicate in bytes.
+    pub fn encoded_size(&self) -> usize {
+        encode_predicate::predicate_encoded_size(self)
+    }
+
+    /// Decode a predicate from bytes.
+    pub fn decode(bytes: &[u8]) -> Result<Self, encode_predicate::PredicateDecodeError> {
+        encode_predicate::decode_predicate(bytes)
+    }
 }
 
 impl OldPredicate {
