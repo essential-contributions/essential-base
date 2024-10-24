@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{predicate::Predicate, serde::hash, Hash, Signature};
+use crate::{predicate::OldPredicate, serde::hash, Hash, Signature};
 
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
@@ -33,7 +33,7 @@ pub struct SignedContract {
 /// A contract of predicates.
 pub struct Contract {
     /// The contract of predicates.
-    pub predicates: Vec<Predicate>,
+    pub predicates: Vec<OldPredicate>,
     #[serde(
         serialize_with = "hash::serialize",
         deserialize_with = "hash::deserialize"
@@ -47,7 +47,7 @@ impl Contract {
     pub const MAX_PREDICATES: usize = 100;
 
     /// Create a new contract with the given predicates but no salt.
-    pub fn without_salt(predicates: Vec<Predicate>) -> Self {
+    pub fn without_salt(predicates: Vec<OldPredicate>) -> Self {
         Self {
             predicates,
             ..Default::default()
@@ -55,8 +55,8 @@ impl Contract {
     }
 }
 
-impl From<Vec<Predicate>> for Contract {
-    fn from(predicates: Vec<Predicate>) -> Self {
+impl From<Vec<OldPredicate>> for Contract {
+    fn from(predicates: Vec<OldPredicate>) -> Self {
         Self {
             predicates,
             ..Default::default()
@@ -64,14 +64,14 @@ impl From<Vec<Predicate>> for Contract {
     }
 }
 
-impl AsRef<[Predicate]> for Contract {
-    fn as_ref(&self) -> &[Predicate] {
+impl AsRef<[OldPredicate]> for Contract {
+    fn as_ref(&self) -> &[OldPredicate] {
         &self.predicates
     }
 }
 
 impl Deref for Contract {
-    type Target = Vec<Predicate>;
+    type Target = Vec<OldPredicate>;
 
     fn deref(&self) -> &Self::Target {
         &self.predicates

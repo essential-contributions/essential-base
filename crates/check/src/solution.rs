@@ -10,7 +10,7 @@ use crate::{
         SolutionAccess, StateRead, StateSlotSlice, StateSlots,
     },
     types::{
-        predicate::Predicate,
+        predicate::OldPredicate,
         solution::{Solution, SolutionData, SolutionDataIndex},
         Key, PredicateAddress, StateReadBytecode, Word,
     },
@@ -273,7 +273,7 @@ pub async fn check_predicates<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    get_predicate: impl Fn(&PredicateAddress) -> Arc<Predicate>,
+    get_predicate: impl Fn(&PredicateAddress) -> Arc<OldPredicate>,
     config: Arc<CheckPredicateConfig>,
 ) -> Result<Gas, PredicatesError<SA::Error>>
 where
@@ -381,7 +381,7 @@ pub async fn check_predicate<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    predicate: Arc<Predicate>,
+    predicate: Arc<OldPredicate>,
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
 ) -> Result<Gas, PredicateError<SA::Error>>
@@ -538,7 +538,7 @@ where
 pub async fn check_predicate_constraints(
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
-    predicate: Arc<Predicate>,
+    predicate: Arc<OldPredicate>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
     config: &CheckPredicateConfig,
@@ -563,7 +563,7 @@ pub async fn check_predicate_constraints(
 async fn check_predicate_constraints_parallel(
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
-    predicate: Arc<Predicate>,
+    predicate: Arc<OldPredicate>,
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
     config: &CheckPredicateConfig,

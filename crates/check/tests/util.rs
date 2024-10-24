@@ -4,7 +4,7 @@ use essential_check::{
     state_read_vm,
     state_read_vm::StateRead,
     types::{
-        predicate::Predicate,
+        predicate::OldPredicate,
         solution::{Mutation, Solution, SolutionData},
         ContentAddress, Key, PredicateAddress, Word,
     },
@@ -129,8 +129,8 @@ pub fn empty_solution() -> Solution {
     }
 }
 
-pub fn empty_predicate() -> Predicate {
-    Predicate {
+pub fn empty_predicate() -> OldPredicate {
+    OldPredicate {
         state_read: Default::default(),
         constraints: Default::default(),
     }
@@ -148,8 +148,8 @@ pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 }
 
 // A simple predicate that expects the value of previously uncontract state slot with index 0 to be 42.
-pub fn test_predicate_42(entropy: Word) -> Predicate {
-    Predicate {
+pub fn test_predicate_42(entropy: Word) -> OldPredicate {
+    OldPredicate {
         // State read program to read state slot 0.
         state_read: test_predicate_42_state_read(),
         // Program to check pre-mutation value is None and
