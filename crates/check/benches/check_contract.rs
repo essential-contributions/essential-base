@@ -10,7 +10,7 @@ use essential_state_read_vm as state_read_vm;
 use essential_state_read_vm::StateRead;
 use essential_types::{
     contract::{Contract, SignedContract},
-    predicate::Predicate,
+    predicate::OldPredicate,
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, Key, PredicateAddress, Word,
 };
@@ -52,7 +52,7 @@ fn create(
 ) -> (
     SignedContract,
     Arc<Solution>,
-    HashMap<PredicateAddress, Arc<Predicate>>,
+    HashMap<PredicateAddress, Arc<OldPredicate>>,
 ) {
     let (predicates, solution) = test_predicate_42_solution_pair(amount, [0; 32]);
     let contract = contract_addr(&predicates);
@@ -174,8 +174,8 @@ impl StateRead for State {
     }
 }
 
-fn test_predicate_42(entropy: Word) -> Predicate {
-    Predicate {
+fn test_predicate_42(entropy: Word) -> OldPredicate {
+    OldPredicate {
         // State read program to read state slot 0.
         state_read: vec![state_read_vm::asm::to_bytes([
             state_read_vm::asm::Stack::Push(1).into(),

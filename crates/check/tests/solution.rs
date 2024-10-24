@@ -3,7 +3,7 @@ use essential_check::{predicate, solution};
 use essential_constraint_vm as constraint_vm;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
-    predicate::Predicate,
+    predicate::OldPredicate,
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, PredicateAddress, Word,
 };
@@ -267,7 +267,7 @@ async fn predicate_with_multiple_state_reads_and_slots() {
     constraints.extend(c);
     constraints.push(constraint_vm::asm::Pred::And.into());
 
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: vec![read_three_slots, read_two_slots],
         constraints: vec![constraint_vm::asm::to_bytes(constraints).collect()],
     };

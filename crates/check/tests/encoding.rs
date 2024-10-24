@@ -3,7 +3,7 @@ use std::sync::Arc;
 use essential_check::constraint_vm;
 use essential_types::{
     contract::Contract,
-    predicate::Predicate,
+    predicate::OldPredicate,
     solution::{Solution, SolutionData},
     Hash, PredicateAddress,
 };
@@ -15,7 +15,7 @@ pub mod util;
 #[tokio::test]
 async fn test_encoding_sig_and_pub_key() {
     tracing_subscriber::fmt::init();
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: vec![],
         constraints: vec![constraint_vm::asm::to_bytes([
             // Get the secp256k1 public key. It is 5 slots.

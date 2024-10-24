@@ -1,5 +1,5 @@
 use essential_check::predicate;
-use essential_types::predicate::{header::PredicateError, Predicate};
+use essential_types::predicate::{header::PredicateError, OldPredicate};
 use util::{empty_predicate, random_keypair};
 
 pub mod util;
@@ -37,43 +37,43 @@ fn too_many_predicates() {
 #[test]
 fn too_many_state_reads() {
     let mut predicate = empty_predicate();
-    predicate.state_read = vec![vec![]; Predicate::MAX_STATE_READS + 1];
+    predicate.state_read = vec![vec![]; OldPredicate::MAX_STATE_READS + 1];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
         PredicateError::TooManyStateReads(n)
-            if n == Predicate::MAX_STATE_READS + 1
+            if n == OldPredicate::MAX_STATE_READS + 1
     ));
 }
 
 #[test]
 fn state_read_too_large() {
     let mut predicate = empty_predicate();
-    predicate.state_read = vec![vec![0u8; Predicate::MAX_STATE_READ_SIZE_BYTES + 1]];
+    predicate.state_read = vec![vec![0u8; OldPredicate::MAX_STATE_READ_SIZE_BYTES + 1]];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
         PredicateError::StateReadTooLarge(n)
-            if n == Predicate::MAX_STATE_READ_SIZE_BYTES + 1
+            if n == OldPredicate::MAX_STATE_READ_SIZE_BYTES + 1
     ));
 }
 
 #[test]
 fn too_many_constraints() {
     let mut predicate = empty_predicate();
-    predicate.constraints = vec![vec![]; Predicate::MAX_CONSTRAINTS + 1];
+    predicate.constraints = vec![vec![]; OldPredicate::MAX_CONSTRAINTS + 1];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
         PredicateError::TooManyConstraints(n)
-            if n == Predicate::MAX_CONSTRAINTS + 1
+            if n == OldPredicate::MAX_CONSTRAINTS + 1
     ));
 }
 
 #[test]
 fn constraint_too_large() {
     let mut predicate = empty_predicate();
-    predicate.constraints = vec![vec![0u8; Predicate::MAX_CONSTRAINT_SIZE_BYTES + 1]];
+    predicate.constraints = vec![vec![0u8; OldPredicate::MAX_CONSTRAINT_SIZE_BYTES + 1]];
     assert!(matches!(
         predicate::check(&predicate).unwrap_err(),
         PredicateError::ConstraintTooLarge(n)
-            if n == Predicate::MAX_CONSTRAINT_SIZE_BYTES + 1
+            if n == OldPredicate::MAX_CONSTRAINT_SIZE_BYTES + 1
     ));
 }

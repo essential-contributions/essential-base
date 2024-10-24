@@ -52,7 +52,7 @@
 
 use std::mem;
 
-use super::Predicate;
+use super::OldPredicate;
 use error::DecodeResult;
 
 pub use error::DecodeError;
@@ -152,10 +152,10 @@ where
     C: Iterator<Item = usize>,
 {
     // Check the number of programs is within the limits.
-    if bounds.num_state_reads > Predicate::MAX_STATE_READS {
+    if bounds.num_state_reads > OldPredicate::MAX_STATE_READS {
         return Err(PredicateError::TooManyStateReads(bounds.num_state_reads));
     }
-    if bounds.num_constraints > Predicate::MAX_CONSTRAINTS {
+    if bounds.num_constraints > OldPredicate::MAX_CONSTRAINTS {
         return Err(PredicateError::TooManyConstraints(bounds.num_constraints));
     }
 
@@ -165,7 +165,7 @@ where
     // Check the size of each program.
     if let Some(err) = bounds.state_read_lens.find_map(|len| {
         state_read_lens_sum = state_read_lens_sum.saturating_add(len);
-        (len > Predicate::MAX_STATE_READ_SIZE_BYTES)
+        (len > OldPredicate::MAX_STATE_READ_SIZE_BYTES)
             .then_some(PredicateError::StateReadTooLarge(len))
     }) {
         return Err(err);
@@ -177,7 +177,7 @@ where
     // Check the size of each program.
     if let Some(err) = bounds.constraint_lens.find_map(|len| {
         constraint_lens_sum = constraint_lens_sum.saturating_add(len);
-        (len > Predicate::MAX_CONSTRAINT_SIZE_BYTES)
+        (len > OldPredicate::MAX_CONSTRAINT_SIZE_BYTES)
             .then_some(PredicateError::ConstraintTooLarge(len))
     }) {
         return Err(err);
@@ -192,7 +192,7 @@ where
     });
 
     // Check the total size of the encoded predicate.
-    if encoded_size > Predicate::MAX_BYTES {
+    if encoded_size > OldPredicate::MAX_BYTES {
         return Err(PredicateError::PredicateTooLarge(encoded_size));
     }
 
@@ -208,7 +208,7 @@ where
 /// It's the callers responsibility to ensure the lengths are within bounds
 /// before calling this function.
 /// Use [`check_predicate_bounds`] to ensure the lengths are within bounds.
-pub(super) fn encode_program_lengths(predicate: &Predicate) -> Vec<u8> {
+pub(super) fn encode_program_lengths(predicate: &OldPredicate) -> Vec<u8> {
     let state_read_lens = predicate
         .state_read
         .iter()

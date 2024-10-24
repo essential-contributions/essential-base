@@ -10,25 +10,25 @@ const fn overhead(num_state_reads: usize, num_constraints: usize) -> usize {
 #[allow(clippy::assertions_on_constants)]
 const _CHECK_SIZES: () = {
     const ALL_STATE_READS: usize =
-        overhead(Predicate::MAX_STATE_READS, 0) + Predicate::MAX_STATE_READS;
-    assert!(ALL_STATE_READS < Predicate::MAX_BYTES);
+        overhead(OldPredicate::MAX_STATE_READS, 0) + OldPredicate::MAX_STATE_READS;
+    assert!(ALL_STATE_READS < OldPredicate::MAX_BYTES);
 
-    const LARGE_STATE_READ: usize = overhead(1, 0) + Predicate::MAX_STATE_READ_SIZE_BYTES;
-    assert!(LARGE_STATE_READ < Predicate::MAX_BYTES);
+    const LARGE_STATE_READ: usize = overhead(1, 0) + OldPredicate::MAX_STATE_READ_SIZE_BYTES;
+    assert!(LARGE_STATE_READ < OldPredicate::MAX_BYTES);
 
     const ALL_CONSTRAINTS: usize =
-        overhead(Predicate::MAX_CONSTRAINTS, 0) + Predicate::MAX_CONSTRAINTS;
-    assert!(ALL_CONSTRAINTS < Predicate::MAX_BYTES);
+        overhead(OldPredicate::MAX_CONSTRAINTS, 0) + OldPredicate::MAX_CONSTRAINTS;
+    assert!(ALL_CONSTRAINTS < OldPredicate::MAX_BYTES);
 
-    const LARGE_CONSTRAINT: usize = overhead(1, 0) + Predicate::MAX_CONSTRAINT_SIZE_BYTES;
-    assert!(LARGE_CONSTRAINT < Predicate::MAX_BYTES);
+    const LARGE_CONSTRAINT: usize = overhead(1, 0) + OldPredicate::MAX_CONSTRAINT_SIZE_BYTES;
+    assert!(LARGE_CONSTRAINT < OldPredicate::MAX_BYTES);
 
     // Ensure sizes fit in types.
-    assert!(Predicate::MAX_STATE_READ_SIZE_BYTES <= u16::MAX as usize);
-    assert!(Predicate::MAX_CONSTRAINT_SIZE_BYTES <= u16::MAX as usize);
+    assert!(OldPredicate::MAX_STATE_READ_SIZE_BYTES <= u16::MAX as usize);
+    assert!(OldPredicate::MAX_CONSTRAINT_SIZE_BYTES <= u16::MAX as usize);
 
-    assert!(Predicate::MAX_STATE_READS <= u8::MAX as usize);
-    assert!(Predicate::MAX_CONSTRAINTS <= u8::MAX as usize);
+    assert!(OldPredicate::MAX_STATE_READS <= u8::MAX as usize);
+    assert!(OldPredicate::MAX_CONSTRAINTS <= u8::MAX as usize);
 };
 
 #[test]
@@ -60,7 +60,7 @@ fn test_encoded_size() {
 
 #[test]
 fn test_encode_program_lengths() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![0_u8; i]).collect(),
         constraints: (255..259).map(|i| vec![0_u8; i]).collect(),
     };
@@ -73,46 +73,46 @@ fn test_encode_program_lengths() {
 #[test]
 fn test_check_predicate_bounds() {
     let mut bounds = PredicateBounds {
-        num_state_reads: Predicate::MAX_STATE_READS,
-        num_constraints: Predicate::MAX_CONSTRAINTS,
+        num_state_reads: OldPredicate::MAX_STATE_READS,
+        num_constraints: OldPredicate::MAX_CONSTRAINTS,
         state_read_lens: vec![
-            Predicate::MAX_STATE_READ_SIZE_BYTES / 2 - 1,
-            Predicate::MAX_STATE_READ_SIZE_BYTES / 2 - 1,
+            OldPredicate::MAX_STATE_READ_SIZE_BYTES / 2 - 1,
+            OldPredicate::MAX_STATE_READ_SIZE_BYTES / 2 - 1,
         ]
         .into_iter(),
         constraint_lens: vec![
-            Predicate::MAX_CONSTRAINT_SIZE_BYTES / 2 - 1,
-            Predicate::MAX_CONSTRAINT_SIZE_BYTES / 2 - 1,
+            OldPredicate::MAX_CONSTRAINT_SIZE_BYTES / 2 - 1,
+            OldPredicate::MAX_CONSTRAINT_SIZE_BYTES / 2 - 1,
         ]
         .into_iter(),
     };
 
     check_predicate_bounds(bounds.clone()).unwrap();
 
-    bounds.num_state_reads = Predicate::MAX_STATE_READS + 1;
+    bounds.num_state_reads = OldPredicate::MAX_STATE_READS + 1;
 
     let err = check_predicate_bounds(bounds.clone()).unwrap_err();
     assert!(matches!(err, PredicateError::TooManyStateReads(_)));
 
     bounds.num_state_reads = 0;
-    bounds.num_constraints = Predicate::MAX_CONSTRAINTS + 1;
+    bounds.num_constraints = OldPredicate::MAX_CONSTRAINTS + 1;
     let err = check_predicate_bounds(bounds.clone()).unwrap_err();
     assert!(matches!(err, PredicateError::TooManyConstraints(_)));
 
     bounds.num_constraints = 0;
-    bounds.state_read_lens = vec![Predicate::MAX_STATE_READ_SIZE_BYTES; 6].into_iter();
+    bounds.state_read_lens = vec![OldPredicate::MAX_STATE_READ_SIZE_BYTES; 6].into_iter();
     let err = check_predicate_bounds(bounds.clone()).unwrap_err();
     assert!(matches!(err, PredicateError::PredicateTooLarge(_)));
 
     bounds.state_read_lens = vec![1; 6].into_iter();
-    bounds.constraint_lens = vec![Predicate::MAX_CONSTRAINT_SIZE_BYTES; 6].into_iter();
+    bounds.constraint_lens = vec![OldPredicate::MAX_CONSTRAINT_SIZE_BYTES; 6].into_iter();
     let err = check_predicate_bounds(bounds.clone()).unwrap_err();
     assert!(matches!(err, PredicateError::PredicateTooLarge(_)));
 }
 
 #[test]
 fn test_fixed_size_header() {
-    let mut predicate = Predicate {
+    let mut predicate = OldPredicate {
         state_read: vec![vec![0; 10]; 10],
         constraints: vec![vec![0; 10]; 10],
     };
@@ -129,7 +129,7 @@ fn test_fixed_size_header() {
 
 #[test]
 fn test_encoded_fixed_size_header() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: vec![],
         constraints: vec![vec![]; 255],
     };
@@ -141,7 +141,7 @@ fn test_encoded_fixed_size_header() {
 
 #[test]
 fn test_encoded_header() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (12..15).map(|i| vec![0; i]).collect(),
         constraints: (300..302).map(|i| vec![0; i]).collect(),
     };
@@ -262,7 +262,7 @@ fn test_check_consistency() {
 
 #[test]
 fn test_header_round_trips() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![0_u8; i]).collect(),
         constraints: (255..259).map(|i| vec![0_u8; i]).collect(),
     };
@@ -299,7 +299,7 @@ fn test_header_round_trips() {
 
 #[test]
 fn test_bytes_len() {
-    let predicate = Predicate {
+    let predicate = OldPredicate {
         state_read: (0..3).map(|i| vec![0_u8; i]).collect(),
         constraints: (255..259).map(|i| vec![0_u8; i]).collect(),
     };

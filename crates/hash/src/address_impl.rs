@@ -1,5 +1,5 @@
 use essential_types::{
-    contract::Contract, predicate::Predicate, solution::Solution, Block, ContentAddress,
+    contract::Contract, predicate::OldPredicate, solution::Solution, Block, ContentAddress,
 };
 use sha2::Digest;
 
@@ -11,7 +11,7 @@ impl Address for Block {
     }
 }
 
-impl Address for Predicate {
+impl Address for OldPredicate {
     fn content_address(&self) -> ContentAddress {
         let Ok(header) = self.encoded_header() else {
             // Invalid predicates can't be hashed.
