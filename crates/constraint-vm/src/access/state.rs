@@ -1,9 +1,10 @@
 use crate::exec_ops;
 use crate::test_util::test_empty_keys;
 use crate::test_util::test_solution_data_arr;
-use crate::test_util::test_transient_data;
 
 use super::test_utils::ops;
+use crate::error::OpError;
+use crate::error::StackError;
 use essential_constraint_asm as asm;
 use essential_constraint_asm::Op;
 use test_case::test_case;
@@ -227,7 +228,6 @@ fn test_state_ops(ops: Vec<Op>, pre: &[&[Word]], post: &[&[Word]]) -> OpResult<V
             data: test_solution_data_arr(),
             index: 0,
             mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
         },
         state_slots,
     };

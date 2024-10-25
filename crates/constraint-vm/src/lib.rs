@@ -34,8 +34,7 @@
 #![deny(missing_docs, unsafe_code)]
 
 pub use access::{
-    mut_keys, mut_keys_set, mut_keys_slices, transient_data, Access, SolutionAccess,
-    StateSlotSlice, StateSlots, TransientData,
+    mut_keys, mut_keys_set, mut_keys_slices, Access, SolutionAccess, StateSlotSlice, StateSlots,
 };
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
@@ -257,7 +256,6 @@ pub fn step_op_access(
             access::decision_var_len(&access.solution.this_data().decision_variables, stack)
         }
         asm::Access::MutKeys => access::push_mut_keys(access.solution, stack),
-        asm::Access::PubVarKeys => access::push_pub_var_keys(access.solution.transient_data, stack),
         asm::Access::State => access::state(access.state_slots, stack),
         asm::Access::StateLen => access::state_len(access.state_slots, stack),
         asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
@@ -266,9 +264,6 @@ pub fn step_op_access(
         }
         asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
-        asm::Access::PubVar => access::pub_var(stack, access.solution.transient_data),
-        asm::Access::PubVarLen => access::pub_var_len(stack, access.solution.transient_data),
-        asm::Access::PredicateAt => access::predicate_at(stack, access.solution.data),
         asm::Access::NumSlots => access::num_slots(
             stack,
             &access.state_slots,
@@ -383,10 +378,9 @@ pub fn step_on_temporary(
 
 #[cfg(test)]
 pub(crate) mod test_util {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashSet;
 
     use asm::Word;
-    use types::{solution::SolutionDataIndex, Key};
 
     use crate::{
         types::{solution::SolutionData, ContentAddress, PredicateAddress},
@@ -403,19 +397,11 @@ pub(crate) mod test_util {
         predicate_to_solve: TEST_PREDICATE_ADDR,
         decision_variables: vec![],
         state_mutations: vec![],
-        transient_data: vec![],
     };
 
     pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
         static INSTANCE: std::sync::LazyLock<HashSet<&[Word]>> =
             std::sync::LazyLock::new(|| HashSet::with_capacity(0));
-        &INSTANCE
-    }
-
-    pub(crate) fn test_transient_data(
-    ) -> &'static HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>> {
-        static INSTANCE: std::sync::LazyLock<HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>>> =
-            std::sync::LazyLock::new(|| HashMap::with_capacity(0));
         &INSTANCE
     }
 
@@ -431,7 +417,6 @@ pub(crate) mod test_util {
                 data: test_solution_data_arr(),
                 index: 0,
                 mutable_keys: test_empty_keys(),
-                transient_data: test_transient_data(),
             });
         &INSTANCE
     }

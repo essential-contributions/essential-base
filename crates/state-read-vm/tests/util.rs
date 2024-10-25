@@ -2,13 +2,12 @@
 // are considered dead code.
 #![allow(dead_code)]
 
-use essential_constraint_vm::TransientData;
 use essential_state_read_vm::{
     types::{solution::SolutionData, ContentAddress, Key, PredicateAddress, Word},
     Access, SolutionAccess, StateRead, StateSlots,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     future::{self, Ready},
 };
 use thiserror::Error;
@@ -23,18 +22,11 @@ pub const TEST_SOLUTION_DATA: SolutionData = SolutionData {
     predicate_to_solve: TEST_PREDICATE_ADDR,
     decision_variables: vec![],
     state_mutations: vec![],
-    transient_data: vec![],
 };
 
 pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
     static INSTANCE: std::sync::LazyLock<HashSet<&[Word]>> =
         std::sync::LazyLock::new(|| HashSet::with_capacity(0));
-    &INSTANCE
-}
-
-pub(crate) fn test_transient_data() -> &'static TransientData {
-    static INSTANCE: std::sync::LazyLock<TransientData> =
-        std::sync::LazyLock::new(|| HashMap::with_capacity(0));
     &INSTANCE
 }
 
@@ -50,7 +42,6 @@ pub(crate) fn test_solution_access() -> &'static SolutionAccess<'static> {
             data: test_solution_data_arr(),
             index: 0,
             mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
         });
     &INSTANCE
 }

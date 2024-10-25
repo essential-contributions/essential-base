@@ -27,15 +27,13 @@ pub struct SolutionData {
     pub predicate_to_solve: PredicateAddress,
     /// The decision variables for the predicate.
     pub decision_variables: Vec<Value>,
-    /// The transient data being proposed.
-    pub transient_data: Vec<Mutation>,
     /// The state mutations being proposed.
     pub state_mutations: Vec<Mutation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A mutation to a single key in state or transient data.
+/// A mutation to a single key in state.
 pub struct Mutation {
     /// Key to data.
     pub key: Key,
@@ -48,10 +46,5 @@ impl Solution {
     /// Get the length of all the state mutations in the solution.
     pub fn state_mutations_len(&self) -> usize {
         self.data.iter().map(|d| d.state_mutations.len()).sum()
-    }
-
-    /// Get the length of all the transient data in the solution.
-    pub fn transient_data_len(&self) -> usize {
-        self.data.iter().map(|d| d.transient_data.len()).sum()
     }
 }

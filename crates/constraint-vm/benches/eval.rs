@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use asm::Op;
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -8,7 +8,6 @@ use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 pub fn bench(c: &mut Criterion) {
     let mutable_keys = HashSet::with_capacity(0);
-    let transient_data = HashMap::with_capacity(0);
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
@@ -18,11 +17,9 @@ pub fn bench(c: &mut Criterion) {
                 },
                 decision_variables: vec![],
                 state_mutations: vec![],
-                transient_data: vec![],
             }],
             index: 0,
             mutable_keys: &mutable_keys,
-            transient_data: &transient_data,
         },
         state_slots: StateSlots::EMPTY,
     };

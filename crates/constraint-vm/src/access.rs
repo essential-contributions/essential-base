@@ -2,7 +2,7 @@
 
 use crate::{
     cached::LazyCache,
-    error::{AccessError, LenWordsError, MissingAccessArgError, OpError, StackError},
+    error::{AccessError, MissingAccessArgError},
     repeat::Repeat,
     sets::encode_set,
     types::convert::bool_from_word,
@@ -11,10 +11,10 @@ use crate::{
 use essential_constraint_asm::Word;
 use essential_types::{
     convert::{bytes_from_word, u8_32_from_word_4, word_4_from_u8_32},
-    solution::{Mutation, Solution, SolutionData, SolutionDataIndex},
+    solution::{Solution, SolutionData, SolutionDataIndex},
     Key, Value,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 #[cfg(test)]
 mod dec_vars;
@@ -23,16 +23,11 @@ mod num_slots;
 #[cfg(test)]
 mod predicate_exists;
 #[cfg(test)]
-mod pub_vars;
-#[cfg(test)]
 mod state;
 #[cfg(test)]
 mod test_utils;
 #[cfg(test)]
 mod tests;
-
-/// Transient data map.
-pub type TransientData = HashMap<SolutionDataIndex, HashMap<Key, Vec<Word>>>;
 
 /// All necessary solution data and state access required to check an individual predicate.
 #[derive(Clone, Copy, Debug)]
@@ -48,16 +43,14 @@ pub struct Access<'a> {
 pub struct SolutionAccess<'a> {
     /// The input data for each predicate being solved within the solution.
     ///
-    /// We require *all* predicate solution data in order to handle transient
-    /// decision variable access.
+    /// We require *all* predicate solution data in order to handle checking
+    /// predicate exists.
     pub data: &'a [SolutionData],
     /// Checking is performed for one predicate at a time. This index refers to
     /// the checked predicate's associated solution data within `data`.
     pub index: usize,
     /// The keys being proposed for mutation for the predicate.
     pub mutable_keys: &'a HashSet<&'a [Word]>,
-    /// The transient data that points to the data in another solution data index.
-    pub transient_data: &'a TransientData,
 }
 
 /// The pre and post mutation state slot values for the predicate being solved.
@@ -82,13 +75,11 @@ impl<'a> SolutionAccess<'a> {
         solution: &'a Solution,
         predicate_index: SolutionDataIndex,
         mutable_keys: &'a HashSet<&[Word]>,
-        transient_data: &'a TransientData,
     ) -> Self {
         Self {
             data: &solution.data,
             index: predicate_index.into(),
             mutable_keys,
-            transient_data,
         }
     }
 
@@ -99,11 +90,6 @@ impl<'a> SolutionAccess<'a> {
         self.data
             .get(self.index)
             .expect("predicate index out of range of solution data")
-    }
-
-    /// The transient data associated with the predicate currently being checked.
-    pub fn this_transient_data(&self) -> Option<&HashMap<Key, Vec<Word>>> {
-        self.transient_data.get(&(self.index as SolutionDataIndex))
     }
 }
 
@@ -149,24 +135,6 @@ pub fn mut_keys_set(solution: &Solution, predicate_index: SolutionDataIndex) -> 
     mut_keys_slices(solution, predicate_index).collect()
 }
 
-/// Create a transient data map from the solution.
-pub fn transient_data(solution: &Solution) -> TransientData {
-    let mut transient_data = HashMap::new();
-    for (ix, data) in solution.data.iter().enumerate() {
-        if !data.transient_data.is_empty() {
-            transient_data.insert(
-                ix as SolutionDataIndex,
-                data.transient_data
-                    .iter()
-                    .cloned()
-                    .map(|Mutation { key, value }| (key, value))
-                    .collect(),
-            );
-        }
-    }
-    transient_data
-}
-
 /// `Access::DecisionVar` implementation.
 pub(crate) fn decision_var(this_decision_vars: &[Value], stack: &mut Stack) -> OpResult<()> {
     let len = stack.pop().map_err(|_| MissingAccessArgError::DecVarLen)?;
@@ -205,22 +173,6 @@ pub(crate) fn push_mut_keys(solution: SolutionAccess, stack: &mut Stack) -> OpRe
         solution.mutable_keys.iter().map(|k| k.iter().copied()),
         stack,
     )
-}
-
-/// `Access::PubVarKeys` implementation.
-pub(crate) fn push_pub_var_keys(pub_vars: &TransientData, stack: &mut Stack) -> OpResult<()> {
-    let pathway_ix = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::PushPubVarKeysPathwayIx)?;
-    let pathway_ix = SolutionDataIndex::try_from(pathway_ix)
-        .map_err(|_| AccessError::PathwayOutOfBounds(pathway_ix))?;
-    let pub_vars = pub_vars
-        .get(&pathway_ix)
-        .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?;
-
-    encode_set(pub_vars.keys().map(|k| k.iter().copied()), stack)?;
-
-    Ok(())
 }
 
 /// `Access::State` implementation.
@@ -280,96 +232,6 @@ pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()>
     Ok(stack.push(counter)?)
 }
 
-/// `Access::PubVar` implementation.
-pub(crate) fn pub_var(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<()> {
-    // Pop the value_len, value_ix and create a range.
-    let value_len = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::PubVarValueLen)?;
-    let value_ix = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::PubVarValueIx)?;
-    let range = range_from_start_len(value_ix, value_len).ok_or(AccessError::InvalidAccessRange)?;
-
-    let key_length = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::PubVarKeyLen)?;
-    let length = usize::try_from(key_length)
-        .map_err(|_| AccessError::KeyLengthOutOfBounds(key_length))?
-        .checked_add(1)
-        .ok_or(AccessError::KeyLengthOutOfBounds(key_length))?;
-
-    // Pop the key and access the value.
-    let value = stack
-        .pop_words::<_, _, OpError>(length, |slice| {
-            let (pathway_ix, key) = slice
-                .split_first()
-                .expect("Can't fail because must have at least 1 word");
-            let pathway_ix = SolutionDataIndex::try_from(*pathway_ix)
-                .map_err(|_| AccessError::PathwayOutOfBounds(*pathway_ix))?;
-            let value = pub_vars
-                .get(&pathway_ix)
-                .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
-                .get(key)
-                .ok_or(AccessError::PubVarKeyOutOfBounds)?
-                .get(range)
-                .ok_or(AccessError::PubVarDataOutOfBounds)?;
-            Ok(value.to_vec())
-        })
-        .map_err(map_key_len_err)?;
-
-    Ok(stack.extend(value)?)
-}
-
-pub(crate) fn pub_var_len(stack: &mut Stack, pub_vars: &TransientData) -> OpResult<()> {
-    let key_length = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::PubVarKeyLen)?;
-    let length = usize::try_from(key_length)
-        .map_err(|_| AccessError::KeyLengthOutOfBounds(key_length))?
-        .checked_add(1)
-        .ok_or(AccessError::KeyLengthOutOfBounds(key_length))?;
-    // Pop the key and get the length of the value.
-    let length = stack
-        .pop_words::<_, _, OpError>(length, |slice| {
-            let (pathway_ix, key) = slice
-                .split_first()
-                .expect("Can't fail because must have at least 1 word");
-            let pathway_ix = SolutionDataIndex::try_from(*pathway_ix)
-                .map_err(|_| AccessError::PathwayOutOfBounds(*pathway_ix))?;
-            let value = pub_vars
-                .get(&pathway_ix)
-                .ok_or(AccessError::PathwayOutOfBounds(pathway_ix as Word))?
-                .get(key)
-                .ok_or(AccessError::PubVarKeyOutOfBounds)?;
-            Ok(value.len())
-        })
-        .map_err(map_key_len_err)?;
-
-    let length = Word::try_from(length).map_err(|_| AccessError::PubVarDataOutOfBounds)?;
-
-    stack
-        .push(length)
-        .expect("Can't fail because 3 are popped and 1 is pushed");
-
-    Ok(())
-}
-
-pub(crate) fn predicate_at(stack: &mut Stack, data: &[SolutionData]) -> OpResult<()> {
-    let pathway = stack.pop()?;
-    let pathway = usize::try_from(pathway).map_err(|_| AccessError::PathwayOutOfBounds(pathway))?;
-    let address = data
-        .get(pathway)
-        .ok_or(StackError::IndexOutOfBounds)?
-        .predicate_to_solve
-        .clone();
-    let contract_address = word_4_from_u8_32(address.contract.0);
-    let predicate_address = word_4_from_u8_32(address.predicate.0);
-    stack.extend(contract_address)?;
-    stack.extend(predicate_address)?;
-    Ok(())
-}
-
 /// Implementation of the `Access::NumSlots` operation.
 pub(crate) fn num_slots(
     stack: &mut Stack,
@@ -401,18 +263,6 @@ pub(crate) fn num_slots(
         _ => return Err(AccessError::InvalidSlotType(which_slots).into()),
     }
     Ok(())
-}
-
-fn map_key_len_err(e: OpError) -> OpError {
-    match e {
-        OpError::Stack(StackError::LenWords(e)) => match e {
-            LenWordsError::OutOfBounds(_) => MissingAccessArgError::PubVarKey.into(),
-            LenWordsError::MissingLength => MissingAccessArgError::PubVarKeyLen.into(),
-            LenWordsError::InvalidLength(l) => AccessError::KeyLengthOutOfBounds(l).into(),
-            e => StackError::LenWords(e).into(),
-        },
-        e => e,
-    }
 }
 
 /// Resolve a range of words at a decision variable slot.

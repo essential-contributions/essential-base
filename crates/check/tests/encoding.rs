@@ -69,7 +69,6 @@ async fn test_encoding_sig_and_pub_key() {
         data: vec![SolutionData {
             predicate_to_solve: address.clone(),
             decision_variables,
-            transient_data: vec![],
             state_mutations: vec![],
         }],
     };

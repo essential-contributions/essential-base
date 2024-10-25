@@ -284,23 +284,6 @@ StateRead:
                 This operation returns the index of the solution data currently being used to check this predicate.
               stack_out: [in]
             
-            PredicateAt:
-              opcode: 0x33
-              short: PRED
-              description: Get the predicate at solution data pathway.
-              stack_in: [pathway]
-              stack_out:
-                [
-                  contract_key_0,
-                  contract_key_1,
-                  contract_key_2,
-                  contract_key_3,
-                  predicate_key_0,
-                  predicate_key_1,
-                  predicate_key_2,
-                  predicate_key_3,
-                ]
-            
             MutKeys:
               opcode: 0x34
               short: MKEYS
@@ -312,16 +295,6 @@ StateRead:
                 Returns only total length 0 if there are no mutations.
               stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
             
-            PubVarKeys:
-              opcode: 0x35
-              short: PKEYS
-              description: |
-                Push the keys of the pub vars at `pathway_id` onto the stack.
-                Note the order is non-deterministic because this is a set.
-                Returns only total length 0 if there are no keys.
-              stack_in: [pathway_ix]
-              stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
-
             RepeatCounter:
               opcode: 0x36
               short: REPC
@@ -384,32 +357,6 @@ StateRead:
                 - slot_ix is out of range.
                 - delta is not a boolean.
               stack_in: [slot_ix, delta]
-              stack_out: [len]
-
-            PubVar:
-              opcode: 0x3B
-              short: PVAR
-              description: |
-                Access a range of public decision variable words at `pathway_ix` 
-                and key `key_0, ...key_N`.
-
-                Push words onto the stack starting from the value at `value_ix` 
-                and continuing for `len` words.
-              panics:
-                - pathway_ix is out of range.
-                - The range `value_ix..(value_ix + len)` is out of range for key.
-              stack_in: [pathway_ix, key_0, ...key_N, key_len, value_ix, value_len]
-              stack_out:
-                elem: word
-                len: value_len
-
-            PubVarLen:
-              opcode: 0x3C
-              short: PVLEN
-              description: |
-                Get the length of the value indexed by `pathway_ix`
-                and key `key_0, ...key_N`.
-              stack_in: [pathway, key_0, ...key_N, key_len]
               stack_out: [len]
 
             NumSlots:

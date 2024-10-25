@@ -104,15 +104,9 @@ pub enum AccessError {
     /// A decision var index was out of bounds.
     #[error("decision var value_ix out of bounds: {0}..{1}")]
     DecisionValueRangeOutOfBounds(Word, Word),
-    /// A solution data index provided by a transient decision variable was out of bounds.
+    /// A solution data index was out of bounds.
     #[error("solution data index out of bounds")]
     SolutionDataOutOfBounds,
-    /// Pub var data range was out of bounds.
-    #[error("pub var data range was out of bounds")]
-    PubVarDataOutOfBounds,
-    /// Pub var key was out of bounds.
-    #[error("pub var key out of bounds")]
-    PubVarKeyOutOfBounds,
     /// A state slot index was out of bounds.
     #[error("state slot_ix out of bounds: {0}")]
     StateSlotIxOutOfBounds(Word),
@@ -151,21 +145,6 @@ pub enum AccessError {
 /// Missing argument error.
 #[derive(Debug, Error)]
 pub enum MissingAccessArgError {
-    /// Missing `pathway_ix`` argument for `PubVar` operation.
-    #[error("missing `pathway_ix` argument for `PubVar` operation")]
-    PubVarPathwayIx,
-    /// Missing `key` argument for `PubVar` operation.
-    #[error("missing `key` argument for `PubVar` operation")]
-    PubVarKey,
-    /// Missing `key_len` argument for `PubVar` operation.
-    #[error("missing `key_len` argument for `PubVar` operation")]
-    PubVarKeyLen,
-    /// Missing `value_ix` argument for `PubVar` operation.
-    #[error("missing `value_ix` argument for `PubVar` operation")]
-    PubVarValueIx,
-    /// Missing `value_len` argument for `PubVar` operation.
-    #[error("missing `value_len` argument for `PubVar` operation")]
-    PubVarValueLen,
     /// Missing `delta` argument for `State` operation.
     #[error("missing `delta` argument for `State` operation")]
     StateDelta,
@@ -187,9 +166,6 @@ pub enum MissingAccessArgError {
     /// Missing `slot_ix` argument for `DecisionVar` operation.
     #[error("missing `slot_ix` argument for `DecisionVar` operation")]
     DecVarSlotIx,
-    /// Missing `pathway_ix` argument for `PushPubVarKeys` operation.
-    #[error("missing `pathway_ix` argument for `PushPubVarKeys` operation")]
-    PushPubVarKeysPathwayIx,
 }
 
 /// ALU operation error.

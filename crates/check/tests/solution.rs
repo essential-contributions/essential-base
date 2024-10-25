@@ -24,7 +24,6 @@ fn test_solution_data() -> SolutionData {
         predicate_to_solve: test_predicate_addr(),
         decision_variables: vec![],
         state_mutations: vec![],
-        transient_data: vec![],
     }
 }
 
@@ -65,7 +64,6 @@ fn too_many_decision_variables() {
             predicate_to_solve: test_predicate_addr(),
             decision_variables: vec![vec![0]; (solution::MAX_DECISION_VARIABLES + 1) as usize],
             state_mutations: vec![],
-            transient_data: vec![],
         }],
     };
     assert!(matches!(
@@ -84,7 +82,6 @@ fn too_many_state_mutations() {
             state_mutations: (0..(solution::MAX_STATE_MUTATIONS + 1))
                 .map(test_mutation)
                 .collect(),
-            transient_data: vec![],
         }],
     };
     assert!(matches!(
@@ -107,32 +104,12 @@ fn multiple_mutations_for_slot() {
                 };
                 2
             ],
-            transient_data: vec![],
         }],
     };
     assert!(matches!(
         solution::check(&solution).unwrap_err(),
         solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::MultipleMutationsForSlot(addr, key))
             if addr == test_predicate_addr() && key == [0; 4]
-    ));
-}
-
-#[test]
-fn too_many_transient_data() {
-    let solution = Solution {
-        data: vec![SolutionData {
-            predicate_to_solve: test_predicate_addr(),
-            decision_variables: vec![],
-            state_mutations: vec![],
-            transient_data: (0..(solution::MAX_TRANSIENT_DATA + 1))
-                .map(test_mutation)
-                .collect(),
-        }],
-    };
-    assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::TransientData(solution::InvalidTransientData::TooMany(n))
-            if n == solution::MAX_TRANSIENT_DATA + 1
     ));
 }
 
@@ -303,7 +280,6 @@ async fn predicate_with_multiple_state_reads_and_slots() {
                     value: vec![8],
                 },
             ],
-            transient_data: vec![],
         }],
     };
 

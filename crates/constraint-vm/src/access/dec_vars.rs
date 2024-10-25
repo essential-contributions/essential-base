@@ -1,8 +1,9 @@
 use super::test_utils::ops;
 use super::*;
+use crate::error::OpError;
+use crate::error::StackError;
 use crate::exec_ops;
 use crate::test_util::test_empty_keys;
-use crate::test_util::test_transient_data;
 use asm::Op;
 use essential_constraint_asm as asm;
 use essential_types::ContentAddress;
@@ -161,14 +162,12 @@ fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
         },
         decision_variables: dec_vars,
         state_mutations: vec![],
-        transient_data: vec![],
     }];
     let access = Access {
         solution: SolutionAccess {
             data: &data,
             index: 0,
             mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
         },
         state_slots: StateSlots::EMPTY,
     };
