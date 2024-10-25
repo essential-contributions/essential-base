@@ -8,6 +8,7 @@ use crate::access::init_predicate_exists;
 /// Lazily cache expensive to compute values.
 pub struct LazyCache {
     /// Decision variables and addresses set of hashes.
+    /// See [`PredicateExists`][essential_constraint_asm::Op] for more details.
     pub dec_var_hashes: OnceLock<HashSet<Hash>>,
 }
 
