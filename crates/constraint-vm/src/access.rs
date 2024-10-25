@@ -1,6 +1,7 @@
 //! Access operation implementations.
 
 use crate::{
+    cached::LazyCache,
     error::{AccessError, LenWordsError, MissingAccessArgError, OpError, StackError},
     repeat::Repeat,
     sets::encode_set,
@@ -9,7 +10,7 @@ use crate::{
 };
 use essential_constraint_asm::Word;
 use essential_types::{
-    convert::word_4_from_u8_32,
+    convert::{bytes_from_word, u8_32_from_word_4, word_4_from_u8_32},
     solution::{Mutation, Solution, SolutionData, SolutionDataIndex},
     Key, Value,
 };
@@ -19,6 +20,8 @@ use std::collections::{HashMap, HashSet};
 mod dec_vars;
 #[cfg(test)]
 mod num_slots;
+#[cfg(test)]
+mod predicate_exists;
 #[cfg(test)]
 mod pub_vars;
 #[cfg(test)]
@@ -441,6 +444,45 @@ pub(crate) fn resolve_decision_var_len(
         .get(slot_ix)
         .map(|slot| slot.len())
         .ok_or(AccessError::DecisionSlotIxOutOfBounds(slot_ix as Word))
+}
+
+pub(crate) fn predicate_exists(
+    stack: &mut Stack,
+    data: &[SolutionData],
+    cache: &LazyCache,
+) -> OpResult<()> {
+    let hash = u8_32_from_word_4(stack.pop4()?);
+    let found = cache.get_dec_var_hashes(data).contains(&hash);
+    stack.push(found as Word)?;
+    Ok(())
+}
+
+pub(crate) fn init_predicate_exists(
+    data: &[SolutionData],
+) -> impl Iterator<Item = essential_types::Hash> + '_ {
+    data.iter().map(|d| {
+        let data = d
+            .decision_variables
+            .iter()
+            .flat_map(|slot| {
+                Some(slot.len() as Word)
+                    .into_iter()
+                    .chain(slot.iter().cloned())
+            })
+            .chain(word_4_from_u8_32(d.predicate_to_solve.contract.0))
+            .chain(word_4_from_u8_32(d.predicate_to_solve.predicate.0))
+            .flat_map(bytes_from_word)
+            .collect::<Vec<_>>();
+        sha256(&data)
+    })
+}
+
+fn sha256(bytes: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let result: [u8; 32] = hasher.finalize().into();
+    result
 }
 
 fn state_slot(slots: StateSlots, slot_ix: Word, delta: Word) -> OpResult<&Vec<Word>> {

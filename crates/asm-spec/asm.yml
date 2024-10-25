@@ -428,6 +428,17 @@ StateRead:
               stack_in: [which_slots]
               stack_out: [len]
 
+            PredicateExists:
+              opcode: 0x3E
+              short: PEX
+              description: |
+                Check if a solution to a predicate exists within the same solution
+                with the hash of the arguments and address.
+
+                Returns `true` if the predicate exists.
+              stack_in: [sha256(arg0len, arg0, argNlen, argN, contract_addr, predicate_addr)]
+              stack_out: [bool]
+
         # Byte 4 reserved for Access ops
 
         Crypto:
