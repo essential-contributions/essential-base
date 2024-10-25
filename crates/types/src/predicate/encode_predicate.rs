@@ -1,4 +1,25 @@
 //! # Encode and Decode Predicates
+//!
+//! # Encoding
+//! ## Predicate
+//! | Field | Size (bytes) | Description |
+//! | --- | --- | --- |
+//! | number_of_nodes | 2 | The number of nodes in the predicate. |
+//! | nodes | 35 * number_of_nodes | The nodes in the predicate. |
+//! | number_of_edges | 2 | The number of edges in the predicate. |
+//! | edges | 2 * number_of_edges | The edges in the predicate. |
+//!
+//! ## Node
+//! | Field | Size (bytes) | Description |
+//! | --- | --- | --- |
+//! | edge_start | 2 | The index of the first edge in the edge list. |
+//! | program_address | 32 | The address of the program. |
+//! | reads | 1 | The type of state this program has access to. |
+//!
+//! ## Edge
+//! | Field | Size (bytes) | Description |
+//! | --- | --- | --- |
+//! | edge | 2 | The index of the node that this edge points to. |
 
 use super::*;
 
@@ -22,6 +43,27 @@ pub enum PredicateEncodeError {
 #[derive(Debug, PartialEq)]
 pub enum PredicateDecodeError {
     /// The bytes are too short to contain the number of nodes.
+    BytesTooShort,
+}
+
+/// Errors that can occur when encoding a set of programs.
+#[derive(Debug, PartialEq)]
+pub enum ProgramsEncodeError {
+    /// The set of programs is too large.
+    TooLarge,
+}
+
+/// Errors that can occur when encoding a program.
+#[derive(Debug, PartialEq)]
+pub enum ProgramEncodeError {
+    /// The program is too large.
+    TooLarge,
+}
+
+/// Errors that can occur when decoding a program.
+#[derive(Debug, PartialEq)]
+pub enum ProgramDecodeError {
+    /// The bytes are too short to contain the number of bytes.
     BytesTooShort,
 }
 
@@ -110,6 +152,92 @@ pub fn decode_predicate(bytes: &[u8]) -> Result<Predicate, PredicateDecodeError>
             None => return Err(PredicateDecodeError::BytesTooShort),
         };
     Ok(Predicate { nodes, edges })
+}
+
+/// Encode programs into bytes.
+pub fn encode_programs(
+    programs: &[Program],
+) -> Result<impl Iterator<Item = u8> + '_, ProgramsEncodeError> {
+    let len = if programs.len() <= Programs::MAX_PROGRAMS as usize {
+        programs.len() as u16
+    } else {
+        return Err(ProgramsEncodeError::TooLarge);
+    };
+    if programs
+        .iter()
+        .any(|program| program.0.len() > Program::MAX_SIZE as usize)
+    {
+        return Err(ProgramsEncodeError::TooLarge);
+    }
+    let iter = len.to_be_bytes().into_iter().chain(
+        programs
+            .iter()
+            .flat_map(|program| encode_program(program).into_iter())
+            .flatten(),
+    );
+    Ok(iter)
+}
+
+/// Decode programs from bytes.
+pub fn decode_programs(bytes: &[u8]) -> Result<Programs, ProgramDecodeError> {
+    let Some(len) = bytes.get(..LEN_SIZE_BYTES).map(|x| {
+        let mut arr = [0; LEN_SIZE_BYTES];
+        arr.copy_from_slice(x);
+        u16::from_be_bytes(arr)
+    }) else {
+        return Err(ProgramDecodeError::BytesTooShort);
+    };
+    let start = LEN_SIZE_BYTES;
+    let mut programs = Vec::with_capacity(len as usize);
+
+    let Some(mut bytes) = bytes.get(start..) else {
+        return Err(ProgramDecodeError::BytesTooShort);
+    };
+
+    for _ in 0..len {
+        let program = decode_program(bytes)?;
+        let start = LEN_SIZE_BYTES + program.0.len();
+        let Some(b) = bytes.get(start..) else {
+            return Err(ProgramDecodeError::BytesTooShort);
+        };
+        bytes = b;
+        programs.push(program);
+    }
+    Ok(Programs(programs))
+}
+
+/// Encode a program into bytes.
+pub fn encode_program(
+    program: &Program,
+) -> Result<impl Iterator<Item = u8> + '_, ProgramEncodeError> {
+    let len = if program.0.len() <= Program::MAX_SIZE as usize {
+        program.0.len() as u16
+    } else {
+        return Err(ProgramEncodeError::TooLarge);
+    };
+    let iter = len
+        .to_be_bytes()
+        .into_iter()
+        .chain(program.0.iter().copied());
+    Ok(iter)
+}
+
+/// Decode a program from bytes.
+pub fn decode_program(bytes: &[u8]) -> Result<Program, ProgramDecodeError> {
+    let Some(len) = bytes.get(..LEN_SIZE_BYTES).map(|x| {
+        let mut arr = [0; LEN_SIZE_BYTES];
+        arr.copy_from_slice(x);
+        u16::from_be_bytes(arr)
+    }) else {
+        return Err(ProgramDecodeError::BytesTooShort);
+    };
+    let start = LEN_SIZE_BYTES;
+    let end = start + len as usize;
+    let Some(program) = bytes.get(start..end) else {
+        return Err(ProgramDecodeError::BytesTooShort);
+    };
+    let program = Program(program.to_vec());
+    Ok(program)
 }
 
 impl Reads {

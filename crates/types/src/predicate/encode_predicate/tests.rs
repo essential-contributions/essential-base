@@ -76,3 +76,30 @@ fn test_encode_predicate() {
     let decoded = decode_predicate(&encoded).unwrap();
     assert_eq!(decoded, predicate);
 }
+
+#[test]
+fn test_encode_programs() {
+    let program = Program(vec![1, 2, 3, 3]);
+    let expected = [4u16.to_be_bytes().to_vec(), program.clone().0].concat();
+    let encoded: Vec<u8> = encode_program(&program).unwrap().collect();
+    assert_eq!(encoded, expected);
+    let decoded = decode_program(&encoded).unwrap();
+    assert_eq!(decoded, program);
+    let programs = (1..10)
+        .map(|i| Program(vec![i; i as usize]))
+        .collect::<Vec<_>>();
+    let programs = Programs(programs);
+    let encoded: Vec<u8> = encode_programs(&programs.0).unwrap().collect();
+    let expected = [
+        9u16.to_be_bytes().to_vec(),
+        programs
+            .0
+            .iter()
+            .flat_map(|p| encode_program(p).unwrap())
+            .collect(),
+    ]
+    .concat();
+    assert_eq!(encoded, expected);
+    let decoded = decode_programs(&encoded).unwrap();
+    assert_eq!(decoded, programs);
+}

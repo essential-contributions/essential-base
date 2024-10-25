@@ -110,6 +110,16 @@ impl Predicate {
     }
 }
 
+impl Programs {
+    /// Maximum number of programs in a set of programs.
+    pub const MAX_PROGRAMS: u16 = 1000;
+}
+
+impl Program {
+    /// Maximum size of a program in bytes.
+    pub const MAX_SIZE: u16 = 10_000;
+}
+
 impl OldPredicate {
     /// Maximum number of state read programs of a predicate.
     pub const MAX_STATE_READS: usize = u8::MAX as usize;
