@@ -9,9 +9,9 @@ pub struct Effects(u8);
 bitflags! {
     impl Effects: u8 {
         /// Flag for [´StateReadOp::KeyRange´]
-        const Range = 1 << 0;
+        const KeyRange = 1 << 0;
         /// Flag for [´StateReadOp::KeyRangeExtern´]
-        const RangeExtern = 1 << 1;
+        const KeyRangeExtern = 1 << 1;
         /// Flag for [´StateReadOp::Constraint::Access::ThisAddress´]
         const ThisAddress = 1 << 2;
         /// Flag for [´StateReadOp::Constraint::Access::ThisContractAddress´]
@@ -20,13 +20,13 @@ bitflags! {
 }
 
 /// Determine effects of the given state read program.
-pub fn determine_effects(ops: &[StateReadOp]) -> Effects {
+pub fn analyze(ops: &[StateReadOp]) -> Effects {
     let mut effects = Effects::empty();
 
     for op in ops {
         match op {
-            StateReadOp::KeyRangeExtern => effects |= Effects::RangeExtern,
-            StateReadOp::KeyRange => effects |= Effects::Range,
+            StateReadOp::KeyRangeExtern => effects |= Effects::KeyRangeExtern,
+            StateReadOp::KeyRange => effects |= Effects::KeyRange,
             StateReadOp::Constraint(ConstraintOp::Access(Access::ThisAddress)) => {
                 effects |= Effects::ThisAddress
             }
@@ -41,26 +41,26 @@ pub fn determine_effects(ops: &[StateReadOp]) -> Effects {
 
 #[cfg(test)]
 mod test {
-    use super::{determine_effects, Access, ConstraintOp, Effects, StateReadOp};
+    use super::{analyze, Access, ConstraintOp, Effects, StateReadOp};
 
     #[test]
     fn none() {
         let ops = &[];
-        assert_eq!(determine_effects(ops), Effects::empty());
+        assert_eq!(analyze(ops), Effects::empty());
     }
 
     #[test]
     fn key_range() {
         let ops = &[StateReadOp::KeyRange];
-        let effects = determine_effects(ops);
-        assert!(effects.contains(Effects::Range));
+        let effects = analyze(ops);
+        assert!(effects.contains(Effects::KeyRange));
     }
 
     #[test]
     fn key_range_extern() {
         let ops = &[StateReadOp::KeyRangeExtern];
-        let effects = determine_effects(ops);
-        assert!(effects.contains(Effects::RangeExtern));
+        let effects = analyze(ops);
+        assert!(effects.contains(Effects::KeyRangeExtern));
     }
 
     #[test]
@@ -68,7 +68,7 @@ mod test {
         let ops = &[StateReadOp::Constraint(ConstraintOp::Access(
             Access::ThisAddress,
         ))];
-        let effects = determine_effects(ops);
+        let effects = analyze(ops);
         assert!(effects.contains(Effects::ThisAddress));
     }
 
@@ -77,7 +77,7 @@ mod test {
         let ops = &[StateReadOp::Constraint(ConstraintOp::Access(
             Access::ThisContractAddress,
         ))];
-        let effects = determine_effects(ops);
+        let effects = analyze(ops);
         assert!(effects.contains(Effects::ThisContractAddress));
     }
 
@@ -89,9 +89,9 @@ mod test {
             StateReadOp::Constraint(ConstraintOp::Access(Access::ThisAddress)),
             StateReadOp::Constraint(ConstraintOp::Access(Access::ThisContractAddress)),
         ];
-        let effects = determine_effects(ops);
-        assert!(effects.contains(Effects::Range));
-        assert!(effects.contains(Effects::RangeExtern));
+        let effects = analyze(ops);
+        assert!(effects.contains(Effects::KeyRange));
+        assert!(effects.contains(Effects::KeyRangeExtern));
         assert!(effects.contains(Effects::ThisAddress));
         assert!(effects.contains(Effects::ThisContractAddress));
     }
