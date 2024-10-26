@@ -19,8 +19,8 @@ bitflags! {
     }
 }
 
-/// Analyse the given operations to determine the effects.
-pub fn analyse(ops: &[StateReadOp]) -> Effects {
+/// Determine effects of the given state read program.
+pub fn determine_effects(ops: &[StateReadOp]) -> Effects {
     let mut effects = Effects::empty();
 
     for op in ops {
@@ -41,25 +41,25 @@ pub fn analyse(ops: &[StateReadOp]) -> Effects {
 
 #[cfg(test)]
 mod test {
-    use super::{analyse, Access, ConstraintOp, Effects, StateReadOp};
+    use super::{determine_effects, Access, ConstraintOp, Effects, StateReadOp};
 
     #[test]
     fn none() {
         let ops = &[];
-        assert_eq!(analyse(ops), Effects::empty());
+        assert_eq!(determine_effects(ops), Effects::empty());
     }
 
     #[test]
     fn key_range() {
         let ops = &[StateReadOp::KeyRange];
-        let effects = analyse(ops);
+        let effects = determine_effects(ops);
         assert!(effects.contains(Effects::Range));
     }
 
     #[test]
     fn key_range_extern() {
         let ops = &[StateReadOp::KeyRangeExtern];
-        let effects = analyse(ops);
+        let effects = determine_effects(ops);
         assert!(effects.contains(Effects::RangeExtern));
     }
 
@@ -68,7 +68,7 @@ mod test {
         let ops = &[StateReadOp::Constraint(ConstraintOp::Access(
             Access::ThisAddress,
         ))];
-        let effects = analyse(ops);
+        let effects = determine_effects(ops);
         assert!(effects.contains(Effects::ThisAddress));
     }
 
@@ -77,7 +77,7 @@ mod test {
         let ops = &[StateReadOp::Constraint(ConstraintOp::Access(
             Access::ThisContractAddress,
         ))];
-        let effects = analyse(ops);
+        let effects = determine_effects(ops);
         assert!(effects.contains(Effects::ThisContractAddress));
     }
 
@@ -89,7 +89,7 @@ mod test {
             StateReadOp::Constraint(ConstraintOp::Access(Access::ThisAddress)),
             StateReadOp::Constraint(ConstraintOp::Access(Access::ThisContractAddress)),
         ];
-        let effects = analyse(ops);
+        let effects = determine_effects(ops);
         assert!(effects.contains(Effects::Range));
         assert!(effects.contains(Effects::RangeExtern));
         assert!(effects.contains(Effects::ThisAddress));
