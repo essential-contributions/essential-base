@@ -24,6 +24,7 @@ essential-state-read-vm = { path = "crates/state-read-vm", version = "0.6.0" }
 essential-types = { path = "crates/types", version = "0.4.0" }
 futures = "0.3" # For `state-read-vm` tests.
 hex = "0.4.3"
+petgraph = "0.6.5"
 postcard = { version = "1.0.10", features = ["alloc"] }
 proc-macro2 = "1"
 quote = "1"

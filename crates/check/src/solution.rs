@@ -10,14 +10,22 @@ use crate::{
         SolutionAccess, StateRead, StateSlotSlice, StateSlots,
     },
     types::{
-        predicate::OldPredicate,
+        predicate::Predicate,
         solution::{Solution, SolutionData, SolutionDataIndex},
         Key, PredicateAddress, StateReadBytecode, Word,
     },
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
-use std::{collections::HashSet, fmt, sync::Arc};
+use essential_types::{
+    predicate::{Edge, Program, Reads},
+    ContentAddress,
+};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    sync::Arc,
+};
 use thiserror::Error;
 use tokio::task::JoinSet;
 #[cfg(feature = "tracing")]
@@ -247,6 +255,48 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
     Ok(())
 }
 
+/// The full program graph for a predicate.
+///
+/// Describes the dependency between each of the predicate's programs, and whether to provide them
+/// pre or post-state read access.
+type ProgramGraph = petgraph::Graph<(Reads, ContentAddress), ()>;
+
+/// A node index into a `ProgramGraph`.
+type NodeIx = petgraph::graph::NodeIndex<u32>;
+
+/// Given a [`Predicate`], reconstruct its program graph from the adjacency list.
+///
+/// This function assumes that the given predicates have already been validated upon deployment.
+pub fn predicate_program_graph(predicate: &Predicate) -> ProgramGraph {
+    let mut graph = ProgramGraph::default();
+    let mut visited: HashMap<_, NodeIx> = HashMap::new();
+
+    // Iterate through the nodes in reverse. Add edges from the current node to its children.
+    // This way, we know that all of a node's children exist in the graph before we add the
+    // edges.
+    let mut nodes = predicate.nodes.iter().enumerate().rev();
+    let mut last_edge_start = None;
+    while let Some((ix, node)) = nodes.next() {
+        // Add the node if it doesn't yet exist.
+        let node_ix = graph.add_node((node.reads, node.program_address.clone()));
+        visited.insert(ix, node);
+
+        // Add edges for non-leaf nodes.
+        if node.edge_start != Edge::MAX {
+            let edge_start = usize::from(node.edge_start);
+            let edge_end = last_edge_start.unwrap_or(predicate.edges.len());
+            last_edge_start = Some(edge_start);
+            for &child in &predicate.edges[edge_start..edge_end] {
+                let child_node = &predicate.nodes[usize::from(child)];
+                let child = visited[&child];
+                graph.add_edge(node_ix, child, ());
+            }
+        }
+    }
+
+    graph
+}
+
 /// Checks all of a solution's `SolutionData` against its associated predicates.
 ///
 /// For each of the solution's `data` elements, a single task is spawned that
@@ -273,7 +323,8 @@ pub async fn check_predicates<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    get_predicate: impl Fn(&PredicateAddress) -> Arc<OldPredicate>,
+    get_predicate: impl Fn(&PredicateAddress) -> Arc<Predicate>,
+    get_function: impl Fn(&ContentAddress) -> Arc<Program>,
     config: Arc<CheckPredicateConfig>,
 ) -> Result<Gas, PredicatesError<SA::Error>>
 where
@@ -381,7 +432,7 @@ pub async fn check_predicate<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    predicate: Arc<OldPredicate>,
+    predicate: Arc<Predicate>,
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
 ) -> Result<Gas, PredicateError<SA::Error>>
