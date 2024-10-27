@@ -35,6 +35,11 @@ pub fn analyze(ops: &[StateReadOp]) -> Effects {
             }
             _ => {}
         }
+        
+        // Short circuit if all flags are found.
+        if effects == Effects::all() {
+            break;
+        }
     }
     effects
 }
