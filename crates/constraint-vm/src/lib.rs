@@ -262,7 +262,6 @@ pub fn step_op_access(
         asm::Access::ThisContractAddress => {
             access::this_contract_address(access.solution.this_data(), stack)
         }
-        asm::Access::ThisPathway => access::this_pathway(access.solution.index, stack),
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
         asm::Access::NumSlots => access::num_slots(
             stack,

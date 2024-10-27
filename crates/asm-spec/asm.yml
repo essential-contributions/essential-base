@@ -275,15 +275,6 @@ StateRead:
                 This operation returns a list of words with a length of 4, representing the contract's hash.
               stack_out: [key]
 
-            ThisPathway:
-              opcode: 0x32
-              short: PATH
-              description: |
-                Get the pathway of this predicate.
-
-                This operation returns the index of the solution data currently being used to check this predicate.
-              stack_out: [in]
-            
             MutKeys:
               opcode: 0x34
               short: MKEYS

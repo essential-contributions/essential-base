@@ -219,14 +219,6 @@ pub(crate) fn this_contract_address(data: &SolutionData, stack: &mut Stack) -> O
     Ok(())
 }
 
-/// `Access::ThisPathway` implementation.
-pub(crate) fn this_pathway(index: usize, stack: &mut Stack) -> OpResult<()> {
-    let index: Word = index
-        .try_into()
-        .map_err(|_| AccessError::SolutionDataOutOfBounds)?;
-    Ok(stack.push(index)?)
-}
-
 pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()> {
     let counter = repeat.counter()?;
     Ok(stack.push(counter)?)

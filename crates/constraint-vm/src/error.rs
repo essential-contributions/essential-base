@@ -122,9 +122,6 @@ pub enum AccessError {
     /// The state slot value was too large.
     #[error("the state slot value was too large: {0}")]
     StateValueTooLarge(usize),
-    /// The pathway index was out of bounds.
-    #[error("pathway index out of bounds: {0}")]
-    PathwayOutOfBounds(Word),
     /// Key length was out of bounds.
     #[error("key length out of bounds: {0}")]
     KeyLengthOutOfBounds(Word),

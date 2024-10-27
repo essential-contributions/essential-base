@@ -83,9 +83,6 @@ pub enum InvalidStateMutations {
     /// The number of state mutations exceeds the limit.
     #[error("the number of state mutations ({0}) exceeds the limit ({MAX_STATE_MUTATIONS})")]
     TooMany(usize),
-    /// State mutation pathway at the given index is out of range of solution data.
-    #[error("state mutation pathway {0} out of range of solution data")]
-    PathwayOutOfRangeOfSolutionData(u16),
     /// Discovered multiple mutations to the same slot.
     #[error("attempt to apply multiple mutations to the same slot: {0:?} {1:?}")]
     MultipleMutationsForSlot(PredicateAddress, Key),
