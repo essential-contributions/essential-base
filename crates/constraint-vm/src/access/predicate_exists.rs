@@ -128,7 +128,6 @@ fn setup(input: &[Setup], i: usize) -> (Stack, Vec<SolutionData>, LazyCache) {
                 predicate: ContentAddress(s.predicate_addr),
             },
             decision_variables: s.args.clone(),
-            transient_data: Default::default(),
             state_mutations: Default::default(),
         })
         .collect();

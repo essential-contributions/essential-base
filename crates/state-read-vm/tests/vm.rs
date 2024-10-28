@@ -200,7 +200,6 @@ async fn read_pre_post_state_and_check_constraints() {
         data: vec![SolutionData {
             predicate_to_solve: predicate_addr.clone(),
             decision_variables: vec![],
-            transient_data: vec![],
             // We have one mutation that contracts a missing value to 41.
             state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 1],
@@ -216,12 +215,7 @@ async fn read_pre_post_state_and_check_constraints() {
 
     // Construct access to the necessary solution data for the VM.
     let mut access = Access {
-        solution: SolutionAccess::new(
-            &solution,
-            predicate_index,
-            &mutable_keys,
-            test_transient_data(),
-        ),
+        solution: SolutionAccess::new(&solution, predicate_index, &mutable_keys),
         // Haven't calculated these yet.
         state_slots: StateSlots::EMPTY,
     };

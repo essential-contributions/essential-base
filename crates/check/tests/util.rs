@@ -232,7 +232,6 @@ pub fn test_predicate_42_solution_pair(
                 key: vec![0, 0, 0, 0],
                 value: vec![42],
             }],
-            transient_data: vec![],
         }],
     };
 

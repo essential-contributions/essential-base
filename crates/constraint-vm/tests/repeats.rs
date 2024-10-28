@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use essential_constraint_asm as asm;
 use essential_constraint_vm::{eval_ops, Access, SolutionAccess, StateSlots};
@@ -9,7 +9,6 @@ fn test_forall_in_asm() {
     #[cfg(feature = "tracing")]
     let _ = tracing_subscriber::fmt::try_init();
     let mutable_keys = HashSet::with_capacity(0);
-    let transient_data = HashMap::with_capacity(0);
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
@@ -19,11 +18,9 @@ fn test_forall_in_asm() {
                 },
                 decision_variables: vec![vec![2], vec![4, 6], vec![8, 12]],
                 state_mutations: vec![],
-                transient_data: vec![],
             }],
             index: 0,
             mutable_keys: &mutable_keys,
-            transient_data: &transient_data,
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -71,7 +68,6 @@ fn test_forall_in_asm() {
 #[test]
 fn test_fold_filter_in_asm() {
     let mutable_keys = HashSet::with_capacity(0);
-    let transient_data = HashMap::with_capacity(0);
     let access = Access {
         solution: SolutionAccess {
             data: &[SolutionData {
@@ -81,11 +77,9 @@ fn test_fold_filter_in_asm() {
                 },
                 decision_variables: vec![],
                 state_mutations: vec![],
-                transient_data: vec![],
             }],
             index: 0,
             mutable_keys: &mutable_keys,
-            transient_data: &transient_data,
         },
         state_slots: StateSlots::EMPTY,
     };

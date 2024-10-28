@@ -1,9 +1,9 @@
 use super::*;
+use crate::error::StackError;
 use crate::{
     asm,
     error::{AccessError, ConstraintError, OpError},
     eval_ops, exec_ops,
-    sets::decode_set,
     test_util::*,
 };
 use essential_types::{
@@ -301,11 +301,9 @@ fn decision_var_single_word_ops() {
                 predicate_to_solve: TEST_PREDICATE_ADDR,
                 decision_variables: vec![vec![42]],
                 state_mutations: Default::default(),
-                transient_data: Default::default(),
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -327,11 +325,9 @@ fn decision_var_ops() {
                 predicate_to_solve: TEST_PREDICATE_ADDR,
                 decision_variables: vec![vec![7, 8, 9], vec![10, 11, 12]],
                 state_mutations: Default::default(),
-                transient_data: Default::default(),
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -353,11 +349,9 @@ fn decision_var_slot_oob_ops() {
                 predicate_to_solve: TEST_PREDICATE_ADDR,
                 decision_variables: vec![vec![42]],
                 state_mutations: Default::default(),
-                transient_data: Default::default(),
             }],
             index: 0,
             mutable_keys: test_empty_keys(),
-            transient_data: test_transient_data(),
         },
         state_slots: StateSlots::EMPTY,
     };
@@ -395,7 +389,6 @@ fn mut_keys_push_eq() {
                     key: vec![0, 0, 0, 1],
                     value: vec![1],
                 }],
-                transient_data: Default::default(),
             },
             // Solution data for the predicate we're checking.
             SolutionData {
@@ -415,7 +408,6 @@ fn mut_keys_push_eq() {
                         value: vec![42],
                     },
                 ],
-                transient_data: Default::default(),
             },
         ],
         // All state mutations, 3 of which point to the predicate we're solving.
@@ -428,12 +420,7 @@ fn mut_keys_push_eq() {
 
     // Construct access to the parts of the solution that we need for checking.
     let access = Access {
-        solution: SolutionAccess::new(
-            &solution,
-            predicate_index,
-            &mutable_keys,
-            test_transient_data(),
-        ),
+        solution: SolutionAccess::new(&solution, predicate_index, &mutable_keys),
         state_slots: StateSlots::EMPTY,
     };
 
@@ -719,113 +706,4 @@ fn this_contract_address() {
     let stack = exec_ops(ops, *test_access()).unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.contract.0);
     assert_eq!(&stack[..], expected_words);
-}
-
-#[test]
-fn transient() {
-    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
-        .into_iter()
-        .collect();
-    let access = Access {
-        solution: SolutionAccess {
-            data: test_solution_data_arr(),
-            index: 0,
-            mutable_keys: test_empty_keys(),
-            transient_data: &transient_data,
-        },
-        state_slots: StateSlots::EMPTY,
-    };
-    let ops = &[
-        asm::Stack::Push(0).into(), // Pathway index.
-        asm::Stack::Push(3).into(), // Key.
-        asm::Stack::Push(1).into(), // Key length.
-        asm::Stack::Push(0).into(), // Value index.
-        asm::Stack::Push(1).into(), // Value length.
-        asm::Access::PubVar.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[2]);
-}
-
-#[test]
-fn transient_len() {
-    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
-        .into_iter()
-        .collect();
-    let access = Access {
-        solution: SolutionAccess {
-            data: test_solution_data_arr(),
-            index: 0,
-            mutable_keys: test_empty_keys(),
-            transient_data: &transient_data,
-        },
-        state_slots: StateSlots::EMPTY,
-    };
-    let ops = &[
-        asm::Stack::Push(0).into(),
-        asm::Stack::Push(3).into(),
-        asm::Stack::Push(1).into(),
-        asm::Access::PubVarLen.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[1]);
-}
-
-#[test]
-fn predicate_at() {
-    let transient_data = [(0, [(vec![3], vec![2])].into_iter().collect())]
-        .into_iter()
-        .collect();
-    let data = [SolutionData {
-        predicate_to_solve: TEST_PREDICATE_ADDR,
-        decision_variables: vec![],
-        state_mutations: vec![],
-        transient_data: vec![],
-    }];
-    let access = Access {
-        solution: SolutionAccess {
-            data: &data,
-            index: 0,
-            mutable_keys: test_empty_keys(),
-            transient_data: &transient_data,
-        },
-        state_slots: StateSlots::EMPTY,
-    };
-    let ops = &[asm::Stack::Push(0).into(), asm::Access::PredicateAt.into()];
-    let stack = exec_ops(ops, access).unwrap();
-    let predicate = data[0].predicate_to_solve.clone();
-    let mut expected = vec![];
-    expected.extend(word_4_from_u8_32(predicate.contract.0));
-    expected.extend(word_4_from_u8_32(predicate.predicate.0));
-    assert_eq!(&stack[..], expected);
-}
-
-#[test]
-fn pub_var_keys_eq() {
-    let transient_data = [(
-        0,
-        [(vec![3, 7], vec![2]), (vec![100, -46], vec![])]
-            .into_iter()
-            .collect(),
-    )]
-    .into_iter()
-    .collect();
-    let access = Access {
-        solution: SolutionAccess {
-            data: test_solution_data_arr(),
-            index: 0,
-            mutable_keys: test_empty_keys(),
-            transient_data: &transient_data,
-        },
-        state_slots: StateSlots::EMPTY,
-    };
-    let ops = &[asm::Stack::Push(0).into(), asm::Access::PubVarKeys.into()];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(stack.len(), 7);
-    let got: HashSet<_> = decode_set(&stack[..6])
-        .map(Result::unwrap)
-        .map(Vec::from)
-        .collect();
-    let expected: HashSet<_> = transient_data[&0].keys().cloned().collect();
-    assert_eq!(got, expected);
 }

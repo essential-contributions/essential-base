@@ -4,7 +4,6 @@ use crate::{
     constraint_vm::{
         self,
         error::{CheckError, ConstraintErrors, ConstraintsUnsatisfied},
-        TransientData,
     },
     state_read_vm::{
         self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
@@ -45,9 +44,6 @@ pub enum InvalidSolution {
     /// State mutations validation failed.
     #[error("state mutations validation failed: {0}")]
     StateMutations(#[from] InvalidStateMutations),
-    /// Transient data validation failed.
-    #[error("transient data validation failed: {0}")]
-    TransientData(#[from] InvalidTransientData),
 }
 
 /// [`check_data`] error.
@@ -65,9 +61,6 @@ pub enum InvalidSolutionData {
     /// State mutation entry error.
     #[error("Invalid state mutation entry: {0}")]
     StateMutationEntry(KvError),
-    /// Transient data entry error.
-    #[error("Invalid transient data entry: {0}")]
-    TransientDataEntry(KvError),
     /// Decision variable value too large.
     #[error("Decision variable value len {0} exceeds limit {MAX_VALUE_SIZE}")]
     DecVarValueTooLarge(usize),
@@ -90,20 +83,9 @@ pub enum InvalidStateMutations {
     /// The number of state mutations exceeds the limit.
     #[error("the number of state mutations ({0}) exceeds the limit ({MAX_STATE_MUTATIONS})")]
     TooMany(usize),
-    /// State mutation pathway at the given index is out of range of solution data.
-    #[error("state mutation pathway {0} out of range of solution data")]
-    PathwayOutOfRangeOfSolutionData(u16),
     /// Discovered multiple mutations to the same slot.
     #[error("attempt to apply multiple mutations to the same slot: {0:?} {1:?}")]
     MultipleMutationsForSlot(PredicateAddress, Key),
-}
-
-/// [`check_transient_data`] error.
-#[derive(Debug, Error)]
-pub enum InvalidTransientData {
-    /// The number of transient data exceeds the limit.
-    #[error("the number of transient data ({0}) exceeds the limit ({MAX_TRANSIENT_DATA})")]
-    TooMany(usize),
 }
 
 /// [`check_predicates`] error.
@@ -166,8 +148,6 @@ pub const MAX_DECISION_VARIABLES: u32 = 100;
 pub const MAX_SOLUTION_DATA: usize = 100;
 /// Maximum number of state mutations of a solution.
 pub const MAX_STATE_MUTATIONS: usize = 1000;
-/// Maximum number of transient data of a solution.
-pub const MAX_TRANSIENT_DATA: usize = 1000;
 /// Maximum number of words in a slot value.
 pub const MAX_VALUE_SIZE: usize = 10_000;
 /// Maximum number of words in a slot key.
@@ -191,7 +171,6 @@ impl<E: fmt::Display> fmt::Display for PredicateErrors<E> {
 pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
     check_data(&solution.data)?;
     check_state_mutations(solution)?;
-    check_transient_data(solution)?;
     Ok(())
 }
 
@@ -268,27 +247,6 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
     Ok(())
 }
 
-/// Validate the solution's transient data.
-pub fn check_transient_data(solution: &Solution) -> Result<(), InvalidSolution> {
-    // Validate transient data.
-    // Ensure that solution transient data length is below limit length.
-    if solution.transient_data_len() > MAX_TRANSIENT_DATA {
-        return Err(InvalidTransientData::TooMany(solution.transient_data_len()).into());
-    }
-
-    // Ensure the lengths of keys and values are within limits.
-    for data in &solution.data {
-        for mutation in &data.transient_data {
-            // Check key length.
-            check_key_size(&mutation.key).map_err(InvalidSolutionData::TransientDataEntry)?;
-            // Check value length.
-            check_value_size(&mutation.value).map_err(InvalidSolutionData::TransientDataEntry)?;
-        }
-    }
-
-    Ok(())
-}
-
 /// Checks all of a solution's `SolutionData` against its associated predicates.
 ///
 /// For each of the solution's `data` elements, a single task is spawned that
@@ -328,8 +286,6 @@ where
     #[cfg(feature = "tracing")]
     tracing::trace!("{}", essential_hash::content_addr(&*solution));
 
-    let transient_data: Arc<TransientData> =
-        Arc::new(essential_constraint_vm::transient_data(&solution));
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, PredicateError<SA::Error>>)> = JoinSet::new();
     for (solution_data_index, data) in solution.data.iter().enumerate() {
@@ -338,7 +294,6 @@ where
             .expect("solution data index already validated");
         let predicate = get_predicate(&data.predicate_to_solve);
         let solution = solution.clone();
-        let transient_data = transient_data.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         let config = config.clone();
@@ -353,7 +308,6 @@ where
                 predicate,
                 solution_data_index,
                 &config,
-                transient_data,
             )
             .await;
             (solution_data_index, res)
@@ -430,7 +384,6 @@ pub async fn check_predicate<SA, SB>(
     predicate: Arc<Predicate>,
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
-    transient_data: Arc<TransientData>,
 ) -> Result<Gas, PredicateError<SA::Error>>
 where
     SA: StateRead,
@@ -443,7 +396,6 @@ where
         &solution,
         &predicate.state_read,
         solution_data_index,
-        &transient_data,
     )
     .await?;
 
@@ -455,7 +407,6 @@ where
         Arc::from(pre_slots.into_boxed_slice()),
         Arc::from(post_slots.into_boxed_slice()),
         config,
-        transient_data,
     )
     .await?;
 
@@ -480,7 +431,6 @@ pub async fn predicate_state_slots<SA, SB>(
     solution: &Solution,
     predicate_state_reads: &[StateReadBytecode],
     solution_data_index: SolutionDataIndex,
-    transient_data: &TransientData,
 ) -> Result<(Gas, PreStateSlots, PostStateSlots), PredicateError<SA::Error>>
 where
     SA: StateRead,
@@ -493,8 +443,7 @@ where
     let mut pre_slots: Vec<Vec<Word>> = Vec::new();
     let mut post_slots: Vec<Vec<Word>> = Vec::new();
     let mutable_keys = constraint_vm::mut_keys_set(solution, solution_data_index);
-    let solution_access =
-        SolutionAccess::new(solution, solution_data_index, &mutable_keys, transient_data);
+    let solution_access = SolutionAccess::new(solution, solution_data_index, &mutable_keys);
 
     // Read pre and post states.
     for (state_read_index, state_read) in predicate_state_reads.iter().enumerate() {
@@ -593,7 +542,6 @@ pub async fn check_predicate_constraints(
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
     config: &CheckPredicateConfig,
-    transient_data: Arc<TransientData>,
 ) -> Result<(), PredicateConstraintsError> {
     let r = check_predicate_constraints_parallel(
         solution.clone(),
@@ -602,7 +550,6 @@ pub async fn check_predicate_constraints(
         pre_slots.clone(),
         post_slots.clone(),
         config,
-        transient_data.clone(),
     )
     .await;
     #[cfg(feature = "tracing")]
@@ -620,7 +567,6 @@ async fn check_predicate_constraints_parallel(
     pre_slots: Arc<StateSlotSlice>,
     post_slots: Arc<StateSlotSlice>,
     config: &CheckPredicateConfig,
-    transient_data: Arc<TransientData>,
 ) -> Result<(), PredicateConstraintsError> {
     let mut handles = Vec::with_capacity(predicate.constraints.len());
 
@@ -634,7 +580,6 @@ async fn check_predicate_constraints_parallel(
 
         // These are all cheap Arc clones.
         let solution = solution.clone();
-        let transient_data = transient_data.clone();
         let pre_slots = pre_slots.clone();
         let post_slots = post_slots.clone();
         let predicate = predicate.clone();
@@ -649,12 +594,8 @@ async fn check_predicate_constraints_parallel(
             let guard = span.enter();
 
             let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-            let solution_access = SolutionAccess::new(
-                &solution,
-                solution_data_index,
-                &mutable_keys,
-                &transient_data,
-            );
+            let solution_access =
+                SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
             let access = Access {
                 solution: solution_access,
                 state_slots: StateSlots {
