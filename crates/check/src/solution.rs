@@ -44,6 +44,30 @@ pub struct CheckPredicateConfig {
     pub collect_all_failures: bool,
 }
 
+/// Required impl for retrieving access to any [`SolutionData`]'s [`Predicate`]s during check.
+pub trait GetPredicate {
+    /// Provides immediate access to the predicate with the given content address.
+    ///
+    /// This is called by [`check_predicates`] for each predicate in each solution data being
+    /// checked.
+    ///
+    /// All necessary programs are assumed to have been read from storage and
+    /// validated ahead of time.
+    fn get_predicate(&self, addr: &PredicateAddress) -> Arc<Predicate>;
+}
+
+/// Required impl for retrieving access to any [`Predicate`]'s [`Program`]s during check.
+pub trait GetProgram {
+    /// Provides immediate access to the program with the given content address.
+    ///
+    /// This is called by [`check_predicates`] for each node within each predicate for
+    /// each solution data being checked.
+    ///
+    /// All necessary programs are assumed to have been read from storage and
+    /// validated ahead of time.
+    fn get_program(&self, ca: &ContentAddress) -> Arc<Program>;
+}
+
 /// The node context in which a `Program` is evaluated (see [`eval_program`]).
 struct ProgramCtx {
     /// Oneshot channels providing the result of parent node program evaluation.
@@ -216,6 +240,36 @@ impl<E: fmt::Display> fmt::Display for ProgramErrors<E> {
     }
 }
 
+impl<F> GetPredicate for F
+where
+    F: Fn(&PredicateAddress) -> Arc<Predicate>,
+{
+    fn get_predicate(&self, addr: &PredicateAddress) -> Arc<Predicate> {
+        (*self)(addr)
+    }
+}
+
+impl<F> GetProgram for F
+where
+    F: Fn(&ContentAddress) -> Arc<Program>,
+{
+    fn get_program(&self, ca: &ContentAddress) -> Arc<Program> {
+        (*self)(ca)
+    }
+}
+
+impl GetPredicate for HashMap<PredicateAddress, Arc<Predicate>> {
+    fn get_predicate(&self, addr: &PredicateAddress) -> Arc<Predicate> {
+        self[addr].clone()
+    }
+}
+
+impl GetProgram for HashMap<ContentAddress, Arc<Program>> {
+    fn get_program(&self, ca: &ContentAddress) -> Arc<Program> {
+        self[ca].clone()
+    }
+}
+
 /// Validate a solution, to the extent it can be validated without reference to
 /// its associated predicates.
 ///
@@ -316,9 +370,6 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
 ///
 /// - `pre_state` must provide access to state *prior to* mutations being applied.
 /// - `post_state` must provide access to state *post* mutations being applied.
-/// - `get_predicate` provides immediate access to a predicate associated with the given
-///   solution. Calls to `predicate` must complete immediately. All necessary
-///   predicates are assumed to have been read from storage and validated ahead of time.
 ///
 /// Returns the total gas spent.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
@@ -326,8 +377,8 @@ pub async fn check_predicates<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
     solution: Arc<Solution>,
-    get_predicate: impl Fn(&PredicateAddress) -> Arc<Predicate>,
-    get_program: impl 'static + Clone + Send + Fn(&ContentAddress) -> Arc<Program>,
+    get_predicate: impl GetPredicate,
+    get_program: Arc<impl 'static + GetProgram + Send + Sync>,
     config: Arc<CheckPredicateConfig>,
 ) -> Result<Gas, PredicatesError<SA::Error>>
 where
@@ -346,7 +397,7 @@ where
         let solution_data_index: SolutionDataIndex = solution_data_index
             .try_into()
             .expect("solution data index already validated");
-        let predicate = get_predicate(&data.predicate_to_solve);
+        let predicate = get_predicate.get_predicate(&data.predicate_to_solve);
         let solution = solution.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
@@ -361,7 +412,7 @@ where
                 &post_state,
                 solution,
                 predicate,
-                get_program,
+                &*get_program,
                 solution_data_index,
                 &config,
             )
@@ -437,7 +488,7 @@ pub async fn check_predicate<SA, SB>(
     post_state: &SB,
     solution: Arc<Solution>,
     predicate: Arc<Predicate>,
-    get_program: impl Fn(&ContentAddress) -> Arc<Program>,
+    get_program: &impl GetProgram,
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
 ) -> Result<Gas, PredicateError<SA::Error>>
@@ -484,7 +535,7 @@ where
                 post_state.clone(),
                 solution.clone(),
                 solution_data_index,
-                get_program(&node.program_address),
+                get_program.get_program(&node.program_address),
                 ProgramCtx {
                     parents,
                     children: txs,
@@ -572,9 +623,7 @@ where
 
     // Setup solution data access for execution.
     let mut_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-    let transient_data = Default::default(); // FIXME: Remove this - no longer needed.
-    let solution_access =
-        SolutionAccess::new(&solution, solution_data_index, &mut_keys, &transient_data);
+    let solution_access = SolutionAccess::new(&solution, solution_data_index, &mut_keys);
     let access: Access<'_> = Access {
         solution: solution_access,
         // FIXME: Remove this - no longer necessary.
