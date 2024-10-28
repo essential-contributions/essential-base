@@ -1,5 +1,8 @@
 use essential_types::{
-    contract::Contract, predicate::OldPredicate, solution::Solution, Block, ContentAddress,
+    contract::Contract,
+    predicate::{OldPredicate, Predicate},
+    solution::Solution,
+    Block, ContentAddress,
 };
 use sha2::Digest;
 
@@ -24,6 +27,17 @@ impl Address for OldPredicate {
             hasher.update(item);
         }
         ContentAddress(hasher.finalize().into())
+    }
+}
+
+impl Address for Predicate {
+    fn content_address(&self) -> ContentAddress {
+        let Ok(bytes) = self.encode() else {
+            // Invalid predicates can't be hashed.
+            return ContentAddress([0; 32]);
+        };
+        let bytes: Vec<_> = bytes.collect();
+        ContentAddress(crate::hash_bytes(&bytes))
     }
 }
 
