@@ -7,18 +7,18 @@ use crate::{
     },
     state_read_vm::{
         self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
-        SolutionAccess, StateRead, StateSlotSlice, StateSlots,
+        StateRead,
     },
     types::{
         predicate::Predicate,
         solution::{Solution, SolutionData, SolutionDataIndex},
-        Key, PredicateAddress, StateReadBytecode, Word,
+        Key, PredicateAddress, Word,
     },
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
 use essential_types::{
-    predicate::{Edge, Program, Reads},
+    predicate::{Program, Reads},
     ContentAddress,
 };
 use std::{
@@ -120,6 +120,8 @@ pub enum PredicateError<E> {
     /// Failed to parse ops from bytecode during bytecode mapping.
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
+
+    // TODO: Delete these.
     /// Failed to read state.
     #[error("state read execution error: {0}")]
     StateRead(#[from] StateReadError<E>),
@@ -255,48 +257,6 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
     Ok(())
 }
 
-/// The full program graph for a predicate.
-///
-/// Describes the dependency between each of the predicate's programs, and whether to provide them
-/// pre or post-state read access.
-type ProgramGraph = petgraph::Graph<(Reads, ContentAddress), ()>;
-
-/// A node index into a `ProgramGraph`.
-type NodeIx = petgraph::graph::NodeIndex<u32>;
-
-/// Given a [`Predicate`], reconstruct its program graph from the adjacency list.
-///
-/// This function assumes that the given predicates have already been validated upon deployment.
-pub fn predicate_program_graph(predicate: &Predicate) -> ProgramGraph {
-    let mut graph = ProgramGraph::default();
-    let mut visited: HashMap<_, NodeIx> = HashMap::new();
-
-    // Iterate through the nodes in reverse. Add edges from the current node to its children.
-    // This way, we know that all of a node's children exist in the graph before we add the
-    // edges.
-    let mut nodes = predicate.nodes.iter().enumerate().rev();
-    let mut last_edge_start = None;
-    while let Some((ix, node)) = nodes.next() {
-        // Add the node if it doesn't yet exist.
-        let node_ix = graph.add_node((node.reads, node.program_address.clone()));
-        visited.insert(ix, node);
-
-        // Add edges for non-leaf nodes.
-        if node.edge_start != Edge::MAX {
-            let edge_start = usize::from(node.edge_start);
-            let edge_end = last_edge_start.unwrap_or(predicate.edges.len());
-            last_edge_start = Some(edge_start);
-            for &child in &predicate.edges[edge_start..edge_end] {
-                let child_node = &predicate.nodes[usize::from(child)];
-                let child = visited[&child];
-                graph.add_edge(node_ix, child, ());
-            }
-        }
-    }
-
-    graph
-}
-
 /// Checks all of a solution's `SolutionData` against its associated predicates.
 ///
 /// For each of the solution's `data` elements, a single task is spawned that
@@ -324,7 +284,7 @@ pub async fn check_predicates<SA, SB>(
     post_state: &SB,
     solution: Arc<Solution>,
     get_predicate: impl Fn(&PredicateAddress) -> Arc<Predicate>,
-    get_function: impl Fn(&ContentAddress) -> Arc<Program>,
+    get_program: impl 'static + Clone + Send + Fn(&ContentAddress) -> Arc<Program>,
     config: Arc<CheckPredicateConfig>,
 ) -> Result<Gas, PredicatesError<SA::Error>>
 where
@@ -348,6 +308,7 @@ where
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         let config = config.clone();
+        let get_program = get_program.clone();
 
         let future = async move {
             let pre_state = pre_state;
@@ -357,6 +318,7 @@ where
                 &post_state,
                 solution,
                 predicate,
+                get_program,
                 solution_data_index,
                 &config,
             )
@@ -404,7 +366,8 @@ where
 
 /// Checks a solution against a single predicate using the solution data at the given index.
 ///
-/// Reads all pre and post state slots into memory, then checks all constraints.
+/// Spawns a task for each of the predicate's nodes to execute asynchronously. Oneshot channels are
+/// used to provide the execution results from parent to child.
 ///
 /// **NOTE:** This assumes that the given `Solution` and `Predicate` have been
 /// independently validated using [`solution::check`][crate::solution::check]
@@ -433,268 +396,113 @@ pub async fn check_predicate<SA, SB>(
     post_state: &SB,
     solution: Arc<Solution>,
     predicate: Arc<Predicate>,
+    get_program: impl Fn(&ContentAddress) -> Arc<Program>,
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
 ) -> Result<Gas, PredicateError<SA::Error>>
 where
-    SA: StateRead,
-    SB: StateRead<Error = SA::Error>,
+    SA: Clone + StateRead + Send + Sync + 'static,
+    SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
 {
-    // Perform the state reads and construct the state slots.
-    let (state_read_gas, pre_slots, post_slots) = predicate_state_slots(
-        pre_state,
-        post_state,
-        &solution,
-        &predicate.state_read,
-        solution_data_index,
-    )
-    .await?;
+    use state_read_vm::constraint::{Memory, Stack};
+    use tokio::sync::oneshot;
 
-    // Check constraints.
-    check_predicate_constraints(
-        solution,
-        solution_data_index,
-        predicate.clone(),
-        Arc::from(pre_slots.into_boxed_slice()),
-        Arc::from(post_slots.into_boxed_slice()),
-        config,
-    )
-    .await?;
+    type NodeIx = usize;
+    type ProgramOutput = (Stack, Memory);
+    type ParentResults = Vec<(NodeIx, oneshot::Receiver<Arc<ProgramOutput>>)>;
 
-    Ok(state_read_gas)
-}
+    // The predicate provides a mapping from parents to children.
+    // However when checking each node, we want easy access to the parents.
+    let mut parent_results: HashMap<NodeIx, ParentResults> = HashMap::new();
 
-/// Pre-state slots generated from state reads.
-pub type PreStateSlots = Vec<Vec<Word>>;
+    // As a part of a predicate's deployment, validation should ensure node's are in topological
+    // order, and that the adjacency list is valid.
+    let program_tasks: JoinSet<Result<Gas, PredicateError<SA::Error>>> = predicate
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(node_ix, node)| {
+            let edges = predicate
+                .node_edges(node_ix)
+                .unwrap_or_else(|| todo!("invalid predicate error"));
 
-/// Post-state slots generated from state reads.
-pub type PostStateSlots = Vec<Vec<Word>>;
+            // Take the channels for our parent results.
+            let parents: ParentResults = parent_results.remove(&node_ix).unwrap_or_default();
 
-/// Reads all pre and post state slots for the given predicate into memory for
-/// checking the solution data at the given index.
-///
-/// Returns a tuple with the total gas spent, the pre-state slots, and the
-/// post-state slots respectively.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
-pub async fn predicate_state_slots<SA, SB>(
-    pre_state: &SA,
-    post_state: &SB,
-    solution: &Solution,
-    predicate_state_reads: &[StateReadBytecode],
-    solution_data_index: SolutionDataIndex,
-) -> Result<(Gas, PreStateSlots, PostStateSlots), PredicateError<SA::Error>>
-where
-    SA: StateRead,
-    SB: StateRead<Error = SA::Error>,
-{
-    // Track the total gas spent over all execution.
-    let mut total_gas = 0;
+            // Create the one shot channels for making the program results available to our children.
+            let mut txs = vec![];
+            for &e in edges {
+                let (tx, rx) = oneshot::channel();
+                txs.push(tx);
+                let child = usize::from(e);
+                parent_results.entry(child).or_default().push((node_ix, rx));
+            }
 
-    // Initialize pre and post slots. These will contain all state slots for all state reads.
-    let mut pre_slots: Vec<Vec<Word>> = Vec::new();
-    let mut post_slots: Vec<Vec<Word>> = Vec::new();
-    let mutable_keys = constraint_vm::mut_keys_set(solution, solution_data_index);
-    let solution_access = SolutionAccess::new(solution, solution_data_index, &mutable_keys);
+            let pre_state = pre_state.clone();
+            let post_state = post_state.clone();
 
-    // Read pre and post states.
-    for (state_read_index, state_read) in predicate_state_reads.iter().enumerate() {
-        #[cfg(not(feature = "tracing"))]
-        let _ = state_read_index;
+            // Map and execute the program asynchronously.
+            async move {
+                let program = get_program(&node.program_address);
+                let program_mapped = BytecodeMapped::try_from(&program.0[..])?;
 
-        // Map the bytecode ops ahead of execution to share the mapping
-        // between both pre and post state slot reads.
-        let state_read_mapped = BytecodeMapped::try_from(&state_read[..])?;
+                // Create a new state read VM.
+                let mut vm = state_read_vm::Vm::default();
 
-        // Read pre state slots and write them to the pre_slots slice.
-        let future = read_state_slots(
-            &state_read_mapped,
-            Access {
-                solution: solution_access,
-                state_slots: StateSlots {
-                    pre: &pre_slots,
-                    post: &post_slots,
-                },
-            },
-            pre_state,
-        );
-        #[cfg(feature = "tracing")]
-        let (gas, new_pre_slots) = future
-            .instrument(tracing::info_span!("pre", ix = state_read_index))
-            .await?;
-        #[cfg(not(feature = "tracing"))]
-        let (gas, new_pre_slots) = future.await?;
+                // Use the results of the parent execution to initialise our stack and memory.
+                for (_parent_ix, parent_rx) in parents {
+                    let (stack, memory) = parent_rx.await?;
+                    vm.stack.extend(stack)?;
+                    vm.temp_memory.extend(memory)?;
+                }
 
-        total_gas += gas;
-        pre_slots.extend(new_pre_slots);
+                // TODO: Provide these from Config.
+                let gas_cost = |_: &state_read_vm::asm::Op| 1;
+                let gas_limit = GasLimit::UNLIMITED;
+                let access: Access<'_> = todo!();
 
-        // Read post state slots and write them to the post_slots slice.
-        let future = read_state_slots(
-            &state_read_mapped,
-            Access {
-                solution: solution_access,
-                state_slots: StateSlots {
-                    pre: &pre_slots,
-                    post: &post_slots,
-                },
-            },
-            post_state,
-        );
-        #[cfg(feature = "tracing")]
-        let (gas, new_post_slots) = future
-            .instrument(tracing::info_span!("post", ix = state_read_index))
-            .await?;
-        #[cfg(not(feature = "tracing"))]
-        let (gas, new_post_slots) = future.await?;
+                // Read the state into the VM's memory.
+                let gas_spent = match reads {
+                    Reads::Pre => {
+                        vm.exec_bytecode(&program_mapped, access, &pre_state, &gas_cost, gas_limit)
+                            .await?
+                    }
+                    Reads::Post => {
+                        vm.exec_bytecode(&program_mapped, access, &post_state, &gas_cost, gas_limit)
+                            .await?
+                    }
+                };
 
-        total_gas += gas;
-        post_slots.extend(new_post_slots);
-    }
-
-    Ok((total_gas, pre_slots, post_slots))
-}
-
-/// Reads state slots from storage using the given bytecode.
-///
-/// The result is written to VM's memory.
-///
-/// Returns the gas spent alongside the state slots consumed from the VM's memory.
-async fn read_state_slots<S>(
-    bytecode_mapped: &BytecodeMapped<&[u8]>,
-    access: Access<'_>,
-    state_read: &S,
-) -> Result<(Gas, Vec<Vec<Word>>), state_read_vm::error::StateReadError<S::Error>>
-where
-    S: StateRead,
-{
-    // Create a new state read VM.
-    let mut vm = state_read_vm::Vm::default();
-
-    // Read the state into the VM's memory.
-    let gas_spent = vm
-        .exec_bytecode(
-            bytecode_mapped,
-            access,
-            state_read,
-            &|_: &state_read_vm::asm::Op| 1,
-            GasLimit::UNLIMITED,
-        )
-        .await?;
-
-    Ok((gas_spent, vm.into_state_slots()))
-}
-
-/// Checks if the given solution data at the given index satisfies the
-/// constraints of the given predicate.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, "check"))]
-pub async fn check_predicate_constraints(
-    solution: Arc<Solution>,
-    solution_data_index: SolutionDataIndex,
-    predicate: Arc<OldPredicate>,
-    pre_slots: Arc<StateSlotSlice>,
-    post_slots: Arc<StateSlotSlice>,
-    config: &CheckPredicateConfig,
-) -> Result<(), PredicateConstraintsError> {
-    let r = check_predicate_constraints_parallel(
-        solution.clone(),
-        solution_data_index,
-        predicate.clone(),
-        pre_slots.clone(),
-        post_slots.clone(),
-        config,
-    )
-    .await;
-    #[cfg(feature = "tracing")]
-    if let Err(ref err) = r {
-        tracing::trace!("error checking constraints: {}", err);
-    }
-    r
-}
-
-/// Check predicates in parallel without sleeping any threads.
-async fn check_predicate_constraints_parallel(
-    solution: Arc<Solution>,
-    solution_data_index: SolutionDataIndex,
-    predicate: Arc<OldPredicate>,
-    pre_slots: Arc<StateSlotSlice>,
-    post_slots: Arc<StateSlotSlice>,
-    config: &CheckPredicateConfig,
-) -> Result<(), PredicateConstraintsError> {
-    let mut handles = Vec::with_capacity(predicate.constraints.len());
-
-    // Spawn each constraint onto a rayon thread and
-    // check them in parallel.
-    for ix in 0..predicate.constraints.len() {
-        // Spawn this sync code onto a rayon thread.
-        // This is a non-blocking operation.
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        handles.push(rx);
-
-        // These are all cheap Arc clones.
-        let solution = solution.clone();
-        let pre_slots = pre_slots.clone();
-        let post_slots = post_slots.clone();
-        let predicate = predicate.clone();
-
-        #[cfg(feature = "tracing")]
-        let span = tracing::Span::current();
-
-        rayon::spawn(move || {
-            #[cfg(feature = "tracing")]
-            let span = tracing::trace_span!(parent: &span, "constraint", ix = ix as u32);
-            #[cfg(feature = "tracing")]
-            let guard = span.enter();
-
-            let mutable_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-            let solution_access =
-                SolutionAccess::new(&solution, solution_data_index, &mutable_keys);
-            let access = Access {
-                solution: solution_access,
-                state_slots: StateSlots {
-                    pre: &pre_slots,
-                    post: &post_slots,
-                },
-            };
-            let res = constraint_vm::eval_bytecode_iter(
-                predicate
-                    .constraints
-                    .get(ix)
-                    .expect("Safe due to above len check")
-                    .iter()
-                    .copied(),
-                access,
-            );
-            // Send the result back to the main thread.
-            // Send errors are ignored as if the recv is gone there's no one to send to.
-            let _ = tx.send((ix, res));
-
-            #[cfg(feature = "tracing")]
-            drop(guard)
+                Ok(gas_spent)
+            }
         })
-    }
+        .collect();
 
-    // There's no way to know the size of these.
+    // Prepare to collect failed programs and unsatissfied constraints.
     let mut failed = Vec::new();
     let mut unsatisfied = Vec::new();
 
-    // Wait for all constraints to finish.
-    // The order of waiting on handles is not important as all
-    // constraints make progress independently.
-    for handle in handles {
-        // Get the index and result from the handle.
-        let (ix, res): (usize, Result<bool, _>) = handle.await?;
-        match res {
-            // If the constraint failed, add it to the failed list.
-            Err(err) => {
-                failed.push((ix, err));
-                if !config.collect_all_failures {
-                    break;
-                }
-            }
-            // If the constraint was unsatisfied, add it to the unsatisfied list.
-            Ok(b) if !b => unsatisfied.push(ix),
-            // Otherwise, the constraint was satisfied.
-            _ => (),
-        }
+    // Await the completion of all our programs.
+    let mut total_gas: Gas = 0;
+    while let Some(res) = program_tasks.join_next().await {
+        let gas = res?;
+
+        todo!("Check leaf nodes i.e. constraints");
+        // match res {
+        //     // If the constraint failed, add it to the failed list.
+        //     Err(err) => {
+        //         failed.push((ix, err));
+        //         if !config.collect_all_failures {
+        //             break;
+        //         }
+        //     }
+        //     // If the constraint was unsatisfied, add it to the unsatisfied list.
+        //     Ok(b) if !b => unsatisfied.push(ix),
+        //     // Otherwise, the constraint was satisfied.
+        //     _ => (),
+        // }
+
+        total_gas = total_gas.saturating_add(gas);
     }
 
     // If there are any failed constraints, return an error.
@@ -706,5 +514,6 @@ async fn check_predicate_constraints_parallel(
     if !unsatisfied.is_empty() {
         return Err(CheckError::from(ConstraintsUnsatisfied(unsatisfied)).into());
     }
-    Ok(())
+
+    Ok(total_gas)
 }

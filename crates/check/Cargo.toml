@@ -14,7 +14,6 @@ essential-hash = { workspace = true, optional = true }
 essential-sign = { workspace = true }
 essential-state-read-vm = { workspace = true }
 essential-types = { workspace = true }
-petgraph = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

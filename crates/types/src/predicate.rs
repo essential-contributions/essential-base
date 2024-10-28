@@ -108,6 +108,21 @@ impl Predicate {
     pub fn decode(bytes: &[u8]) -> Result<Self, encode_predicate::PredicateDecodeError> {
         encode_predicate::decode_predicate(bytes)
     }
+
+    /// The slice of edges associated with the node at the given index.
+    ///
+    /// Returns `None` in the case that the given node indexs is out of bound, or if any of the
+    /// node's edges are out of bounds of the predicate's `edges` slice.
+    pub fn node_edges(&self, node_ix: usize) -> Option<&[Edge]> {
+        let node = self.nodes.get(node_ix)?;
+        let e_start = usize::from(node.edge_start);
+        let e_end = match self.nodes.get(node_ix.saturating_add(1)) {
+            Some(next) if next.edge_start != Edge::MAX => usize::from(next.edge_start),
+            _ => usize::from(node.edge_start),
+        };
+        let edges = self.edges.get(e_start..e_end)?;
+        Some(edges)
+    }
 }
 
 impl Programs {
