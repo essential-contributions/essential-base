@@ -20,6 +20,18 @@
 //! | Field | Size (bytes) | Description |
 //! | --- | --- | --- |
 //! | edge | 2 | The index of the node that this edge points to. |
+//!
+//! ## Programs
+//! | Field | Size (bytes) | Description |
+//! | --- | --- | --- |
+//! | number_of_programs | 2 | The number of programs in the set. |
+//! | programs | variable | The programs in the set. |
+//!
+//! ## Program
+//! | Field | Size (bytes) | Description |
+//! | --- | --- | --- |
+//! | program_length | 2 | The length of the program. |
+//! | program | program_length | The program. |
 
 use super::*;
 
