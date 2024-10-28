@@ -9,7 +9,7 @@ use essential_check::{
         ContentAddress, Key, PredicateAddress, Word,
     },
 };
-use essential_types::contract::{self, Contract};
+use essential_types::{contract::{self, Contract}, predicate::{Predicate, Program}};
 use std::{
     collections::BTreeMap,
     future::{self, Ready},
@@ -148,19 +148,21 @@ pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 }
 
 // A simple predicate that expects the value of previously uncontract state slot with index 0 to be 42.
-pub fn test_predicate_42(entropy: Word) -> OldPredicate {
-    OldPredicate {
-        // State read program to read state slot 0.
-        state_read: test_predicate_42_state_read(),
-        // Program to check pre-mutation value is None and
-        // post-mutation value is 42 at slot 0.
-        constraints: test_predicate_42_constraint(entropy),
-    }
+pub fn test_predicate_42(seed: Word) -> (Vec<Program>, Predicate) {
+    let programs = vec![
+        test_predicate_42_state_read(),
+        test_predicate_42_constraint(seed),
+    ];
+    let predicate = Predicate {
+        nodes: todo!(),
+        edges: todo!(),
+    };
+    (programs, predicate)
 }
 
-fn test_predicate_42_state_read() -> Vec<Vec<u8>> {
+fn test_predicate_42_state_read() -> Program {
     use state_read_vm::asm::short::*;
-    vec![state_read_vm::asm::to_bytes([
+    Program(state_read_vm::asm::to_bytes([
         PUSH(1),
         ALOCS,
         PUSH(0),
@@ -171,14 +173,13 @@ fn test_predicate_42_state_read() -> Vec<Vec<u8>> {
         PUSH(1),
         PUSH(0),
         KRNG,
-    ])
-    .collect()]
+    ]).collect())
 }
 
-fn test_predicate_42_constraint(entropy: Word) -> Vec<Vec<u8>> {
+fn test_predicate_42_constraint(seed: Word) -> Program {
     use constraint_vm::asm::short::*;
-    vec![constraint_vm::asm::to_bytes([
-        PUSH(entropy),
+    Program(constraint_vm::asm::to_bytes([
+        PUSH(seed),
         POP,
         PUSH(0), // slot_ix
         PUSH(0), // pre
@@ -193,8 +194,7 @@ fn test_predicate_42_constraint(entropy: Word) -> Vec<Vec<u8>> {
         PUSH(42),
         EQ,
         AND,
-    ])
-    .collect()]
+    ]).collect())
 }
 
 pub fn contract_addr(predicates: &contract::SignedContract) -> ContentAddress {
