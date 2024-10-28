@@ -5,7 +5,7 @@ use crate::{error::TemporaryError, OpResult};
 #[cfg(test)]
 mod tests;
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq)]
 /// Memory for temporary storage of words.
 pub struct Memory(Vec<Word>);
 
@@ -61,5 +61,22 @@ impl Memory {
     /// Is the memory empty?
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+}
+
+impl From<Memory> for Vec<Word> {
+    fn from(m: Memory) -> Vec<Word> {
+        m.0
+    }
+}
+
+impl TryFrom<Vec<Word>> for Memory {
+    type Error = TemporaryError;
+    fn try_from(words: Vec<Word>) -> Result<Self, Self::Error> {
+        if words.len() > Self::SIZE_LIMIT {
+            Err(TemporaryError::Overflow)
+        } else {
+            Ok(Self(words))
+        }
     }
 }

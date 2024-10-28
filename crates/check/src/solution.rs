@@ -1,10 +1,7 @@
 //! Items related to validating `Solution`s.
 
 use crate::{
-    constraint_vm::{
-        self,
-        error::{CheckError, ConstraintErrors, ConstraintsUnsatisfied},
-    },
+    constraint_vm::{self, error::ConstraintsUnsatisfied},
     state_read_vm::{
         self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
         StateRead,
@@ -14,6 +11,10 @@ use crate::{
         solution::{Solution, SolutionData, SolutionDataIndex},
         Key, PredicateAddress, Word,
     },
+};
+use essential_constraint_vm::{
+    error::{StackError, TemporaryError},
+    Memory, SolutionAccess, Stack, StateSlots,
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
@@ -27,7 +28,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
-use tokio::task::JoinSet;
+use tokio::{sync::oneshot, task::JoinSet};
 #[cfg(feature = "tracing")]
 use tracing::Instrument;
 
@@ -117,17 +118,39 @@ pub struct PredicateErrors<E>(pub Vec<(SolutionDataIndex, PredicateError<E>)>);
 /// [`check_predicate`] error.
 #[derive(Debug, Error)]
 pub enum PredicateError<E> {
+    /// One or more program tasks failed to join.
+    #[error("one or more spawned program tasks failed to join: {0}")]
+    Join(#[from] tokio::task::JoinError),
+    /// The execution of one or more programs failed.
+    #[error("one or more program execution errors occurred: {0}")]
+    ProgramErrors(#[from] ProgramErrors<E>),
+    /// One or more of the constraints were unsatisfied.
+    #[error("one or more constraints unsatisfied: {0}")]
+    ConstraintsUnsatisfied(#[from] ConstraintsUnsatisfied),
+}
+
+/// Program execution failed for the programs at the given node indices.
+#[derive(Debug, Error)]
+pub struct ProgramErrors<E>(Vec<(usize, ProgramError<E>)>);
+
+/// An error occurring during a program task.
+#[derive(Debug, Error)]
+pub enum ProgramError<E> {
     /// Failed to parse ops from bytecode during bytecode mapping.
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
-
-    // TODO: Delete these.
-    /// Failed to read state.
-    #[error("state read execution error: {0}")]
-    StateRead(#[from] StateReadError<E>),
-    /// Constraint checking failed.
-    #[error("constraint checking failed: {0}")]
-    Constraints(#[from] PredicateConstraintsError),
+    /// One of the channels providing a parent program result was dropped.
+    #[error("parent result oneshot channel closed: {0}")]
+    ParentChannelDropped(#[from] oneshot::error::RecvError),
+    /// Concatenating the parent program [`Stack`]s caused an overflow.
+    #[error("concatenating parent program `Stack`s caused an overflow: {0}")]
+    ParentStackConcatOverflow(#[from] StackError),
+    /// Concatenating the parent program [`Memory`] slices caused an overflow.
+    #[error("concatenating parent program `Memory` slices caused an overflow: {0}")]
+    ParentMemoryConcatOverflow(#[from] TemporaryError),
+    /// VM execution resulted in an error.
+    #[error("VM execution error: {0}")]
+    Vm(#[from] StateReadError<E>),
 }
 
 /// The number of decision variables provided by the solution data differs to
@@ -149,7 +172,7 @@ pub enum PredicateConstraintsError {
     Check(#[from] constraint_vm::error::CheckError),
     /// Failed to receive result from spawned task.
     #[error("failed to recv: {0}")]
-    Recv(#[from] tokio::sync::oneshot::error::RecvError),
+    Recv(#[from] oneshot::error::RecvError),
 }
 
 /// Maximum number of decision variables of a solution.
@@ -168,6 +191,16 @@ impl<E: fmt::Display> fmt::Display for PredicateErrors<E> {
         f.write_str("predicate checking failed for one or more solution data:\n")?;
         for (ix, err) in &self.0 {
             f.write_str(&format!("  {ix}: {err}\n"))?;
+        }
+        Ok(())
+    }
+}
+
+impl<E: fmt::Display> fmt::Display for ProgramErrors<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("the programs at the following node indices failed: \n")?;
+        for (node_ix, err) in &self.0 {
+            f.write_str(&format!("  {node_ix}: {err}\n"))?;
         }
         Ok(())
     }
@@ -333,8 +366,6 @@ where
     }
 
     // Calculate gas used.
-    // TODO: Gas is only calculated for state reads.
-    // Add gas tracking for constraint checking.
     let mut total_gas: u64 = 0;
     let mut failed = vec![];
     while let Some(res) = set.join_next().await {
@@ -366,8 +397,8 @@ where
 
 /// Checks a solution against a single predicate using the solution data at the given index.
 ///
-/// Spawns a task for each of the predicate's nodes to execute asynchronously. Oneshot channels are
-/// used to provide the execution results from parent to child.
+/// Spawns a task for each of the predicate's nodes to execute asynchronously.
+/// Oneshot channels are used to provide the execution results from parent to child.
 ///
 /// **NOTE:** This assumes that the given `Solution` and `Predicate` have been
 /// independently validated using [`solution::check`][crate::solution::check]
@@ -396,85 +427,63 @@ pub async fn check_predicate<SA, SB>(
     post_state: &SB,
     solution: Arc<Solution>,
     predicate: Arc<Predicate>,
-    get_program: impl Fn(&ContentAddress) -> Arc<Program>,
+    get_program: impl 'static + Clone + Send + Fn(&ContentAddress) -> Arc<Program>,
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
 ) -> Result<Gas, PredicateError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
     SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
+    SA::Future: Send,
+    SB::Future: Send,
+    SA::Error: Send,
 {
-    use state_read_vm::constraint::{Memory, Stack};
-    use tokio::sync::oneshot;
-
     type NodeIx = usize;
-    type ProgramOutput = (Stack, Memory);
-    type ParentResults = Vec<(NodeIx, oneshot::Receiver<Arc<ProgramOutput>>)>;
+    type ParentResultRxs = Vec<oneshot::Receiver<Arc<(Stack, Memory)>>>;
 
-    // The predicate provides a mapping from parents to children.
-    // However when checking each node, we want easy access to the parents.
-    let mut parent_results: HashMap<NodeIx, ParentResults> = HashMap::new();
+    // A map for providing result channels from parents to their children.
+    let mut parent_results: HashMap<NodeIx, ParentResultRxs> = HashMap::new();
 
     // As a part of a predicate's deployment, validation should ensure node's are in topological
     // order, and that the adjacency list is valid.
-    let program_tasks: JoinSet<Result<Gas, PredicateError<SA::Error>>> = predicate
+    let mut program_tasks: JoinSet<(NodeIx, Result<_, _>)> = predicate
         .nodes
         .iter()
         .enumerate()
         .map(|(node_ix, node)| {
             let edges = predicate
                 .node_edges(node_ix)
-                .unwrap_or_else(|| todo!("invalid predicate error"));
+                .expect("predicate graph must be valid");
 
             // Take the channels for our parent results.
-            let parents: ParentResults = parent_results.remove(&node_ix).unwrap_or_default();
+            let parents: ParentResultRxs = parent_results.remove(&node_ix).unwrap_or_default();
 
-            // Create the one shot channels for making the program results available to our children.
+            // Create the one shot channels for making this node's program results
+            // available to its children.
             let mut txs = vec![];
             for &e in edges {
                 let (tx, rx) = oneshot::channel();
                 txs.push(tx);
                 let child = usize::from(e);
-                parent_results.entry(child).or_default().push((node_ix, rx));
+                parent_results.entry(child).or_default().push(rx);
             }
 
-            let pre_state = pre_state.clone();
-            let post_state = post_state.clone();
+            // Map and evaluate the program asynchronously.
+            let program_fut = eval_program(
+                pre_state.clone(),
+                post_state.clone(),
+                solution.clone(),
+                solution_data_index,
+                Default::default(), // FIXME: Remove (transient data)
+                get_program(&node.program_address),
+                ProgramCtx {
+                    parents,
+                    children: txs,
+                    reads: node.reads,
+                },
+            );
 
-            // Map and execute the program asynchronously.
-            async move {
-                let program = get_program(&node.program_address);
-                let program_mapped = BytecodeMapped::try_from(&program.0[..])?;
-
-                // Create a new state read VM.
-                let mut vm = state_read_vm::Vm::default();
-
-                // Use the results of the parent execution to initialise our stack and memory.
-                for (_parent_ix, parent_rx) in parents {
-                    let (stack, memory) = parent_rx.await?;
-                    vm.stack.extend(stack)?;
-                    vm.temp_memory.extend(memory)?;
-                }
-
-                // TODO: Provide these from Config.
-                let gas_cost = |_: &state_read_vm::asm::Op| 1;
-                let gas_limit = GasLimit::UNLIMITED;
-                let access: Access<'_> = todo!();
-
-                // Read the state into the VM's memory.
-                let gas_spent = match reads {
-                    Reads::Pre => {
-                        vm.exec_bytecode(&program_mapped, access, &pre_state, &gas_cost, gas_limit)
-                            .await?
-                    }
-                    Reads::Post => {
-                        vm.exec_bytecode(&program_mapped, access, &post_state, &gas_cost, gas_limit)
-                            .await?
-                    }
-                };
-
-                Ok(gas_spent)
-            }
+            async move { (node_ix, program_fut.await) }
         })
         .collect();
 
@@ -482,38 +491,128 @@ where
     let mut failed = Vec::new();
     let mut unsatisfied = Vec::new();
 
-    // Await the completion of all our programs.
+    // Await the successful completion of our programs.
     let mut total_gas: Gas = 0;
-    while let Some(res) = program_tasks.join_next().await {
-        let gas = res?;
-
-        todo!("Check leaf nodes i.e. constraints");
-        // match res {
-        //     // If the constraint failed, add it to the failed list.
-        //     Err(err) => {
-        //         failed.push((ix, err));
-        //         if !config.collect_all_failures {
-        //             break;
-        //         }
-        //     }
-        //     // If the constraint was unsatisfied, add it to the unsatisfied list.
-        //     Ok(b) if !b => unsatisfied.push(ix),
-        //     // Otherwise, the constraint was satisfied.
-        //     _ => (),
-        // }
-
-        total_gas = total_gas.saturating_add(gas);
+    while let Some(join_res) = program_tasks.join_next().await {
+        let (node_ix, prog_res) = join_res?;
+        match prog_res {
+            Ok((satisfied, gas)) => {
+                // Check for unsatisfied constraints.
+                if let Some(false) = satisfied {
+                    unsatisfied.push(node_ix);
+                }
+                total_gas = total_gas.saturating_add(gas);
+            }
+            Err(err) => {
+                failed.push((node_ix, err));
+                if !config.collect_all_failures {
+                    break;
+                }
+            }
+        }
     }
 
     // If there are any failed constraints, return an error.
     if !failed.is_empty() {
-        return Err(CheckError::from(ConstraintErrors(failed)).into());
+        return Err(ProgramErrors(failed).into());
     }
 
     // If there are any unsatisfied constraints, return an error.
     if !unsatisfied.is_empty() {
-        return Err(CheckError::from(ConstraintsUnsatisfied(unsatisfied)).into());
+        return Err(ConstraintsUnsatisfied(unsatisfied).into());
     }
 
     Ok(total_gas)
+}
+
+/// The node context in which a `Program` is evaluated.
+struct ProgramCtx {
+    /// Oneshot channels providing the result of parent node program evaluation.
+    ///
+    /// Results in the `Vec` are assumed to be in order of the adjacency list.
+    parents: Vec<oneshot::Receiver<Arc<(Stack, Memory)>>>,
+    children: Vec<oneshot::Sender<Arc<(Stack, Memory)>>>,
+    reads: Reads,
+}
+
+/// Map the given program's bytecode and evaluate it.
+///
+/// If the program is a constraint, returns `Some(bool)` indicating whether or not the constraint
+/// was satisfied, otherwise returns `None`.
+async fn eval_program<SA, SB>(
+    pre_state: SA,
+    post_state: SB,
+    solution: Arc<Solution>,
+    solution_data_index: SolutionDataIndex,
+    transient_data: Arc<TransientData>,
+    program: Arc<Program>,
+    ctx: ProgramCtx,
+) -> Result<(Option<bool>, Gas), ProgramError<SA::Error>>
+where
+    SA: StateRead,
+    SB: StateRead<Error = SA::Error>,
+{
+    let program_mapped = BytecodeMapped::try_from(&program.0[..])?;
+
+    // Create a new state read VM.
+    let mut vm = state_read_vm::Vm::default();
+
+    // Use the results of the parent execution to initialise our stack and memory.
+    for parent_rx in ctx.parents {
+        let parent_result: Arc<_> = parent_rx.await?;
+        let (parent_stack, parent_memory) = Arc::unwrap_or_clone(parent_result);
+        // Extend the stack.
+        let mut stack: Vec<Word> = std::mem::take(&mut vm.stack).into();
+        stack.append(&mut parent_stack.into());
+        vm.stack = stack.try_into()?;
+
+        // Extend the memory.
+        let mut memory: Vec<Word> = std::mem::take(&mut vm.temp_memory).into();
+        memory.append(&mut parent_memory.into());
+        vm.temp_memory = memory.try_into()?;
+    }
+
+    // Setup solution data access for execution.
+    let mut_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+    let solution_access =
+        SolutionAccess::new(&solution, solution_data_index, &mut_keys, &transient_data);
+    let access: Access<'_> = Access {
+        solution: solution_access,
+        // FIXME: Remove this - no longer necessary.
+        state_slots: StateSlots {
+            pre: &[],
+            post: &[],
+        },
+    };
+
+    // FIXME: Provide these from Config.
+    let gas_cost = |_: &state_read_vm::asm::Op| 1;
+    let gas_limit = GasLimit::UNLIMITED;
+
+    // Read the state into the VM's memory.
+    let gas_spent = match ctx.reads {
+        Reads::Pre => {
+            vm.exec_bytecode(&program_mapped, access, &pre_state, &gas_cost, gas_limit)
+                .await?
+        }
+        Reads::Post => {
+            vm.exec_bytecode(&program_mapped, access, &post_state, &gas_cost, gas_limit)
+                .await?
+        }
+    };
+
+    // If this node is a constraint (has no children), check the stack result.
+    let opt_satisfied = if ctx.children.is_empty() {
+        Some(vm.stack[..] == [1])
+    } else {
+        let stack = vm.stack.clone();
+        let memory = vm.temp_memory.clone();
+        let output = Arc::new((stack, memory));
+        for tx in ctx.children {
+            let _ = tx.send(output.clone());
+        }
+        None
+    };
+
+    Ok((opt_satisfied, gas_spent))
 }
