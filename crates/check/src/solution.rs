@@ -44,6 +44,16 @@ pub struct CheckPredicateConfig {
     pub collect_all_failures: bool,
 }
 
+/// The node context in which a `Program` is evaluated (see [`eval_program`]).
+struct ProgramCtx {
+    /// Oneshot channels providing the result of parent node program evaluation.
+    ///
+    /// Results in the `Vec` are assumed to be in order of the adjacency list.
+    parents: Vec<oneshot::Receiver<Arc<(Stack, Memory)>>>,
+    children: Vec<oneshot::Sender<Arc<(Stack, Memory)>>>,
+    reads: Reads,
+}
+
 /// [`check`] error.
 #[derive(Debug, Error)]
 pub enum InvalidSolution {
@@ -427,7 +437,7 @@ pub async fn check_predicate<SA, SB>(
     post_state: &SB,
     solution: Arc<Solution>,
     predicate: Arc<Predicate>,
-    get_program: impl 'static + Clone + Send + Fn(&ContentAddress) -> Arc<Program>,
+    get_program: impl Fn(&ContentAddress) -> Arc<Program>,
     solution_data_index: SolutionDataIndex,
     config: &CheckPredicateConfig,
 ) -> Result<Gas, PredicateError<SA::Error>>
@@ -474,7 +484,6 @@ where
                 post_state.clone(),
                 solution.clone(),
                 solution_data_index,
-                Default::default(), // FIXME: Remove (transient data)
                 get_program(&node.program_address),
                 ProgramCtx {
                     parents,
@@ -525,16 +534,6 @@ where
     Ok(total_gas)
 }
 
-/// The node context in which a `Program` is evaluated.
-struct ProgramCtx {
-    /// Oneshot channels providing the result of parent node program evaluation.
-    ///
-    /// Results in the `Vec` are assumed to be in order of the adjacency list.
-    parents: Vec<oneshot::Receiver<Arc<(Stack, Memory)>>>,
-    children: Vec<oneshot::Sender<Arc<(Stack, Memory)>>>,
-    reads: Reads,
-}
-
 /// Map the given program's bytecode and evaluate it.
 ///
 /// If the program is a constraint, returns `Some(bool)` indicating whether or not the constraint
@@ -544,7 +543,6 @@ async fn eval_program<SA, SB>(
     post_state: SB,
     solution: Arc<Solution>,
     solution_data_index: SolutionDataIndex,
-    transient_data: Arc<TransientData>,
     program: Arc<Program>,
     ctx: ProgramCtx,
 ) -> Result<(Option<bool>, Gas), ProgramError<SA::Error>>
@@ -574,6 +572,7 @@ where
 
     // Setup solution data access for execution.
     let mut_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+    let transient_data = Default::default(); // FIXME: Remove this - no longer needed.
     let solution_access =
         SolutionAccess::new(&solution, solution_data_index, &mut_keys, &transient_data);
     let access: Access<'_> = Access {
