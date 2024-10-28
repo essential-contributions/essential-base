@@ -1,13 +1,14 @@
 use constraint_vm::asm::Op;
 use essential_check::{predicate, solution};
 use essential_constraint_vm as constraint_vm;
+use essential_hash::content_addr;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
     predicate::OldPredicate,
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, PredicateAddress, Word,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use util::{empty_solution, predicate_addr, random_keypair, State};
 
 pub mod util;
@@ -116,7 +117,7 @@ fn multiple_mutations_for_slot() {
 // Tests a predicate for contractting slot 0 to 42 against its associated solution.
 #[tokio::test]
 async fn check_predicate_42_with_solution() {
-    let (predicates, solution) = util::test_predicate_42_solution_pair(1, [0; 32]);
+    let (programs, predicates, solution) = util::test_predicate_42_solution_pair(1, [0; 32]);
 
     // First, validate both predicates and solution.
     predicate::check_signed_contract(&predicates).unwrap();
@@ -135,6 +136,11 @@ async fn check_predicate_42_with_solution() {
         assert_eq!(&predicate_addr, addr);
         predicate.clone()
     };
+    let programs: HashMap<_, _> = programs
+        .into_iter()
+        .map(|p| (content_addr(&p), Arc::new(p)))
+        .collect();
+    let get_program = Arc::new(move |ca: &ContentAddress| programs[ca].clone());
 
     // Run the check, and ensure ok and gas isn't 0.
     let gas = solution::check_predicates(
@@ -142,6 +148,7 @@ async fn check_predicate_42_with_solution() {
         &post_state,
         Arc::new(solution),
         get_predicate,
+        get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
     )
     .await
