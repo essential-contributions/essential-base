@@ -2,6 +2,7 @@
 //! Types needed to represent a predicate.
 
 use crate::{serde::bytecode, ConstraintBytecode, ContentAddress, StateReadBytecode};
+pub use encode_predicate::PredicateEncodeError;
 use header::{check_predicate_bounds, encoded_size, EncodedSize, PredicateBounds, PredicateError};
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +12,7 @@ use schemars::JsonSchema;
 #[cfg(test)]
 mod tests;
 
+pub mod encode_predicate;
 pub mod header;
 
 /// The state a program has access to.
@@ -21,7 +23,7 @@ pub mod header;
 pub enum Reads {
     /// State prior to mutations.
     #[default]
-    Pre,
+    Pre = 0,
     /// State post mutations.
     Post,
 }
@@ -84,6 +86,38 @@ pub struct OldPredicate {
         deserialize_with = "bytecode::deserialize_vec"
     )]
     pub constraints: Vec<ConstraintBytecode>,
+}
+
+impl Predicate {
+    /// Maximum number of nodes in a predicate.
+    pub const MAX_NODES: u16 = 1000;
+    /// Maximum number of edges in a predicate.
+    pub const MAX_EDGES: u16 = 1000;
+
+    /// Encode the predicate into a bytes iterator.
+    pub fn encode(&self) -> Result<impl Iterator<Item = u8> + '_, PredicateEncodeError> {
+        encode_predicate::encode_predicate(self)
+    }
+
+    /// The size of the encoded predicate in bytes.
+    pub fn encoded_size(&self) -> usize {
+        encode_predicate::predicate_encoded_size(self)
+    }
+
+    /// Decode a predicate from bytes.
+    pub fn decode(bytes: &[u8]) -> Result<Self, encode_predicate::PredicateDecodeError> {
+        encode_predicate::decode_predicate(bytes)
+    }
+}
+
+impl Programs {
+    /// Maximum number of programs in a set of programs.
+    pub const MAX_PROGRAMS: u16 = 1000;
+}
+
+impl Program {
+    /// Maximum size of a program in bytes.
+    pub const MAX_SIZE: u16 = 10_000;
 }
 
 impl OldPredicate {
