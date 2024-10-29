@@ -589,6 +589,10 @@ where
 ///
 /// If the program is a constraint, returns `Some(bool)` indicating whether or not the constraint
 /// was satisfied, otherwise returns `None`.
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(skip_all, fields(CA = %format!("{}", content_addr(&*program))[0..8])),
+)]
 async fn eval_program<SA, SB>(
     pre_state: SA,
     post_state: SB,
@@ -606,6 +610,25 @@ where
     // Create a new state read VM.
     let mut vm = state_read_vm::Vm::default();
 
+    #[cfg(feature = "tracing")]
+    tracing::trace!(
+        "Program {} [{} {}, {} {}, {:?}-state access]",
+        content_addr(&*program),
+        ctx.parents.len(),
+        if ctx.parents.len() == 1 {
+            "parent"
+        } else {
+            "parents"
+        },
+        ctx.children.len(),
+        if ctx.children.len() == 1 {
+            "child"
+        } else {
+            "children"
+        },
+        ctx.reads,
+    );
+
     // Use the results of the parent execution to initialise our stack and memory.
     for parent_rx in ctx.parents {
         let parent_result: Arc<_> = parent_rx.await?;
@@ -620,6 +643,13 @@ where
         memory.append(&mut parent_memory.into());
         vm.temp_memory = memory.try_into()?;
     }
+
+    #[cfg(feature = "tracing")]
+    tracing::trace!(
+        "VM initialised with: \n  ├── {:?}\n  └── {:?}",
+        &vm.stack,
+        &vm.temp_memory
+    );
 
     // Setup solution data access for execution.
     let mut_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
