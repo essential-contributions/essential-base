@@ -115,10 +115,16 @@ impl Predicate {
     /// node's edges are out of bounds of the predicate's `edges` slice.
     pub fn node_edges(&self, node_ix: usize) -> Option<&[Edge]> {
         let node = self.nodes.get(node_ix)?;
+        if node.edge_start == Edge::MAX {
+            return Some(&[]);
+        }
         let e_start = usize::from(node.edge_start);
-        let e_end = match self.nodes.get(node_ix.saturating_add(1)) {
+        let next_node_ix = node_ix.saturating_add(1);
+        let e_end = match self.nodes.get(next_node_ix) {
+            // If the next node isn't a leaf, use its `edge_start` as our `end`.
             Some(next) if next.edge_start != Edge::MAX => usize::from(next.edge_start),
-            _ => usize::from(node.edge_start),
+            // If the next node is a leaf, or there is no next node, the `end` is `edges.len()`.
+            Some(_) | None => self.edges.len(),
         };
         let edges = self.edges.get(e_start..e_end)?;
         Some(edges)
