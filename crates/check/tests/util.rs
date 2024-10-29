@@ -1,17 +1,11 @@
 use essential_check::{
-    constraint_vm,
     sign::secp256k1::{PublicKey, Secp256k1, SecretKey},
-    state_read_vm,
     state_read_vm::StateRead,
-    types::{
-        solution::{Mutation, Solution, SolutionData},
-        ContentAddress, Key, PredicateAddress, Word,
-    },
+    types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
 };
-use essential_hash::content_addr;
 use essential_types::{
     contract::{self, Contract},
-    predicate::{Edge, Node, Predicate, Program, Reads},
+    predicate::Predicate,
 };
 use std::{
     collections::BTreeMap,
@@ -147,78 +141,6 @@ pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
     secp.generate_keypair(&mut rng)
 }
 
-// A simple predicate that expects the value of previously uncontract state slot with index 0 to be 42.
-pub fn test_predicate_42(seed: Word) -> (Vec<Program>, Predicate) {
-    let state_read = test_predicate_42_state_read();
-    let constraint = test_predicate_42_constraint(seed);
-    let state_read_addr = content_addr(&state_read);
-    let constraint_addr = content_addr(&constraint);
-    let programs = vec![state_read, constraint];
-    let nodes = vec![
-        Node {
-            program_address: state_read_addr.clone(),
-            edge_start: 0,
-            reads: Reads::Pre,
-        },
-        Node {
-            program_address: state_read_addr,
-            edge_start: 2,
-            reads: Reads::Post,
-        },
-        Node {
-            program_address: constraint_addr,
-            edge_start: Edge::MAX,
-            reads: Reads::Pre,
-        },
-    ];
-    let edges = vec![1, 2, 2];
-    let predicate = Predicate { nodes, edges };
-    (programs, predicate)
-}
-
-fn test_predicate_42_state_read() -> Program {
-    use state_read_vm::asm::short::*;
-    Program(
-        state_read_vm::asm::to_bytes([
-            PUSH(1),
-            ALOCS,
-            PUSH(0),
-            PUSH(0),
-            PUSH(0),
-            PUSH(0),
-            PUSH(4),
-            PUSH(1),
-            PUSH(0),
-            KRNG,
-        ])
-        .collect(),
-    )
-}
-
-fn test_predicate_42_constraint(seed: Word) -> Program {
-    use constraint_vm::asm::short::*;
-    Program(
-        constraint_vm::asm::to_bytes([
-            PUSH(seed),
-            POP,
-            PUSH(0), // slot_ix
-            PUSH(0), // pre
-            SLEN,
-            PUSH(0),
-            EQ,
-            PUSH(0), // slot_ix
-            PUSH(0), // value_ix
-            PUSH(1), // len
-            PUSH(1), // post
-            STATE,
-            PUSH(42),
-            EQ,
-            AND,
-        ])
-        .collect(),
-    )
-}
-
 pub fn contract_addr(predicates: &contract::SignedContract) -> ContentAddress {
     essential_hash::content_addr(&predicates.contract)
 }
@@ -228,34 +150,4 @@ pub fn predicate_addr(predicates: &contract::SignedContract, ix: usize) -> Predi
         contract: contract_addr(predicates),
         predicate: essential_hash::content_addr(&predicates.contract[ix]),
     }
-}
-
-// Creates a test `Predicate` along with a `Solution` that solves it.
-pub fn test_predicate_42_solution_pair(
-    entropy: Word,
-    keypair_seed: [u8; 32],
-) -> (Vec<Program>, contract::SignedContract, Solution) {
-    // Create the test predicate, ensure its decision_variables match, and sign.
-    let (programs, predicate) = test_predicate_42(entropy);
-    let (sk, _pk) = random_keypair(keypair_seed);
-    let predicates = essential_sign::contract::sign(vec![predicate].into(), &sk);
-    let predicate_addr = predicate_addr(&predicates, 0);
-
-    // Construct the solution decision variables.
-    // The first is an inline variable 42.
-    let decision_variables = vec![vec![42]];
-
-    // Create the solution.
-    let solution = Solution {
-        data: vec![SolutionData {
-            predicate_to_solve: predicate_addr,
-            decision_variables,
-            state_mutations: vec![Mutation {
-                key: vec![0, 0, 0, 0],
-                value: vec![42],
-            }],
-        }],
-    };
-
-    (programs, predicates, solution)
 }

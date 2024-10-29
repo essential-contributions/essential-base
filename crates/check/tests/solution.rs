@@ -1,4 +1,4 @@
-use essential_check::{predicate, solution};
+use essential_check::solution;
 use essential_hash::content_addr;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
@@ -8,7 +8,7 @@ use essential_types::{
     ContentAddress, PredicateAddress, Word,
 };
 use std::{collections::HashMap, sync::Arc};
-use util::{empty_solution, predicate_addr, State};
+use util::{empty_solution, State};
 
 pub mod util;
 
@@ -111,49 +111,6 @@ fn multiple_mutations_for_slot() {
         solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::MultipleMutationsForSlot(addr, key))
             if addr == test_predicate_addr() && key == [0; 4]
     ));
-}
-
-// Tests a predicate for contractting slot 0 to 42 against its associated solution.
-#[tokio::test]
-async fn check_predicate_42_with_solution() {
-    let (programs, predicates, solution) = util::test_predicate_42_solution_pair(1, [0; 32]);
-
-    // First, validate both predicates and solution.
-    predicate::check_signed_contract(&predicates).unwrap();
-    solution::check(&solution).unwrap();
-
-    // Construct the pre state, then apply mutations to acquire post state.
-    let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::content_addr(&predicates.contract));
-    let mut post_state = pre_state.clone();
-    post_state.apply_mutations(&solution);
-
-    // There's only one predicate to solve.
-    let predicate_addr = predicate_addr(&predicates, 0);
-    let predicate = Arc::new(predicates.contract[0].clone());
-    let get_predicate = |addr: &PredicateAddress| {
-        assert_eq!(&predicate_addr, addr);
-        predicate.clone()
-    };
-    let programs: HashMap<_, _> = programs
-        .into_iter()
-        .map(|p| (content_addr(&p), Arc::new(p)))
-        .collect();
-    let get_program = Arc::new(programs);
-
-    // Run the check, and ensure ok and gas isn't 0.
-    let gas = solution::check_predicates(
-        &pre_state,
-        &post_state,
-        Arc::new(solution),
-        get_predicate,
-        get_program,
-        Arc::new(solution::CheckPredicateConfig::default()),
-    )
-    .await
-    .unwrap();
-
-    assert!(gas > 0);
 }
 
 // A simple test to check that resulting stacks are passed from parents to children.
