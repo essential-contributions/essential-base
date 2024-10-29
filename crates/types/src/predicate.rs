@@ -20,6 +20,7 @@ pub mod header;
     Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 #[repr(u8)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 pub enum Reads {
     /// State prior to mutations.
     #[default]
@@ -30,6 +31,7 @@ pub enum Reads {
 
 /// A node in the graph.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 pub struct Node {
     /// The start of relevant edges to this node in the edge list of the graph.
     ///
@@ -46,6 +48,7 @@ pub type Edge = u16;
 
 /// A program dependency graph.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 pub struct Predicate {
     /// Programs in the graph.
     pub nodes: Vec<Node>,
