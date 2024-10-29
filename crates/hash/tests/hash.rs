@@ -1,16 +1,13 @@
+use essential_hash::hash_bytes;
 use essential_types::{
     contract::Contract,
-    predicate::OldPredicate,
+    predicate::Predicate,
     solution::{Solution, SolutionData},
     Block, ContentAddress, PredicateAddress,
 };
-use sha2::Digest;
 
-fn test_predicate() -> OldPredicate {
-    OldPredicate {
-        state_read: Default::default(),
-        constraints: Default::default(),
-    }
+fn test_predicate() -> Predicate {
+    Predicate::default()
 }
 
 #[test]
@@ -32,14 +29,9 @@ fn hash_predicate() {
 #[test]
 fn test_content_addr() {
     let pred = &test_predicate();
-    let header = pred.encoded_header().unwrap();
-    let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
-    hasher.update(header.fixed_size_header.0);
-    hasher.update(header.lens);
-    for item in pred.programs() {
-        hasher.update(item);
-    }
-    let addr = ContentAddress(hasher.finalize().into());
+    let bytes = pred.encode().unwrap();
+    let bytes: Vec<_> = bytes.collect();
+    let addr = ContentAddress(hash_bytes(&bytes));
     let content_addr = essential_hash::content_addr(&test_predicate());
     assert_eq!(content_addr, addr);
 

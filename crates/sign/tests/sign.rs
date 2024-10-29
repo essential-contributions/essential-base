@@ -1,13 +1,10 @@
 use essential_sign::contract::sign;
-use essential_types::{contract::Contract, predicate::OldPredicate, Signature};
+use essential_types::{contract::Contract, predicate::Predicate, Signature};
 use rand::SeedableRng;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
-fn test_predicate() -> OldPredicate {
-    OldPredicate {
-        state_read: Default::default(),
-        constraints: Default::default(),
-    }
+fn test_predicate() -> Predicate {
+    Predicate::default()
 }
 
 fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {

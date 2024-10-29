@@ -1,15 +1,14 @@
-use constraint_vm::asm::Op;
 use essential_check::{predicate, solution};
-use essential_constraint_vm as constraint_vm;
 use essential_hash::content_addr;
 use essential_state_read_vm as state_read_vm;
 use essential_types::{
-    predicate::OldPredicate,
+    contract::Contract,
+    predicate::{Edge, Node, Predicate, Program, Reads},
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, PredicateAddress, Word,
 };
 use std::{collections::HashMap, sync::Arc};
-use util::{empty_solution, predicate_addr, random_keypair, State};
+use util::{empty_solution, predicate_addr, State};
 
 pub mod util;
 
@@ -140,7 +139,7 @@ async fn check_predicate_42_with_solution() {
         .into_iter()
         .map(|p| (content_addr(&p), Arc::new(p)))
         .collect();
-    let get_program = Arc::new(move |ca: &ContentAddress| programs[ca].clone());
+    let get_program = Arc::new(programs);
 
     // Run the check, and ensure ok and gas isn't 0.
     let gas = solution::check_predicates(
@@ -157,163 +156,109 @@ async fn check_predicate_42_with_solution() {
     assert!(gas > 0);
 }
 
+// A simple test to check that resulting stacks are passed from parents to children.
+//
+// ```ignore
+// a    b
+//  \  /
+//   \/
+//    c
+// ```
 #[tokio::test]
-async fn predicate_with_multiple_state_reads_and_slots() {
-    let read_three_slots = state_read_vm::asm::to_bytes([
-        state_read_vm::asm::Stack::Push(3).into(),
-        state_read_vm::asm::StateMemory::AllocSlots.into(),
-        state_read_vm::asm::Stack::Push(0).into(), // Key
-        state_read_vm::asm::Stack::Push(1).into(), // Key length
-        state_read_vm::asm::Stack::Push(1).into(), // Num keys to read
-        state_read_vm::asm::Stack::Push(0).into(), // Destination slot
-        state_read_vm::asm::StateRead::KeyRange,
-        state_read_vm::asm::Stack::Push(1).into(), // Key
-        state_read_vm::asm::Stack::Push(1).into(), // Key length
-        state_read_vm::asm::Stack::Push(2).into(), // Num keys to read
-        state_read_vm::asm::Stack::Push(1).into(), // Destination slot
-        state_read_vm::asm::StateRead::KeyRange,
-        state_read_vm::asm::TotalControlFlow::Halt.into(),
-    ])
-    .collect();
-    let read_two_slots = state_read_vm::asm::to_bytes([
-        state_read_vm::asm::Stack::Push(2).into(),
-        state_read_vm::asm::StateMemory::AllocSlots.into(),
-        state_read_vm::asm::Stack::Push(3).into(), // Key
-        state_read_vm::asm::Stack::Push(1).into(), // Key length
-        state_read_vm::asm::Stack::Push(2).into(), // Num keys to read
-        state_read_vm::asm::Stack::Push(0).into(), // Destination slot
-        state_read_vm::asm::StateRead::KeyRange,
-        state_read_vm::asm::TotalControlFlow::Halt.into(),
-    ])
-    .collect();
+async fn predicate_with_two_parents_one_leaf() {
+    tracing_subscriber::fmt::init();
+    let a = Program(
+        state_read_vm::asm::to_bytes([
+            state_read_vm::asm::Stack::Push(1).into(),
+            state_read_vm::asm::Stack::Push(2).into(),
+            state_read_vm::asm::Stack::Push(3).into(),
+            state_read_vm::asm::TotalControlFlow::Halt.into(),
+        ])
+        .collect(),
+    );
+    let b = Program(
+        state_read_vm::asm::to_bytes([
+            state_read_vm::asm::Stack::Push(4).into(),
+            state_read_vm::asm::Stack::Push(5).into(),
+            state_read_vm::asm::Stack::Push(6).into(),
+            state_read_vm::asm::TotalControlFlow::Halt.into(),
+        ])
+        .collect(),
+    );
+    let c = Program(
+        state_read_vm::asm::to_bytes([
+            // Stack should already have `[1, 2, 3, 4, 5, 6]`.
+            state_read_vm::asm::Stack::Push(1).into(),
+            state_read_vm::asm::Stack::Push(2).into(),
+            state_read_vm::asm::Stack::Push(3).into(),
+            state_read_vm::asm::Stack::Push(4).into(),
+            state_read_vm::asm::Stack::Push(5).into(),
+            state_read_vm::asm::Stack::Push(6).into(),
+            // a `len` for `EqRange`.
+            state_read_vm::asm::Stack::Push(6).into(), // EqRange len
+            state_read_vm::asm::Pred::EqRange.into(),
+            state_read_vm::asm::TotalControlFlow::Halt.into(),
+        ])
+        .collect(),
+    );
 
-    let slot_len = |slot, len| -> Vec<Op> {
-        vec![
-            constraint_vm::asm::Stack::Push(slot).into(), // slot
-            constraint_vm::asm::Stack::Push(1).into(),
-            constraint_vm::asm::Access::StateLen.into(),
-            constraint_vm::asm::Stack::Push(len).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-        ]
+    let a_ca = content_addr(&a);
+    let b_ca = content_addr(&b);
+    let c_ca = content_addr(&c);
+
+    let node = |program_address, edge_start| Node {
+        program_address,
+        edge_start,
+        reads: Reads::Pre, // unused for this test.
     };
-    let mut constraints: Vec<Op> = vec![];
-    // Slot 0 must have length 5.
-    constraints.extend(slot_len(0, 5));
-
-    // Slot 0 must equal 0, 1, 2, 3, 4.
-    let c: Vec<Op> = vec![
-        constraint_vm::asm::Stack::Push(0).into(), // slot
-        constraint_vm::asm::Stack::Push(0).into(),
-        constraint_vm::asm::Stack::Push(5).into(),
-        constraint_vm::asm::Stack::Push(1).into(),
-        constraint_vm::asm::Access::State.into(),
-        constraint_vm::asm::Stack::Push(0).into(),
-        constraint_vm::asm::Stack::Push(1).into(),
-        constraint_vm::asm::Stack::Push(2).into(),
-        constraint_vm::asm::Stack::Push(3).into(),
-        constraint_vm::asm::Stack::Push(4).into(),
-        constraint_vm::asm::Stack::Push(5).into(), // Eq range length
-        constraint_vm::asm::Pred::EqRange.into(),
+    let nodes = vec![
+        node(a_ca.clone(), 0),
+        node(b_ca.clone(), 1),
+        node(c_ca.clone(), Edge::MAX),
     ];
-    constraints.extend(c);
-    constraints.push(constraint_vm::asm::Pred::And.into());
-
-    // Slots 1, 2, 3, 4 must have length 1.
-    constraints.extend(slot_len(1, 1));
-    constraints.push(constraint_vm::asm::Pred::And.into());
-    constraints.extend(slot_len(2, 1));
-    constraints.push(constraint_vm::asm::Pred::And.into());
-    constraints.extend(slot_len(3, 1));
-    constraints.push(constraint_vm::asm::Pred::And.into());
-    constraints.extend(slot_len(4, 1));
-    constraints.push(constraint_vm::asm::Pred::And.into());
-
-    // Slots 1, 2, 3, 4 must be equal to 5, 6, 7, 8.
-    let c: Vec<Op> = vec![
-        constraint_vm::asm::Stack::Push(4).into(),
-        constraint_vm::asm::Stack::Push(1).into(),
-        constraint_vm::asm::Stack::Repeat.into(),
-        constraint_vm::asm::Access::RepeatCounter.into(),
-        constraint_vm::asm::Stack::Push(1).into(),
-        constraint_vm::asm::Alu::Add.into(),
-        constraint_vm::asm::Stack::Push(0).into(),
-        constraint_vm::asm::Stack::Push(1).into(),
-        constraint_vm::asm::Stack::Push(1).into(),
-        constraint_vm::asm::Access::State.into(),
-        constraint_vm::asm::Stack::RepeatEnd.into(),
-        constraint_vm::asm::Stack::Push(5).into(),
-        constraint_vm::asm::Stack::Push(6).into(),
-        constraint_vm::asm::Stack::Push(7).into(),
-        constraint_vm::asm::Stack::Push(8).into(),
-        constraint_vm::asm::Stack::Push(4).into(), // Eq range length
-        constraint_vm::asm::Pred::EqRange.into(),
-    ];
-    constraints.extend(c);
-    constraints.push(constraint_vm::asm::Pred::And.into());
-
-    let predicate = OldPredicate {
-        state_read: vec![read_three_slots, read_two_slots],
-        constraints: vec![constraint_vm::asm::to_bytes(constraints).collect()],
+    let edges = vec![2, 2];
+    let predicate = Predicate { nodes, edges };
+    let contract = Contract::without_salt(vec![predicate]);
+    let pred_addr = PredicateAddress {
+        contract: content_addr(&contract),
+        predicate: content_addr(&contract.predicates[0]),
     };
 
-    let (sk, _pk) = random_keypair([1; 32]);
-    let predicates = essential_sign::contract::sign(vec![predicate].into(), &sk);
-    let predicate_addr = util::predicate_addr(&predicates, 0);
-
-    // Create the solution.
+    // Create a solution that "solves" our predicate.
     let solution = Solution {
         data: vec![SolutionData {
-            predicate_to_solve: predicate_addr,
+            predicate_to_solve: pred_addr.clone(),
             decision_variables: Default::default(),
-            state_mutations: vec![
-                Mutation {
-                    key: vec![0],
-                    value: vec![0, 1, 2, 3, 4],
-                },
-                Mutation {
-                    key: vec![1],
-                    value: vec![5],
-                },
-                Mutation {
-                    key: vec![2],
-                    value: vec![6],
-                },
-                Mutation {
-                    key: vec![3],
-                    value: vec![7],
-                },
-                Mutation {
-                    key: vec![4],
-                    value: vec![8],
-                },
-            ],
+            state_mutations: vec![],
         }],
     };
 
     // First, validate both predicates and solution.
-    predicate::check_signed_contract(&predicates).unwrap();
-    solution::check(&solution).unwrap();
-
-    // Construct the pre state, then apply mutations to acquire post state.
-    let mut pre_state = State::EMPTY;
-    pre_state.deploy_namespace(essential_hash::content_addr(&predicates.contract));
-    let mut post_state = pre_state.clone();
-    post_state.apply_mutations(&solution);
+    essential_check::predicate::check(&contract.predicates[0]).unwrap();
+    essential_check::solution::check(&solution).unwrap();
 
     // There's only one predicate to solve.
-    let predicate_addr = util::predicate_addr(&predicates, 0);
-    let predicate = Arc::new(predicates.contract[0].clone());
+    let predicate = Arc::new(contract.predicates[0].clone());
     let get_predicate = |addr: &PredicateAddress| {
-        assert_eq!(&predicate_addr, addr);
+        assert_eq!(&pred_addr, addr);
         predicate.clone()
     };
+    let programs: HashMap<ContentAddress, Arc<Program>> = vec![
+        (a_ca, Arc::new(a)),
+        (b_ca, Arc::new(b)),
+        (c_ca, Arc::new(c)),
+    ]
+    .into_iter()
+    .collect();
+    let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     // Run the check, and ensure ok and gas aren't 0.
     let gas = solution::check_predicates(
-        &pre_state,
-        &post_state,
+        &State::EMPTY,
+        &State::EMPTY,
         Arc::new(solution),
         get_predicate,
+        get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
     )
     .await

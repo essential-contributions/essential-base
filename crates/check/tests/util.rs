@@ -4,7 +4,6 @@ use essential_check::{
     state_read_vm,
     state_read_vm::StateRead,
     types::{
-        predicate::OldPredicate,
         solution::{Mutation, Solution, SolutionData},
         ContentAddress, Key, PredicateAddress, Word,
     },
@@ -133,11 +132,8 @@ pub fn empty_solution() -> Solution {
     }
 }
 
-pub fn empty_predicate() -> OldPredicate {
-    OldPredicate {
-        state_read: Default::default(),
-        constraints: Default::default(),
-    }
+pub fn empty_predicate() -> Predicate {
+    Predicate::default()
 }
 
 pub fn empty_contract() -> Contract {
