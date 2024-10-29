@@ -351,7 +351,7 @@ StateRead:
               stack_out: [len]
 
             NumSlots:
-              opcode: 0x3D
+              opcode: 0x3B
               short: NSLT
               description: |
                 Get the number of decision var or state slots.
@@ -367,7 +367,7 @@ StateRead:
               stack_out: [len]
 
             PredicateExists:
-              opcode: 0x3E
+              opcode: 0x3C
               short: PEX
               description: |
                 Check if a solution to a predicate exists within the same solution

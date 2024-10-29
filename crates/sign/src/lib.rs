@@ -50,7 +50,7 @@ pub fn sign_hash(hash: Hash, sk: &SecretKey) -> Signature {
 fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
     let secp = Secp256k1::new();
     let (rec_id, sig) = secp.sign_ecdsa_recoverable(msg, sk).serialize_compact();
-    Signature(sig, rec_id.to_i32().try_into().unwrap())
+    Signature(sig, i32::from(rec_id).try_into().unwrap())
 }
 
 /// Verify a signature over the given hash.
@@ -83,7 +83,7 @@ pub fn recover_from_message(
     message: &Message,
     signature: &Signature,
 ) -> Result<PublicKey, secp256k1::Error> {
-    let recovery_id = RecoveryId::from_i32(i32::from(signature.1))?;
+    let recovery_id = RecoveryId::try_from(i32::from(signature.1))?;
     let recoverable_signature = RecoverableSignature::from_compact(&signature.0, recovery_id)?;
     let secp = Secp256k1::new();
     let public_key = secp.recover_ecdsa(message, &recoverable_signature)?;

@@ -65,7 +65,7 @@ pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
     let recovery_id: i32 = recover_bit
         .try_into()
         .map_err(|_| CryptoError::Secp256k1RecoveryId)?;
-    let recovery_id = RecoveryId::from_i32(recovery_id).map_err(CryptoError::Secp256k1)?;
+    let recovery_id = RecoveryId::try_from(recovery_id).map_err(CryptoError::Secp256k1)?;
 
     // Parse the signature
     let signature_bytes = u8_64_from_word_8(signature_words);
