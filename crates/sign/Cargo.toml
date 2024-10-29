@@ -1,6 +1,6 @@
 [package]
 name = "essential-sign"
-version = "0.4.0"
+version = "0.5.0"
 description = "Public key cryptography for the Essential ecosystem"
 edition.workspace = true
 authors.workspace = true
@@ -16,4 +16,4 @@ secp256k1 = { workspace = true }
 [dev-dependencies]
 hex = { workspace = true }
 rand = { workspace = true }
-secp256k1 = { workspace = true, features = ["rand-std"] }
+secp256k1 = { workspace = true, features = ["rand", "std"] }

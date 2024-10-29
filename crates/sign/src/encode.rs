@@ -34,7 +34,7 @@ pub fn public_key_as_bytes(pk: &PublicKey) -> [u8; 40] {
 /// Encode a secp256k1 recoverable signature into 9 words.
 pub fn signature(sig: &RecoverableSignature) -> [Word; 9] {
     let (rec_id, sig) = sig.serialize_compact();
-    let rec_id = rec_id.to_i32();
+    let rec_id: i32 = rec_id.into();
     let rec_id = Word::from(rec_id);
     let sig = word_8_from_u8_64(sig);
     let mut out = [0; 9];

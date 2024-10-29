@@ -204,7 +204,7 @@ fn test_secp256k1() {
         let mut stack = crate::Stack::default();
         stack.extend(word_4_from_u8_32(message)).unwrap();
         stack.extend(word_8_from_u8_64(sig_bytes)).unwrap();
-        let rec_id_word = Word::from(rec_id.to_i32());
+        let rec_id_word = Word::from(i32::from(rec_id));
         stack.push(rec_id_word).unwrap();
 
         recover_secp256k1(&mut stack).unwrap();
