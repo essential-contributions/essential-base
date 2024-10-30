@@ -68,7 +68,7 @@ pub trait GetProgram {
     fn get_program(&self, ca: &ContentAddress) -> Arc<Program>;
 }
 
-/// The node context in which a `Program` is evaluated (see [`eval_program`]).
+/// The node context in which a `Program` is evaluated (see [`run_program`]).
 struct ProgramCtx {
     /// Oneshot channels providing the result of parent node program evaluation.
     ///
@@ -530,7 +530,7 @@ where
             }
 
             // Map and evaluate the program asynchronously.
-            let program_fut = eval_program(
+            let program_fut = run_program(
                 pre_state.clone(),
                 post_state.clone(),
                 solution.clone(),
@@ -591,9 +591,12 @@ where
 /// was satisfied, otherwise returns `None`.
 #[cfg_attr(
     feature = "tracing",
-    tracing::instrument(skip_all, fields(CA = %format!("{}", content_addr(&*program))[0..8])),
+    tracing::instrument(
+        fields(CA = %format!("{}:{:?}", &format!("{}", content_addr(&*program))[0..8], ctx.reads)),
+        skip_all,
+    ),
 )]
-async fn eval_program<SA, SB>(
+async fn run_program<SA, SB>(
     pre_state: SA,
     post_state: SB,
     solution: Arc<Solution>,
@@ -612,7 +615,7 @@ where
 
     #[cfg(feature = "tracing")]
     tracing::trace!(
-        "Program {} [{} {}, {} {}, {:?}-state access]",
+        "Program {} [{} {}, {} {}]",
         content_addr(&*program),
         ctx.parents.len(),
         if ctx.parents.len() == 1 {
@@ -626,7 +629,6 @@ where
         } else {
             "children"
         },
-        ctx.reads,
     );
 
     // Use the results of the parent execution to initialise our stack and memory.
