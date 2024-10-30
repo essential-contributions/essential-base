@@ -1,6 +1,6 @@
 use essential_types::{
     contract::Contract,
-    predicate::{OldPredicate, Predicate},
+    predicate::{OldPredicate, Predicate, Program},
     solution::Solution,
     Block, ContentAddress,
 };
@@ -38,6 +38,12 @@ impl Address for Predicate {
         };
         let bytes: Vec<_> = bytes.collect();
         ContentAddress(crate::hash_bytes(&bytes))
+    }
+}
+
+impl Address for Program {
+    fn content_address(&self) -> ContentAddress {
+        ContentAddress(crate::hash_bytes(&self.0))
     }
 }
 

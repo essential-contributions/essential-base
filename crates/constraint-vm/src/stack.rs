@@ -304,9 +304,14 @@ impl From<Stack> for Vec<Word> {
     }
 }
 
-impl From<Vec<Word>> for Stack {
-    fn from(vec: Vec<Word>) -> Self {
-        Self(vec)
+impl TryFrom<Vec<Word>> for Stack {
+    type Error = StackError;
+    fn try_from(vec: Vec<Word>) -> Result<Self, Self::Error> {
+        if vec.len() > Self::SIZE_LIMIT {
+            Err(StackError::Overflow)
+        } else {
+            Ok(Self(vec))
+        }
     }
 }
 

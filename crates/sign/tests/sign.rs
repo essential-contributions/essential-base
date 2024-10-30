@@ -1,13 +1,10 @@
 use essential_sign::contract::sign;
-use essential_types::{contract::Contract, predicate::OldPredicate, Signature};
+use essential_types::{contract::Contract, predicate::Predicate, Signature};
 use rand::SeedableRng;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
-fn test_predicate() -> OldPredicate {
-    OldPredicate {
-        state_read: Default::default(),
-        constraints: Default::default(),
-    }
+fn test_predicate() -> Predicate {
+    Predicate::default()
 }
 
 fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
@@ -22,8 +19,8 @@ fn sign_predicate() {
     let contract = Contract::without_salt(vec![test_predicate()]);
     let signed = sign(contract, &sk);
     let expected_signature_hex = concat!(
-        "c2475e0e639306c6ac24ad5f6ab6cef38ab10568bd98d83997cbefa878a80d2b",
-        "45a4282e8c3f9ecb7f6a557fdce9fb3e20b1eb0bbf27f37c8ac37c5e8de33335"
+        "0b01fc0dffd2fd66b21c1a1d8d426834a131f30faf617a9c5862c0a09c7c217f",
+        "46d155dc91c014918d6c082eca518d9535fd44d5aa849f80c09589a36818f867",
     );
     let hex = hex::encode(signed.signature.0);
     assert_eq!(expected_signature_hex, hex);
