@@ -697,9 +697,7 @@ where
     let opt_satisfied = if ctx.children.is_empty() {
         Some(vm.stack[..] == [1])
     } else {
-        let stack = vm.stack.clone();
-        let memory = vm.temp_memory.clone();
-        let output = Arc::new((stack, memory));
+        let output = Arc::new((vm.stack, vm.temp_memory));
         for tx in ctx.children {
             let _ = tx.send(output.clone());
         }
