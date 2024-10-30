@@ -155,6 +155,9 @@ pub enum PredicateError<E> {
     /// One or more program tasks failed to join.
     #[error("one or more spawned program tasks failed to join: {0}")]
     Join(#[from] tokio::task::JoinError),
+    /// Failed to retrieve edges for a node, indicating that the predicate's graph is invalid.
+    #[error("failed to retrieve edges for node {0} indicating an invalid graph")]
+    InvalidNodeEdges(usize),
     /// The execution of one or more programs failed.
     #[error("one or more program execution errors occurred: {0}")]
     ProgramErrors(#[from] ProgramErrors<E>),
@@ -517,16 +520,16 @@ where
     // A map for providing result channels from parents to their children.
     let mut parent_results: HashMap<NodeIx, ParentResultRxs> = HashMap::new();
 
-    // As a part of a predicate's deployment, validation should ensure node's are in topological
-    // order, and that the adjacency list is valid.
-    let mut program_tasks: JoinSet<(NodeIx, Result<_, _>)> = predicate
+    // Prepare the program futures, or return early with an error
+    // if the predicate's graph is invalid.
+    let program_futures = predicate
         .nodes
         .iter()
         .enumerate()
         .map(|(node_ix, node)| {
             let edges = predicate
                 .node_edges(node_ix)
-                .expect("predicate graph must be valid");
+                .ok_or_else(|| PredicateError::InvalidNodeEdges(node_ix))?;
 
             // Take the channels for our parent results.
             let parents: ParentResultRxs = parent_results.remove(&node_ix).unwrap_or_default();
@@ -555,11 +558,17 @@ where
                 },
             );
 
-            async move { (node_ix, program_fut.await) }
+            Ok((node_ix, program_fut))
         })
+        .collect::<Result<Vec<(NodeIx, _)>, PredicateError<SA::Error>>>()?;
+
+    // Spawn a task for each program future with a tokio `JoinSet`.
+    let mut program_tasks: JoinSet<(NodeIx, Result<_, _>)> = program_futures
+        .into_iter()
+        .map(|(node_ix, program_fut)| async move { (node_ix, program_fut.await) })
         .collect();
 
-    // Prepare to collect failed programs and unsatissfied constraints.
+    // Prepare to collect failed programs and unsatisfied constraints.
     let mut failed = Vec::new();
     let mut unsatisfied = Vec::new();
 
