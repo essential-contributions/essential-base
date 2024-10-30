@@ -315,7 +315,6 @@ async fn predicate_graph_memory_passing() {
             predicate_to_solve: pred_addr.clone(),
             decision_variables: Default::default(),
             state_mutations: vec![],
-            transient_data: vec![],
         }],
     };
 
@@ -461,7 +460,6 @@ async fn predicate_graph_state_read() {
                     value: vec![7],
                 },
             ],
-            transient_data: vec![],
         }],
     };
 
