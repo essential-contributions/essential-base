@@ -75,7 +75,6 @@ impl State {
             None
         }
 
-        // If the predicate does not exist yet, assume `None`s as though predicate hasn't been deployed yet?
         let contract = match self.get(&contract_addr) {
             None => return Err(InvalidStateRead),
             Some(contract) => contract,

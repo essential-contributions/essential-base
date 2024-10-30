@@ -1,6 +1,6 @@
 use essential_check::solution;
 use essential_hash::content_addr;
-use essential_state_read_vm as state_read_vm;
+use essential_state_read_vm::asm;
 use essential_types::{
     contract::Contract,
     predicate::{Edge, Node, Predicate, Program, Reads},
@@ -116,45 +116,31 @@ fn multiple_mutations_for_slot() {
 // A simple test to check that resulting stacks are passed from parents to children.
 //
 // ```ignore
-// a    b
-//  \  /
-//   \/
+// a     b
+//  \   /
+//   \ /
+//    v
 //    c
 // ```
 #[tokio::test]
-async fn predicate_with_two_parents_one_leaf() {
-    tracing_subscriber::fmt::init();
-    let a = Program(
-        state_read_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::Stack::Push(2).into(),
-            state_read_vm::asm::Stack::Push(3).into(),
-            state_read_vm::asm::TotalControlFlow::Halt.into(),
-        ])
-        .collect(),
-    );
-    let b = Program(
-        state_read_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(4).into(),
-            state_read_vm::asm::Stack::Push(5).into(),
-            state_read_vm::asm::Stack::Push(6).into(),
-            state_read_vm::asm::TotalControlFlow::Halt.into(),
-        ])
-        .collect(),
-    );
+async fn predicate_graph_stack_passing() {
+    use essential_state_read_vm::asm::short::*;
+    let _ = tracing_subscriber::fmt::try_init();
+    let a = Program(asm::to_bytes([PUSH(1), PUSH(2), PUSH(3), HLT]).collect());
+    let b = Program(asm::to_bytes([PUSH(4), PUSH(5), PUSH(6), HLT]).collect());
     let c = Program(
-        state_read_vm::asm::to_bytes([
+        asm::to_bytes([
             // Stack should already have `[1, 2, 3, 4, 5, 6]`.
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::Stack::Push(2).into(),
-            state_read_vm::asm::Stack::Push(3).into(),
-            state_read_vm::asm::Stack::Push(4).into(),
-            state_read_vm::asm::Stack::Push(5).into(),
-            state_read_vm::asm::Stack::Push(6).into(),
+            PUSH(1),
+            PUSH(2),
+            PUSH(3),
+            PUSH(4),
+            PUSH(5),
+            PUSH(6),
             // a `len` for `EqRange`.
-            state_read_vm::asm::Stack::Push(6).into(), // EqRange len
-            state_read_vm::asm::Pred::EqRange.into(),
-            state_read_vm::asm::TotalControlFlow::Halt.into(),
+            PUSH(6), // EqRange len
+            EQRA,
+            HLT,
         ])
         .collect(),
     );
@@ -213,6 +199,299 @@ async fn predicate_with_two_parents_one_leaf() {
     let gas = solution::check_predicates(
         &State::EMPTY,
         &State::EMPTY,
+        Arc::new(solution),
+        get_predicate,
+        get_program,
+        Arc::new(solution::CheckPredicateConfig::default()),
+    )
+    .await
+    .unwrap();
+
+    assert!(gas > 0);
+}
+
+// A simple test to check that resulting memories are passed from parents to children.
+//
+// ```ignore
+// a     b
+//  \   /
+//   \ /
+//    v
+//    c
+// ```
+#[tokio::test]
+async fn predicate_graph_memory_passing() {
+    use essential_state_read_vm::asm::short::*;
+    let _ = tracing_subscriber::fmt::try_init();
+    // Store `[1, 2, 3]` at the start of memory.
+    let a = Program(
+        asm::to_bytes([
+            PUSH(3),
+            ALOCT,
+            PUSH(1),
+            STO,
+            PUSH(1),
+            PUSH(2),
+            STO,
+            PUSH(2),
+            PUSH(3),
+            STO,
+            HLT,
+        ])
+        .collect(),
+    );
+    // Store `[4, 5, 6]` at the start of memory.
+    let b = Program(
+        asm::to_bytes([
+            PUSH(3),
+            ALOCT,
+            PUSH(4),
+            STO,
+            PUSH(1),
+            PUSH(5),
+            STO,
+            PUSH(2),
+            PUSH(6),
+            STO,
+            HLT,
+        ])
+        .collect(),
+    );
+    let c = Program(
+        asm::to_bytes([
+            // Memory should already have `[1, 2, 3, 4, 5, 6]` at the start.
+            PUSH(0),
+            LOD,
+            PUSH(1),
+            LOD,
+            PUSH(2),
+            LOD,
+            PUSH(3),
+            LOD,
+            PUSH(4),
+            LOD,
+            PUSH(5),
+            LOD,
+            // Check that they're equal.
+            PUSH(1),
+            PUSH(2),
+            PUSH(3),
+            PUSH(4),
+            PUSH(5),
+            PUSH(6),
+            // a `len` for `EqRange`.
+            PUSH(6), // EqRange len
+            EQRA,
+            HLT,
+        ])
+        .collect(),
+    );
+
+    let a_ca = content_addr(&a);
+    let b_ca = content_addr(&b);
+    let c_ca = content_addr(&c);
+
+    let node = |program_address, edge_start| Node {
+        program_address,
+        edge_start,
+        reads: Reads::Pre, // unused for this test.
+    };
+    let nodes = vec![
+        node(a_ca.clone(), 0),
+        node(b_ca.clone(), 1),
+        node(c_ca.clone(), Edge::MAX),
+    ];
+    let edges = vec![2, 2];
+    let predicate = Predicate { nodes, edges };
+    let contract = Contract::without_salt(vec![predicate]);
+    let pred_addr = PredicateAddress {
+        contract: content_addr(&contract),
+        predicate: content_addr(&contract.predicates[0]),
+    };
+
+    // Create a solution that "solves" our predicate.
+    let solution = Solution {
+        data: vec![SolutionData {
+            predicate_to_solve: pred_addr.clone(),
+            decision_variables: Default::default(),
+            state_mutations: vec![],
+            transient_data: vec![],
+        }],
+    };
+
+    // First, validate both predicates and solution.
+    essential_check::predicate::check(&contract.predicates[0]).unwrap();
+    essential_check::solution::check(&solution).unwrap();
+
+    // There's only one predicate to solve.
+    let predicate = Arc::new(contract.predicates[0].clone());
+    let get_predicate = |addr: &PredicateAddress| {
+        assert_eq!(&pred_addr, addr);
+        predicate.clone()
+    };
+    let programs: HashMap<ContentAddress, Arc<Program>> = vec![
+        (a_ca, Arc::new(a)),
+        (b_ca, Arc::new(b)),
+        (c_ca, Arc::new(c)),
+    ]
+    .into_iter()
+    .collect();
+    let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
+
+    // Run the check, and ensure ok and gas aren't 0.
+    let gas = solution::check_predicates(
+        &State::EMPTY,
+        &State::EMPTY,
+        Arc::new(solution),
+        get_predicate,
+        get_program,
+        Arc::new(solution::CheckPredicateConfig::default()),
+    )
+    .await
+    .unwrap();
+
+    assert!(gas > 0);
+}
+
+// A simple test to check that transient nodes can read state and provide the results to its
+// children.
+//
+// In this program:
+//
+// 1. *a* pushes a key to the stack.
+// 2. *b* uses the key to read from pre *and* post-state (under different nodes).
+// 3. *c* multiples the values together and checks they equal 42.
+//
+//
+// ```ignore
+//         a
+//       /   \
+//      /     \
+//     /       \
+//    /         \
+//   v           v
+// b (pre)     b (post)
+//    \         /
+//     \       /
+//      \     /
+//       \   /
+//        \ /
+//         v
+//         c
+// ```
+#[tokio::test]
+async fn predicate_graph_state_read() {
+    use essential_state_read_vm::asm::short::*;
+    let _ = tracing_subscriber::fmt::try_init();
+
+    let key = vec![9, 9, 9, 9];
+
+    // Push the key and prepare the stack for the key read.
+    let a = Program(
+        asm::to_bytes(key.iter().map(|&w| PUSH(w)).chain([
+            // Push the length, num keys to read and slot index for the `KeyRange` op.
+            PUSH(4),
+            PUSH(1),
+            PUSH(0),
+            HLT,
+        ]))
+        .collect(),
+    );
+    // Perform the read op to read the value from state onto the stack.
+    // FIXME: This will change with state slot removal.
+    let b = Program(
+        asm::to_bytes([
+            // Allocate a slot to read into.
+            PUSH(1),
+            ALOCS,
+            // Read the key range into "state" memory.
+            KRNG,
+            // Read the value from "state" memory onto the stack.
+            PUSH(0),
+            PUSH(0),
+            PUSH(1),
+            LODS,
+            // Remove the index, we're only reading one key.
+            // POP,
+            HLT,
+        ])
+        .collect(),
+    );
+    // Stack should now have `[6, 7]` at the start.
+    // The `6` from pre-state, the `7` from post-state.
+    let c = Program(asm::to_bytes([MUL, PUSH(42), EQ]).collect());
+
+    let a_ca = content_addr(&a);
+    let b_ca = content_addr(&b);
+    let c_ca = content_addr(&c);
+
+    let node = |program_address, edge_start, reads| Node {
+        program_address,
+        edge_start,
+        reads,
+    };
+    let nodes = vec![
+        node(a_ca.clone(), 0, Reads::Pre),
+        node(b_ca.clone(), 2, Reads::Pre),
+        node(b_ca.clone(), 3, Reads::Post),
+        node(c_ca.clone(), Edge::MAX, Reads::Pre),
+    ];
+    let edges = vec![1, 2, 3, 3];
+    let predicate = Predicate { nodes, edges };
+    let contract = Contract::without_salt(vec![predicate]);
+    let pred_addr = PredicateAddress {
+        contract: content_addr(&contract),
+        predicate: content_addr(&contract.predicates[0]),
+    };
+
+    // Create the state. The initial state should be 6.
+    let mut pre_state = State::EMPTY;
+    pre_state.deploy_namespace(pred_addr.contract.clone());
+    pre_state.set(pred_addr.contract.clone(), &key, vec![6]);
+
+    // Create a solution that "solves" our predicate.
+    let solution = Solution {
+        data: vec![SolutionData {
+            predicate_to_solve: pred_addr.clone(),
+            decision_variables: Default::default(),
+            state_mutations: vec![
+                // Set the post state to 7.
+                Mutation {
+                    key,
+                    value: vec![7],
+                },
+            ],
+            transient_data: vec![],
+        }],
+    };
+
+    // Apply the solution's mutations for the post state.
+    let mut post_state = pre_state.clone();
+    post_state.apply_mutations(&solution);
+
+    // First, validate both predicates and solution.
+    essential_check::predicate::check(&contract.predicates[0]).unwrap();
+    essential_check::solution::check(&solution).unwrap();
+
+    // There's only one predicate to solve.
+    let predicate = Arc::new(contract.predicates[0].clone());
+    let get_predicate = |addr: &PredicateAddress| {
+        assert_eq!(&pred_addr, addr);
+        predicate.clone()
+    };
+    let programs: HashMap<ContentAddress, Arc<Program>> = vec![
+        (a_ca, Arc::new(a)),
+        (b_ca, Arc::new(b)),
+        (c_ca, Arc::new(c)),
+    ]
+    .into_iter()
+    .collect();
+    let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
+
+    // Run the check, and ensure ok and gas aren't 0.
+    let gas = solution::check_predicates(
+        &pre_state,
+        &post_state,
         Arc::new(solution),
         get_predicate,
         get_program,
