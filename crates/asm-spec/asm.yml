@@ -102,6 +102,34 @@ StateRead:
                 - If there is no counter on the repeat stack.
                 - If there is no repeat registered to return to.
 
+            Reserve:
+              opcode: 0x0B
+              short: RES
+              description: |
+                Reserve space on the stack for `len` words.
+                The reserved space is set to 0.
+              stack_in: [len]
+            
+            Load:
+              opcode: 0x0C
+              short: LODS
+              description: Load the value at the given stack depth index relative to the bottom.
+              panics:
+                - Index is out of range.
+              stack_in: [index]
+              stack_out: [value]
+
+            Store:
+              opcode: 0x0D
+              short: STOS
+              description: |
+                Store the value at the given stack depth index relative to the bottom.
+
+                `0` is the index of the element at the bottom of the stack.
+              panics:
+                - Index is out of range.
+              stack_in: [index, value]
+
         Pred:
           description: Operations for computing predicates.
           group:
@@ -485,18 +513,26 @@ StateRead:
           group:
             Alloc:
               opcode: 0x70
-              short: ALOCT
+              short: ALOC
               description: |
-                Allocate new memory to the end of the temporary memory.
+                Allocate a new block of memory to the end of the temporary memory.
                 Sets new memory to 0.
                 Returns the index to the start of the new block of memory.
+                Allocate 0 to get the current length of the memory.
               panics:
                 - Max memory size reached.
               stack_in: [size]
               stack_out: [index]
+            
+            Free:
+              opcode: 0x71
+              description: Free memory down to the specified index.
+              panics:
+                - The index is negative.
+              stack_in: [index]
 
             Load:
-              opcode: 0x71
+              opcode: 0x72
               short: LOD
               description: Load the value at the index of temporary memory onto the stack.
               panics:
@@ -505,12 +541,31 @@ StateRead:
               stack_out: [value]
 
             Store:
-              opcode: 0x72
+              opcode: 0x73
               short: STO
               description: Store the value at the index of temporary memory.
               panics:
                 - Index is out of bounds.
               stack_in: [index, value]
+
+            LoadRange:
+              opcode: 0x74
+              short: LODR
+              description: Load a range of words starting at the index of temporary memory.
+              panics:
+                - Index is out of bounds.
+                - Index + len is out of bounds.
+              stack_in: [index, len]
+              stack_out: [values]
+
+            StoreRange:
+              opcode: 0x75
+              short: STOR
+              description: Store a range of words starting at the index of temporary memory.
+              panics:
+                - Index is out of bounds.
+                - Index + len is out of bounds.
+              stack_in: [index, values, len]
 
     StateMemory:
       description: Operations for controlling mutable state slots.
@@ -523,7 +578,7 @@ StateRead:
 
         Load:
           opcode: 0x81
-          short: LODS
+          short: LODSM
           description: |
             Access a range of `len` words starting from `value_ix` within 
             the memory slot located at `slot_ix`.
@@ -539,7 +594,7 @@ StateRead:
 
         Store:
           opcode: 0x82
-          short: STOS
+          short: STOSM
           description: |
             Store `len` words of data at the `slot_ix` starting at `value_ix`.
           panics:

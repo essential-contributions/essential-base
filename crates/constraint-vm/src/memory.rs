@@ -49,6 +49,41 @@ impl Memory {
         Ok(*self.0.get(index).ok_or(TemporaryError::IndexOutOfBounds)?)
     }
 
+    /// Store a range of words starting at the given address.
+    pub fn store_range(&mut self, address: Word, values: &[Word]) -> OpResult<()> {
+        let address = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
+        let end = address
+            .checked_add(values.len())
+            .ok_or(TemporaryError::Overflow)?;
+        if end > self.0.len() {
+            return Err(TemporaryError::IndexOutOfBounds.into());
+        }
+        self.0[address..end].copy_from_slice(values);
+        Ok(())
+    }
+
+    /// Load a range of words starting at the given address.
+    pub fn load_range(&mut self, address: Word, size: Word) -> OpResult<Vec<Word>> {
+        let address = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
+        let size = usize::try_from(size).map_err(|_| TemporaryError::Overflow)?;
+        let end = address.checked_add(size).ok_or(TemporaryError::Overflow)?;
+        if end > self.0.len() {
+            return Err(TemporaryError::IndexOutOfBounds.into());
+        }
+        Ok(self.0[address..end].to_vec())
+    }
+
+    /// Free some memory from an index to the end of this memory.
+    pub fn free(&mut self, address: Word) -> OpResult<()> {
+        let index = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
+        if index >= self.0.len() {
+            return Err(TemporaryError::IndexOutOfBounds.into());
+        }
+        self.0.truncate(index);
+        self.0.shrink_to_fit();
+        Ok(())
+    }
+
     /// Current len of the memory.
     pub fn len(&self) -> OpResult<Word> {
         Ok(self
