@@ -3,9 +3,9 @@ use std::sync::Arc;
 use essential_check::constraint_vm;
 use essential_types::{
     contract::Contract,
-    predicate::OldPredicate,
+    predicate::{Edge, Node, Predicate, Program, Reads},
     solution::{Solution, SolutionData},
-    Hash, PredicateAddress,
+    ContentAddress, Hash, PredicateAddress,
 };
 use sha2::Digest;
 use util::State;
@@ -15,9 +15,8 @@ pub mod util;
 #[tokio::test]
 async fn test_encoding_sig_and_pub_key() {
     tracing_subscriber::fmt::init();
-    let predicate = OldPredicate {
-        state_read: vec![],
-        constraints: vec![constraint_vm::asm::to_bytes([
+    let program = Arc::new(Program(
+        constraint_vm::asm::to_bytes([
             // Get the secp256k1 public key. It is 5 slots.
             constraint_vm::asm::Stack::Push(0).into(),
             constraint_vm::asm::Stack::Push(0).into(),
@@ -42,8 +41,16 @@ async fn test_encoding_sig_and_pub_key() {
             constraint_vm::asm::Stack::Push(5).into(),
             constraint_vm::asm::Pred::EqRange.into(),
         ])
-        .collect()],
-    };
+        .collect(),
+    ));
+    let program_address = essential_hash::content_addr(&*program);
+    let nodes = vec![Node {
+        program_address: program_address.clone(),
+        edge_start: Edge::MAX,
+        reads: Reads::Pre,
+    }];
+    let edges = vec![];
+    let predicate = Predicate { nodes, edges };
 
     let contract = Contract::without_salt(vec![predicate]);
 
@@ -81,6 +88,10 @@ async fn test_encoding_sig_and_pub_key() {
         assert_eq!(&address, addr);
         predicate.clone()
     };
+    let get_program = Arc::new(move |ca: &ContentAddress| {
+        assert_eq!(&program_address, ca);
+        program.clone()
+    });
 
     // Run the check, and ensure it returns ok.
     essential_check::solution::check_predicates(
@@ -88,6 +99,7 @@ async fn test_encoding_sig_and_pub_key() {
         &post_state,
         Arc::new(solution),
         get_predicate,
+        get_program,
         Default::default(),
     )
     .await
