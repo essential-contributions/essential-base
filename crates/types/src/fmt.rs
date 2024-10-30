@@ -1,6 +1,6 @@
 //! `core::fmt` implementations and related items.
 
-use crate::{ContentAddress, Signature};
+use crate::{ContentAddress, PredicateAddress, Signature};
 use core::{fmt, str};
 
 impl fmt::LowerHex for ContentAddress {
@@ -50,6 +50,12 @@ impl fmt::Debug for ContentAddress {
 impl fmt::Display for ContentAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         hex::encode_upper(self.0).fmt(f)
+    }
+}
+
+impl fmt::Display for PredicateAddress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}", self.contract, self.predicate)
     }
 }
 
