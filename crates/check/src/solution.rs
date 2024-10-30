@@ -270,6 +270,18 @@ impl GetProgram for HashMap<ContentAddress, Arc<Program>> {
     }
 }
 
+impl<T: GetPredicate> GetPredicate for Arc<T> {
+    fn get_predicate(&self, addr: &PredicateAddress) -> Arc<Predicate> {
+        (**self).get_predicate(addr)
+    }
+}
+
+impl<T: GetProgram> GetProgram for Arc<T> {
+    fn get_program(&self, ca: &ContentAddress) -> Arc<Program> {
+        (**self).get_program(ca)
+    }
+}
+
 /// Validate a solution, to the extent it can be validated without reference to
 /// its associated predicates.
 ///
@@ -378,7 +390,7 @@ pub async fn check_predicates<SA, SB>(
     post_state: &SB,
     solution: Arc<Solution>,
     get_predicate: impl GetPredicate,
-    get_program: Arc<impl 'static + GetProgram + Send + Sync>,
+    get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
 ) -> Result<Gas, PredicatesError<SA::Error>>
 where
@@ -412,7 +424,7 @@ where
                 &post_state,
                 solution,
                 predicate,
-                &*get_program,
+                &get_program,
                 solution_data_index,
                 &config,
             )
