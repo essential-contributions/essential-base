@@ -114,8 +114,10 @@ impl Predicate {
 
     /// The slice of edges associated with the node at the given index.
     ///
-    /// Returns `None` in the case that the given node indexs is out of bound, or if any of the
+    /// Returns `None` in the case that the given node index is out of bound, or if any of the
     /// node's edges are out of bounds of the predicate's `edges` slice.
+    ///
+    /// If the node is a leaf, returns an empty slice.
     pub fn node_edges(&self, node_ix: usize) -> Option<&[Edge]> {
         let node = self.nodes.get(node_ix)?;
         if node.edge_start == Edge::MAX {
