@@ -44,12 +44,10 @@ pub use essential_types as types;
 use essential_types::{ContentAddress, Word};
 #[doc(inline)]
 pub use future::ExecFuture;
-pub use state_memory::StateMemory;
 pub use state_read::StateRead;
 
 pub mod error;
 mod future;
-mod state_memory;
 mod state_read;
 
 /// The operation execution state of the State Read VM.
@@ -65,8 +63,6 @@ pub struct Vm {
     pub repeat: Repeat,
     /// Lazily cached data for the VM.
     pub cache: LazyCache,
-    /// The state memory that will be written to by this program.
-    pub state_memory: StateMemory,
 }
 
 /// Unit used to measure gas.
@@ -247,13 +243,6 @@ impl Vm {
         OA::Error: Into<OpError<S::Error>>,
     {
         future::exec(self, access, state_read, op_access, op_gas_cost, gas_limit).await
-    }
-
-    /// Consumes the `Vm` and returns the read state slots.
-    ///
-    /// The returned slots correspond directly with the current memory content.
-    pub fn into_state_slots(self) -> Vec<Vec<Word>> {
-        self.state_memory.into()
     }
 }
 
