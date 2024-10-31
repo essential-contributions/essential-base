@@ -64,10 +64,6 @@ pub struct Program(
     pub Vec<u8>,
 );
 
-/// A set of programs.
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct Programs(pub Vec<Program>);
-
 impl Predicate {
     /// Maximum number of nodes in a predicate.
     pub const MAX_NODES: u16 = 1000;
@@ -111,11 +107,6 @@ impl Predicate {
         let edges = self.edges.get(e_start..e_end)?;
         Some(edges)
     }
-}
-
-impl Programs {
-    /// Maximum number of programs in a set of programs.
-    pub const MAX_PROGRAMS: u16 = 1000;
 }
 
 impl Program {
