@@ -42,7 +42,7 @@ pub struct Signature(
     pub u8,
 );
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Content address of a predicate or contract.
 pub struct ContentAddress(pub Hash);
@@ -74,4 +74,10 @@ pub struct Block {
     pub timestamp: Duration,
     /// The solutions in the the block.
     pub solutions: Vec<Solution>,
+}
+
+impl core::fmt::Debug for ContentAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", hex::encode(&self.0))
+    }
 }
