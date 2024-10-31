@@ -379,7 +379,7 @@ pub fn step_on_temporary(
             let addr = stack.pop()?;
             memory.free(addr)
         }
-        essential_constraint_asm::Temporary::LoadRange => {
+        asm::Temporary::LoadRange => {
             let [addr, size] = stack.pop2()?;
             let words = memory.load_range(addr, size)?;
             Ok(stack.extend(words)?)
