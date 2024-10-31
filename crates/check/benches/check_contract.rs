@@ -5,12 +5,11 @@ use std::{
 };
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use essential_constraint_vm as constraint_vm;
-use essential_state_read_vm as state_read_vm;
+use essential_hash::content_addr;
 use essential_state_read_vm::StateRead;
 use essential_types::{
     contract::{Contract, SignedContract},
-    predicate::OldPredicate,
+    predicate::{Edge, Node, Predicate, Program, Reads},
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, Key, PredicateAddress, Word,
 };
@@ -23,10 +22,9 @@ pub fn bench(c: &mut Criterion) {
         .unwrap();
 
     for i in [1, 10, 100, 1000, 10_000] {
-        let (predicates, solution, predicates_map) = create(i);
-        let get_predicate = |addr: &PredicateAddress| predicates_map.get(addr).cloned().unwrap();
+        let (contract, solution, predicates, programs) = create(i);
         let mut pre_state = State::EMPTY;
-        pre_state.deploy_namespace(essential_hash::content_addr(&predicates.contract));
+        pre_state.deploy_namespace(essential_hash::content_addr(&contract.contract));
         let mut post_state = pre_state.clone();
         post_state.apply_mutations(&solution);
         c.bench_function(&format!("check_42_{}", i), |b| {
@@ -35,7 +33,8 @@ pub fn bench(c: &mut Criterion) {
                     &pre_state,
                     &post_state,
                     solution.clone(),
-                    get_predicate,
+                    predicates.clone(),
+                    programs.clone(),
                     config.clone(),
                 )
             });
@@ -52,24 +51,31 @@ fn create(
 ) -> (
     SignedContract,
     Arc<Solution>,
-    HashMap<PredicateAddress, Arc<OldPredicate>>,
+    Arc<HashMap<PredicateAddress, Arc<Predicate>>>,
+    Arc<HashMap<ContentAddress, Arc<Program>>>,
 ) {
-    let (predicates, solution) = test_predicate_42_solution_pair(amount, [0; 32]);
-    let contract = contract_addr(&predicates);
-    let predicates_map: HashMap<_, _> = predicates
+    let (contract, programs, solution) = test_predicate_42_solution_pair(amount, [0; 32]);
+    let contract_ca = content_addr(&contract.contract);
+    let predicates: HashMap<_, _> = contract
         .contract
+        .predicates
         .iter()
         .map(|predicate| {
             (
                 PredicateAddress {
-                    contract: contract.clone(),
+                    contract: contract_ca.clone(),
                     predicate: essential_hash::content_addr(predicate),
                 },
                 Arc::new(predicate.clone()),
             )
         })
         .collect();
-    (predicates, Arc::new(solution), predicates_map)
+    (
+        contract,
+        Arc::new(solution),
+        Arc::new(predicates),
+        Arc::new(programs),
+    )
 }
 
 #[derive(Clone, Debug)]
@@ -174,50 +180,75 @@ impl StateRead for State {
     }
 }
 
-fn test_predicate_42(entropy: Word) -> OldPredicate {
-    OldPredicate {
-        // State read program to read state slot 0.
-        state_read: vec![state_read_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::StateMemory::AllocSlots.into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::Stack::Push(4).into(),
-            state_read_vm::asm::Stack::Push(1).into(),
-            state_read_vm::asm::Stack::Push(0).into(),
-            state_read_vm::asm::StateRead::KeyRange,
-            state_read_vm::asm::TotalControlFlow::Halt.into(),
+fn test_predicate_42(entropy: Word) -> (HashMap<ContentAddress, Arc<Program>>, Predicate) {
+    use essential_state_read_vm::asm::{self, short::*};
+
+    // Program to read key [0, 0, 0, 0].
+    let a = Program(
+        asm::to_bytes([
+            PUSH(1),
+            ALOCS,
+            PUSH(0),
+            PUSH(0),
+            PUSH(0),
+            PUSH(0),
+            PUSH(4),
+            PUSH(1),
+            PUSH(0),
+            KRNG,
+            // Read the value from "state" memory onto the stack.
+            PUSH(0),
+            PUSH(0),
+            PUSH(1),
+            LODS,
+            HLT,
         ])
-        .collect()],
-        // Program to check pre-mutation value is None and
-        // post-mutation value is 42 at slot 0.
-        constraints: vec![constraint_vm::asm::to_bytes([
-            state_read_vm::asm::Stack::Push(entropy).into(),
-            state_read_vm::asm::Stack::Pop.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
-            constraint_vm::asm::Stack::Push(0).into(), // pre
-            constraint_vm::asm::Access::StateLen.into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
-            constraint_vm::asm::Stack::Push(1).into(), // post
-            constraint_vm::asm::Access::State.into(),
-            constraint_vm::asm::Stack::Push(42).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Pred::And.into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
-            constraint_vm::asm::Stack::Push(0).into(), // slot
-            constraint_vm::asm::Stack::Push(1).into(), // post
-            constraint_vm::asm::Access::State.into(),
-            constraint_vm::asm::Stack::Push(42).into(),
-            constraint_vm::asm::Pred::Eq.into(),
-            constraint_vm::asm::Pred::And.into(),
+        .collect(),
+    );
+
+    // Program to check pre-mutation value is None and
+    // post-mutation value is 42 at slot 0.
+    let b = Program(
+        asm::to_bytes([
+            PUSH(entropy),
+            POP,
+            // Check the pre-state is 0, and the post state is 42.
+            // We'll do this with `EqRange`.
+            // First, push the `0`.
+            PUSH(0),
+            // Next retrieve the `42` from the decision variable.
+            PUSH(0), // slot_ix
+            PUSH(0), // value_ix
+            PUSH(1), // len
+            VAR,
+            // Now EqRange.
+            PUSH(2),
+            EQRA,
         ])
-        .collect()],
-    }
+        .collect(),
+    );
+
+    let a_ca = content_addr(&a);
+    let b_ca = content_addr(&b);
+
+    let node = |program_address, edge_start, reads| Node {
+        program_address,
+        edge_start,
+        reads,
+    };
+    let nodes = vec![
+        node(a_ca.clone(), 0, Reads::Pre),
+        node(a_ca.clone(), 1, Reads::Post),
+        node(b_ca.clone(), Edge::MAX, Default::default()),
+    ];
+    let edges = vec![2, 2];
+
+    let predicate = Predicate { nodes, edges };
+    let programs = vec![(a_ca, Arc::new(a)), (b_ca, Arc::new(b))]
+        .into_iter()
+        .collect();
+
+    (programs, predicate)
 }
 
 fn contract_addr(contract: &SignedContract) -> ContentAddress {
@@ -234,9 +265,14 @@ fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 fn test_predicate_42_solution_pair(
     amount: usize,
     keypair_seed: [u8; 32],
-) -> (SignedContract, Solution) {
+) -> (
+    SignedContract,
+    HashMap<ContentAddress, Arc<Program>>,
+    Solution,
+) {
     // Create the test predicate, ensure its decision_variables match, and sign.
-    let predicates: Vec<_> = (0..amount).map(|i| test_predicate_42(i as Word)).collect();
+    let (programs, predicates): (Vec<_>, _) =
+        (0..amount).map(|i| test_predicate_42(i as Word)).unzip();
     let contract = Contract::without_salt(predicates);
     let (sk, _pk) = random_keypair(keypair_seed);
     let signed_contract = essential_sign::contract::sign(contract, &sk);
@@ -258,6 +294,10 @@ fn test_predicate_42_solution_pair(
         .collect();
 
     let solution = Solution { data };
+    let programs = programs
+        .into_iter()
+        .flat_map(|map| map.into_iter())
+        .collect();
 
-    (signed_contract, solution)
+    (signed_contract, programs, solution)
 }
