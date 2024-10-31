@@ -75,9 +75,3 @@ pub struct Block {
     /// The solutions in the the block.
     pub solutions: Vec<Solution>,
 }
-
-impl core::fmt::Debug for ContentAddress {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}

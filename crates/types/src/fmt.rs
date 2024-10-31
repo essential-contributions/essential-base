@@ -41,6 +41,12 @@ impl fmt::UpperHex for Signature {
     }
 }
 
+impl fmt::Debug for ContentAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl fmt::Display for ContentAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         hex::encode_upper(self.0).fmt(f)
