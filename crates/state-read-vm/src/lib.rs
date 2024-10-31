@@ -30,18 +30,16 @@
 
 use constraint::{ProgramControlFlow, Repeat};
 #[doc(inline)]
-pub use error::{OpAsyncResult, OpResult, OpSyncResult, StateMemoryResult, StateReadResult};
-use error::{OpError, OpSyncError, StateMemoryError, StateReadError};
+pub use error::{OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
+use error::{OpError, OpSyncError, StateReadError};
 use essential_constraint_vm::LazyCache;
 #[doc(inline)]
-pub use essential_constraint_vm::{
-    self as constraint, Access, OpAccess, SolutionAccess, Stack, StateSlotSlice, StateSlots,
-};
+pub use essential_constraint_vm::{self as constraint, Access, OpAccess, Stack};
 #[doc(inline)]
 pub use essential_state_asm as asm;
 use essential_state_asm::Op;
 pub use essential_types as types;
-use essential_types::{ContentAddress, Word};
+use essential_types::ContentAddress;
 #[doc(inline)]
 pub use future::ExecFuture;
 pub use state_read::StateRead;
@@ -88,18 +86,9 @@ pub struct GasLimit {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub(crate) enum OpKind {
     /// Operations that yield immediately.
-    Sync(OpSync),
+    Sync(asm::Constraint),
     /// Operations returning a future.
     Async(OpAsync),
-}
-
-/// The contract of operations performed synchronously.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub(crate) enum OpSync {
-    /// All operations available to the constraint checker.
-    Constraint(asm::Constraint),
-    /// Operations for interacting with mutable state slots.
-    StateMemory(asm::StateMemory),
 }
 
 /// The contract of operations that are performed asynchronously.
@@ -249,8 +238,7 @@ impl Vm {
 impl From<Op> for OpKind {
     fn from(op: Op) -> Self {
         match op {
-            Op::Constraint(op) => OpKind::Sync(OpSync::Constraint(op)),
-            Op::StateMemory(op) => OpKind::Sync(OpSync::StateMemory(op)),
+            Op::Constraint(op) => OpKind::Sync(op),
             Op::KeyRange => OpKind::Async(OpAsync::StateReadKeyRange),
             Op::KeyRangeExtern => OpKind::Async(OpAsync::StateReadKeyRangeExt),
         }
@@ -270,40 +258,25 @@ where
 ///
 /// Returns a `Some(usize)` representing the new program counter resulting from
 /// this step, or `None` in the case that execution has halted.
-pub(crate) fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncResult<Option<usize>> {
-    match op {
-        OpSync::Constraint(op) => {
-            let Vm {
-                stack,
-                repeat,
-                pc,
-                temp_memory,
-                cache,
-                ..
-            } = vm;
-            match constraint::step_op(access, op, stack, temp_memory, *pc, repeat, cache)? {
-                Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
-                Some(ProgramControlFlow::Halt) => return Ok(None),
-                None => (),
-            }
-        }
-        OpSync::StateMemory(op) => step_op_state_slots(op, &mut *vm)?,
+pub(crate) fn step_op_sync(
+    op: asm::Constraint,
+    access: Access,
+    vm: &mut Vm,
+) -> OpSyncResult<Option<usize>> {
+    let Vm {
+        stack,
+        repeat,
+        pc,
+        temp_memory,
+        cache,
+        ..
+    } = vm;
+    match constraint::step_op(access, op, stack, temp_memory, *pc, repeat, cache)? {
+        Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
+        Some(ProgramControlFlow::Halt) => return Ok(None),
+        None => (),
     }
     // Every operation besides control flow steps forward program counter by 1.
     let new_pc = vm.pc.checked_add(1).ok_or(OpSyncError::PcOverflow)?;
     Ok(Some(new_pc))
-}
-
-/// Step forward state reading by the given state slot operation.
-pub(crate) fn step_op_state_slots(op: asm::StateMemory, vm: &mut Vm) -> OpSyncResult<()> {
-    match op {
-        asm::StateMemory::AllocSlots => {
-            state_memory::alloc_slots(&mut vm.stack, &mut vm.state_memory)
-        }
-        asm::StateMemory::Truncate => state_memory::truncate(&mut vm.stack, &mut vm.state_memory),
-        asm::StateMemory::Length => state_memory::length(&mut vm.stack, &vm.state_memory),
-        asm::StateMemory::ValueLen => state_memory::value_len(&mut vm.stack, &vm.state_memory),
-        asm::StateMemory::Load => state_memory::load(&mut vm.stack, &vm.state_memory),
-        asm::StateMemory::Store => state_memory::store(&mut vm.stack, &mut vm.state_memory),
-    }
 }

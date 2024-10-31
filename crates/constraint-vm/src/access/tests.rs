@@ -3,7 +3,7 @@ use crate::error::StackError;
 use crate::{
     asm,
     error::{AccessError, ConstraintError, OpError},
-    eval_ops, exec_ops,
+    exec_ops,
     test_util::*,
 };
 use essential_types::{
@@ -296,16 +296,13 @@ fn test_decision_var_len() {
 #[test]
 fn decision_var_single_word_ops() {
     let access = Access {
-        solution: SolutionAccess {
-            data: &[SolutionData {
-                predicate_to_solve: TEST_PREDICATE_ADDR,
-                decision_variables: vec![vec![42]],
-                state_mutations: Default::default(),
-            }],
-            index: 0,
-            mutable_keys: test_empty_keys(),
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &[SolutionData {
+            predicate_to_solve: TEST_PREDICATE_ADDR,
+            decision_variables: vec![vec![42]],
+            state_mutations: Default::default(),
+        }],
+        index: 0,
+        mutable_keys: test_empty_keys(),
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
@@ -320,16 +317,13 @@ fn decision_var_single_word_ops() {
 #[test]
 fn decision_var_ops() {
     let access = Access {
-        solution: SolutionAccess {
-            data: &[SolutionData {
-                predicate_to_solve: TEST_PREDICATE_ADDR,
-                decision_variables: vec![vec![7, 8, 9], vec![10, 11, 12]],
-                state_mutations: Default::default(),
-            }],
-            index: 0,
-            mutable_keys: test_empty_keys(),
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &[SolutionData {
+            predicate_to_solve: TEST_PREDICATE_ADDR,
+            decision_variables: vec![vec![7, 8, 9], vec![10, 11, 12]],
+            state_mutations: Default::default(),
+        }],
+        index: 0,
+        mutable_keys: test_empty_keys(),
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot.
@@ -344,16 +338,13 @@ fn decision_var_ops() {
 #[test]
 fn decision_var_slot_oob_ops() {
     let access = Access {
-        solution: SolutionAccess {
-            data: &[SolutionData {
-                predicate_to_solve: TEST_PREDICATE_ADDR,
-                decision_variables: vec![vec![42]],
-                state_mutations: Default::default(),
-            }],
-            index: 0,
-            mutable_keys: test_empty_keys(),
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &[SolutionData {
+            predicate_to_solve: TEST_PREDICATE_ADDR,
+            decision_variables: vec![vec![42]],
+            state_mutations: Default::default(),
+        }],
+        index: 0,
+        mutable_keys: test_empty_keys(),
     };
     let ops = &[
         asm::Stack::Push(1).into(), // Slot index.
@@ -419,10 +410,7 @@ fn mut_keys_push_eq() {
     let mutable_keys = mut_keys_set(&solution, predicate_index);
 
     // Construct access to the parts of the solution that we need for checking.
-    let access = Access {
-        solution: SolutionAccess::new(&solution, predicate_index, &mutable_keys),
-        state_slots: StateSlots::EMPTY,
-    };
+    let access = Access::new(&solution, predicate_index, &mutable_keys);
 
     // We're only going to execute the `MutKeysLen` op to check the expected value.
     let mut expected_set = vec![];
@@ -446,250 +434,6 @@ fn mut_keys_push_eq() {
     ops.push(asm::Pred::EqSet.into());
     let stack = exec_ops(&ops, access).unwrap();
     assert_eq!(&stack[..], &[1]);
-}
-
-#[test]
-fn state_single_word_pre_mutation() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![0], vec![42]],
-            post: &[vec![0], vec![0]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(1).into(), // Slot index.
-        asm::Stack::Push(0).into(), // Value index.
-        asm::Stack::Push(1).into(), // Length.
-        asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-        asm::Access::State.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[42]);
-}
-
-#[test]
-fn state_single_word_post_mutation() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![0], vec![0]],
-            post: &[vec![42], vec![0]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(0).into(), // Slot index.
-        asm::Stack::Push(0).into(), // Value index.
-        asm::Stack::Push(1).into(), // Length.
-        asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-        asm::Access::State.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[42]);
-}
-
-#[test]
-fn state_pre_mutation_oob() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![0], vec![42]],
-            post: &[vec![0], vec![0]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(2).into(), // Slot index (out-of-bounds).
-        asm::Stack::Push(0).into(), // Value index.
-        asm::Stack::Push(1).into(), // Length.
-        asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-        asm::Access::State.into(),
-    ];
-    let res = exec_ops(ops, access);
-    match res {
-        Err(ConstraintError::Op(_, OpError::Access(AccessError::StateSlotIxOutOfBounds(2)))) => (),
-        _ => panic!("expected state slot out-of-bounds error, got {res:?}"),
-    }
-}
-
-#[test]
-fn invalid_state_slot_delta() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![0], vec![42]],
-            post: &[vec![0], vec![0]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(1).into(), // Slot index.
-        asm::Stack::Push(0).into(), // Value index.
-        asm::Stack::Push(1).into(), // Length.
-        asm::Stack::Push(2).into(), // Delta (invalid).
-        asm::Access::State.into(),
-    ];
-    let res = exec_ops(ops, access);
-    match res {
-        Err(ConstraintError::Op(_, OpError::Access(AccessError::InvalidStateSlotDelta(2)))) => {}
-        _ => panic!("expected invalid state slot delta error, got {res:?}"),
-    }
-}
-
-#[test]
-fn state_slot_was_none() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![]],
-            post: &[vec![]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(0).into(), // Slot index.
-        asm::Stack::Push(0).into(), // Value index.
-        asm::Stack::Push(0).into(), // Length.
-        asm::Stack::Push(0).into(), // Delta.
-        asm::Access::State.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert!(&stack.is_empty());
-}
-
-#[test]
-fn state_pre_mutation() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![10], vec![20], vec![30]],
-            post: &[vec![0], vec![0], vec![0]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(3).into(), // Num repeats
-        asm::Stack::Push(1).into(), // Count up
-        asm::Stack::Repeat.into(),
-        asm::Access::RepeatCounter.into(), // Slot index.
-        asm::Stack::Push(0).into(),        // Value index.
-        asm::Stack::Push(1).into(),        // Range length.
-        asm::Stack::Push(0).into(),        // Delta (0 for pre-mutation state).
-        asm::Access::State.into(),
-        asm::Stack::RepeatEnd.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[10, 20, 30]);
-}
-
-#[test]
-fn state_post_mutation() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![0], vec![0], vec![0]],
-            post: &[vec![0], vec![40], vec![50]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(2).into(), // Num repeats
-        asm::Stack::Push(1).into(), // Count up
-        asm::Stack::Repeat.into(),
-        asm::Access::RepeatCounter.into(), // Slot index.
-        asm::Stack::Push(1).into(),        // Slot index.
-        asm::Alu::Add.into(),              // Slot index.
-        asm::Stack::Push(0).into(),        // Value index.
-        asm::Stack::Push(1).into(),        // Range length.
-        asm::Stack::Push(1).into(),        // Delta (1 for post-mutation state).
-        asm::Access::State.into(),
-        asm::Stack::RepeatEnd.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    assert_eq!(&stack[..], &[40, 50]);
-}
-
-#[test]
-fn state_is_not_empty_pre_mutation_false() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![0], vec![]],
-            post: &[vec![0], vec![0]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(1).into(), // Slot index.
-        asm::Stack::Push(0).into(), // Delta (0 for pre-mutation state).
-        asm::Access::StateLen.into(),
-        asm::Stack::Push(0).into(),
-        asm::Pred::Eq.into(),
-        asm::Pred::Not.into(),
-    ];
-    // Expect false for `vec![]`.
-    assert!(!eval_ops(ops, access).unwrap());
-}
-
-#[test]
-fn state_is_not_empty_post_mutation_true() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![], vec![]],
-            post: &[vec![42], vec![]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(0).into(), // Slot index.
-        asm::Stack::Push(1).into(), // Delta (1 for post-mutation state).
-        asm::Access::StateLen.into(),
-        asm::Stack::Push(0).into(),
-        asm::Pred::Eq.into(),
-        asm::Pred::Not.into(),
-    ];
-    // Expect true for `vec![42]`.
-    assert!(eval_ops(ops, access).unwrap());
-}
-
-#[test]
-fn state_is_some_range_pre_mutation() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![10], vec![], vec![30]],
-            post: &[vec![], vec![], vec![]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(3).into(), // Num repeats
-        asm::Stack::Push(1).into(), // Count up
-        asm::Stack::Repeat.into(),
-        asm::Access::RepeatCounter.into(), // Slot index.
-        asm::Stack::Push(0).into(),        // Delta (0 for pre-mutation state).
-        asm::Access::StateLen.into(),
-        asm::Stack::RepeatEnd.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    // Expect true, false, true for `vec![10], vec![], vec![30]`.
-    assert_eq!(&stack[..], &[1, 0, 1]);
-}
-
-#[test]
-fn state_is_some_range_post_mutation() {
-    let access = Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots {
-            pre: &[vec![], vec![], vec![]],
-            post: &[vec![], vec![40], vec![]],
-        },
-    };
-    let ops = &[
-        asm::Stack::Push(3).into(), // Num repeats
-        asm::Stack::Push(1).into(), // Count up
-        asm::Stack::Repeat.into(),
-        asm::Access::RepeatCounter.into(), // Slot index.
-        asm::Stack::Push(1).into(),        // Delta (1 for post-mutation state).
-        asm::Access::StateLen.into(),
-        asm::Stack::RepeatEnd.into(),
-    ];
-    let stack = exec_ops(ops, access).unwrap();
-    // Expect false, true, false for `vec![], vec![40], vec![]`.
-    assert_eq!(&stack[..], &[0, 1, 0]);
 }
 
 #[test]

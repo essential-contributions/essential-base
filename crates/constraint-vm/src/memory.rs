@@ -1,6 +1,6 @@
 use essential_types::Word;
 
-use crate::{error::TemporaryError, OpResult};
+use crate::error::TemporaryError;
 
 #[cfg(test)]
 mod tests;
@@ -19,7 +19,7 @@ impl Memory {
     }
 
     /// Allocate more memory to the end of this memory.
-    pub fn alloc(&mut self, size: Word) -> OpResult<()> {
+    pub fn alloc(&mut self, size: Word) -> Result<(), TemporaryError> {
         let size = usize::try_from(size).map_err(|_| TemporaryError::Overflow)?;
         let new_size = self
             .0
@@ -27,14 +27,14 @@ impl Memory {
             .checked_add(size)
             .ok_or(TemporaryError::Overflow)?;
         if new_size > Self::SIZE_LIMIT {
-            return Err(TemporaryError::Overflow.into());
+            return Err(TemporaryError::Overflow);
         }
         self.0.resize(new_size, 0);
         Ok(())
     }
 
     /// Store a word at the given address.
-    pub fn store(&mut self, address: Word, value: Word) -> OpResult<()> {
+    pub fn store(&mut self, address: Word, value: Word) -> Result<(), TemporaryError> {
         let index = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
         *self
             .0
@@ -44,40 +44,40 @@ impl Memory {
     }
 
     /// Load a word from the given address.
-    pub fn load(&mut self, address: Word) -> OpResult<Word> {
+    pub fn load(&mut self, address: Word) -> Result<Word, TemporaryError> {
         let index = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
         Ok(*self.0.get(index).ok_or(TemporaryError::IndexOutOfBounds)?)
     }
 
     /// Store a range of words starting at the given address.
-    pub fn store_range(&mut self, address: Word, values: &[Word]) -> OpResult<()> {
+    pub fn store_range(&mut self, address: Word, values: &[Word]) -> Result<(), TemporaryError> {
         let address = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
         let end = address
             .checked_add(values.len())
             .ok_or(TemporaryError::Overflow)?;
         if end > self.0.len() {
-            return Err(TemporaryError::IndexOutOfBounds.into());
+            return Err(TemporaryError::IndexOutOfBounds);
         }
         self.0[address..end].copy_from_slice(values);
         Ok(())
     }
 
     /// Load a range of words starting at the given address.
-    pub fn load_range(&mut self, address: Word, size: Word) -> OpResult<Vec<Word>> {
+    pub fn load_range(&mut self, address: Word, size: Word) -> Result<Vec<Word>, TemporaryError> {
         let address = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
         let size = usize::try_from(size).map_err(|_| TemporaryError::Overflow)?;
         let end = address.checked_add(size).ok_or(TemporaryError::Overflow)?;
         if end > self.0.len() {
-            return Err(TemporaryError::IndexOutOfBounds.into());
+            return Err(TemporaryError::IndexOutOfBounds);
         }
         Ok(self.0[address..end].to_vec())
     }
 
     /// Free some memory from an index to the end of this memory.
-    pub fn free(&mut self, address: Word) -> OpResult<()> {
+    pub fn free(&mut self, address: Word) -> Result<(), TemporaryError> {
         let index = usize::try_from(address).map_err(|_| TemporaryError::IndexOutOfBounds)?;
         if index >= self.0.len() {
-            return Err(TemporaryError::IndexOutOfBounds.into());
+            return Err(TemporaryError::IndexOutOfBounds);
         }
         self.0.truncate(index);
         self.0.shrink_to_fit();
@@ -85,12 +85,11 @@ impl Memory {
     }
 
     /// Current len of the memory.
-    pub fn len(&self) -> OpResult<Word> {
-        Ok(self
-            .0
+    pub fn len(&self) -> Result<Word, TemporaryError> {
+        self.0
             .len()
             .try_into()
-            .map_err(|_| TemporaryError::Overflow)?)
+            .map_err(|_| TemporaryError::Overflow)
     }
 
     /// Is the memory empty?
@@ -113,5 +112,12 @@ impl TryFrom<Vec<Word>> for Memory {
         } else {
             Ok(Self(words))
         }
+    }
+}
+
+impl core::ops::Deref for Memory {
+    type Target = [Word];
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

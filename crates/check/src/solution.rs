@@ -14,7 +14,7 @@ use crate::{
 };
 use essential_constraint_vm::{
     error::{StackError, TemporaryError},
-    Memory, SolutionAccess, Stack, StateSlots,
+    Memory, Stack,
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
@@ -676,15 +676,7 @@ where
 
     // Setup solution data access for execution.
     let mut_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
-    let solution_access = SolutionAccess::new(&solution, solution_data_index, &mut_keys);
-    let access: Access<'_> = Access {
-        solution: solution_access,
-        // FIXME: Remove this - no longer necessary.
-        state_slots: StateSlots {
-            pre: &[],
-            post: &[],
-        },
-    };
+    let access = Access::new(&solution, solution_data_index, &mut_keys);
 
     // FIXME: Provide these from Config.
     let gas_cost = |_: &state_read_vm::asm::Op| 1;

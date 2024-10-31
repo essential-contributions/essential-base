@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use essential_constraint_asm as asm;
-use essential_constraint_vm::{eval_ops, Access, SolutionAccess, StateSlots};
+use essential_constraint_vm::{eval_ops, Access};
 use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 #[test]
@@ -10,19 +10,16 @@ fn test_forall_in_asm() {
     let _ = tracing_subscriber::fmt::try_init();
     let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        solution: SolutionAccess {
-            data: &[SolutionData {
-                predicate_to_solve: PredicateAddress {
-                    contract: ContentAddress([0; 32]),
-                    predicate: ContentAddress([0; 32]),
-                },
-                decision_variables: vec![vec![2], vec![4, 6], vec![8, 12]],
-                state_mutations: vec![],
-            }],
-            index: 0,
-            mutable_keys: &mutable_keys,
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &[SolutionData {
+            predicate_to_solve: PredicateAddress {
+                contract: ContentAddress([0; 32]),
+                predicate: ContentAddress([0; 32]),
+            },
+            decision_variables: vec![vec![2], vec![4, 6], vec![8, 12]],
+            state_mutations: vec![],
+        }],
+        index: 0,
+        mutable_keys: &mutable_keys,
     };
 
     // let len: int;
@@ -69,19 +66,16 @@ fn test_forall_in_asm() {
 fn test_fold_filter_in_asm() {
     let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        solution: SolutionAccess {
-            data: &[SolutionData {
-                predicate_to_solve: PredicateAddress {
-                    contract: ContentAddress([0; 32]),
-                    predicate: ContentAddress([0; 32]),
-                },
-                decision_variables: vec![],
-                state_mutations: vec![],
-            }],
-            index: 0,
-            mutable_keys: &mutable_keys,
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &[SolutionData {
+            predicate_to_solve: PredicateAddress {
+                contract: ContentAddress([0; 32]),
+                predicate: ContentAddress([0; 32]),
+            },
+            decision_variables: vec![],
+            state_mutations: vec![],
+        }],
+        index: 0,
+        mutable_keys: &mutable_keys,
     };
 
     // let list: int[3] = [1, 2, 3];

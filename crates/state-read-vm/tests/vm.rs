@@ -4,10 +4,10 @@ mod util;
 
 use constraint::mut_keys_set;
 use essential_state_read_vm::{
-    asm::{self, Op},
+    asm::{self, short::*, Op},
     constraint,
     types::solution::{Mutation, Solution, SolutionData},
-    Access, BytecodeMapped, Gas, GasLimit, SolutionAccess, StateSlots, Vm,
+    Access, BytecodeMapped, Gas, GasLimit, Vm,
 };
 use util::*;
 
@@ -186,7 +186,7 @@ async fn exec_method_behaviours_match() {
 // Emulate the process of reading pre state, applying mutations to produce
 // post state, and checking the constraints afterwards.
 #[tokio::test]
-async fn read_pre_post_state_and_check_constraints() {
+async fn read_pre_post_state() {
     let predicate_addr = TEST_PREDICATE_ADDR;
 
     // In the pre-state, we have [Some(40), None, Some(42)].
@@ -214,24 +214,20 @@ async fn read_pre_post_state_and_check_constraints() {
     let mutable_keys = mut_keys_set(&solution, predicate_index);
 
     // Construct access to the necessary solution data for the VM.
-    let mut access = Access {
-        solution: SolutionAccess::new(&solution, predicate_index, &mutable_keys),
-        // Haven't calculated these yet.
-        state_slots: StateSlots::EMPTY,
-    };
+    let access = Access::new(&solution, predicate_index, &mutable_keys);
 
-    // A simple state read program that reads words directly to the slots.
+    // A simple state read program that reads words directly to memory.
     let ops = &[
-        asm::Stack::Push(3).into(),
-        asm::StateMemory::AllocSlots.into(),
-        asm::Stack::Push(0).into(), // Key0
-        asm::Stack::Push(0).into(), // Key1
-        asm::Stack::Push(0).into(), // Key2
-        asm::Stack::Push(0).into(), // Key3
-        asm::Stack::Push(4).into(), // Key length
-        asm::Stack::Push(3).into(), // Num words
-        asm::Stack::Push(0).into(), // Slot index
-        asm::StateRead::KeyRange,
+        PUSH(9), // index, len, index, len, index, len, val, val, val
+        ALOC,
+        PUSH(0), // Key0
+        PUSH(0), // Key1
+        PUSH(0), // Key2
+        PUSH(0), // Key3
+        PUSH(4), // Key length
+        PUSH(3), // Num words
+        PUSH(0), // Slot index
+        KRNG,
     ];
 
     // Execute the program.
@@ -240,8 +236,8 @@ async fn read_pre_post_state_and_check_constraints() {
         .await
         .unwrap();
 
-    // Collect the state slots.
-    let pre_state_slots = vm.into_state_slots();
+    // Collect the memory.
+    let pre_state_mem: Vec<_> = vm.temp_memory.into();
 
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
@@ -259,68 +255,11 @@ async fn read_pre_post_state_and_check_constraints() {
         .unwrap();
 
     // Collect the state slots.
-    let post_state_slots = vm.into_state_slots();
+    let post_state_mem: Vec<_> = vm.temp_memory.into();
 
-    // State slots should have updated.
-    assert_eq!(&pre_state_slots[..], &[vec![40], vec![], vec![42]]);
-    assert_eq!(&post_state_slots[..], &[vec![40], vec![41], vec![42]]);
-
-    // Now, they can be used for constraint checking.
-    access.state_slots = StateSlots {
-        pre: &pre_state_slots[..],
-        post: &post_state_slots[..],
-    };
-    let constraints: &[Vec<u8>] = &[
-        // Check that the first pre and post slots are equal.
-        constraint::asm::to_bytes(vec![
-            asm::Stack::Push(0).into(), // slot
-            asm::Stack::Push(0).into(),
-            asm::Stack::Push(1).into(),
-            asm::Stack::Push(0).into(), // pre
-            asm::Access::State.into(),
-            asm::Stack::Push(0).into(), // slot
-            asm::Stack::Push(0).into(),
-            asm::Stack::Push(1).into(),
-            asm::Stack::Push(1).into(), // post
-            asm::Access::State.into(),
-            asm::Pred::Eq.into(),
-        ])
-        .collect(),
-        // Check that the second pre state is none, but post is some.
-        constraint::asm::to_bytes(vec![
-            asm::Stack::Push(1).into(), // slot
-            asm::Stack::Push(0).into(), // pre
-            asm::Access::StateLen.into(),
-            asm::Stack::Push(0).into(),
-            asm::Pred::Eq.into(),
-            asm::Stack::Push(1).into(), // slot
-            asm::Stack::Push(1).into(), // post
-            asm::Access::StateLen.into(),
-            asm::Stack::Push(0).into(),
-            asm::Pred::Eq.into(),
-            asm::Pred::Not.into(),
-            asm::Pred::And.into(),
-        ])
-        .collect(),
-        // Check that the third pre and post slots are equal.
-        constraint::asm::to_bytes(vec![
-            asm::Stack::Push(2).into(), // slot
-            asm::Stack::Push(0).into(),
-            asm::Stack::Push(1).into(),
-            asm::Stack::Push(0).into(), // pre
-            asm::Access::State.into(),
-            asm::Stack::Push(2).into(), // slot
-            asm::Stack::Push(0).into(),
-            asm::Stack::Push(1).into(),
-            asm::Stack::Push(1).into(), // post
-            asm::Access::State.into(),
-            asm::Pred::Eq.into(),
-        ])
-        .collect(),
-    ];
-    constraint::check_predicate(constraints, access).unwrap();
-
-    // Constraints pass - we're free to apply the updated state!
+    // Memory should have been updated.
+    assert_eq!(pre_state_mem, vec![6, 1, 7, 0, 7, 1, 40, 42, 0]);
+    assert_eq!(post_state_mem, vec![6, 1, 7, 1, 8, 1, 40, 41, 42]);
 }
 
 // Test that halt is not required to end the vm.

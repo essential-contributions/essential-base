@@ -1,5 +1,4 @@
 use super::*;
-use crate::error::OpError;
 
 #[test]
 fn test_memory_store_load() {
@@ -26,7 +25,7 @@ fn test_free_empty_memory() {
     // Trying to free address 0 from empty memory should fail
     assert!(matches!(
         memory.free(0),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -57,7 +56,7 @@ fn test_free_valid_address() {
     // Verify accessing freed memory fails
     assert!(matches!(
         memory.load(5),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -97,13 +96,13 @@ fn test_free_invalid_address() {
     // Test with out of bounds index
     assert!(matches!(
         memory.free(5),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Test with very large index
     assert!(matches!(
         memory.free(Word::MAX),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Verify memory state hasn't changed
@@ -118,7 +117,7 @@ fn test_free_negative_address() {
     // Test with negative index
     assert!(matches!(
         memory.free(-1),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Verify memory state hasn't changed
@@ -183,7 +182,7 @@ fn test_store_range_empty_memory() {
     // Trying to store to empty memory should fail
     assert!(matches!(
         memory.store_range(0, &values),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -247,7 +246,7 @@ fn test_store_range_overflow() {
     // Try to store more values than available space
     assert!(matches!(
         memory.store_range(0, &values),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Verify memory wasn't modified
@@ -263,19 +262,19 @@ fn test_store_range_invalid_start_address() {
     // Try to store at invalid address
     assert!(matches!(
         memory.store_range(4, &values), // Would overflow
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Try to store at out of bounds address
     assert!(matches!(
         memory.store_range(5, &values),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Try to store at very large address
     assert!(matches!(
         memory.store_range(Word::MAX, &values),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -288,7 +287,7 @@ fn test_store_range_negative_address() {
     // Try to store at negative address
     assert!(matches!(
         memory.store_range(-1, &values),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Verify memory wasn't modified
@@ -357,7 +356,7 @@ fn test_store_range_after_free() {
     // Try to store in freed space
     assert!(matches!(
         memory.store_range(2, &values),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Store in remaining space
@@ -375,7 +374,7 @@ fn test_load_range_empty_memory() {
     // Trying to load from empty memory should fail
     assert!(matches!(
         memory.load_range(0, 1),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -433,13 +432,13 @@ fn test_load_range_overflow() {
     // Try to load more values than available
     assert!(matches!(
         memory.load_range(0, 4),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Try to load with address + size overflow
     assert!(matches!(
         memory.load_range(2, 2),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -451,13 +450,13 @@ fn test_load_range_invalid_start_address() {
     // Try to load from out of bounds address
     assert!(matches!(
         memory.load_range(5, 1),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Try to load from very large address
     assert!(matches!(
         memory.load_range(Word::MAX, 1),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -469,7 +468,7 @@ fn test_load_range_negative_address() {
     // Try to load from negative address
     assert!(matches!(
         memory.load_range(-1, 1),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 
@@ -493,7 +492,7 @@ fn test_load_range_negative_size() {
     // Try to load with negative size
     assert!(matches!(
         memory.load_range(0, -1),
-        Err(OpError::Temporary(TemporaryError::Overflow))
+        Err(TemporaryError::Overflow)
     ));
 }
 
@@ -550,7 +549,7 @@ fn test_load_range_after_free() {
     // Try to load from freed space
     assert!(matches!(
         memory.load_range(2, 2),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 
     // Load from remaining space
@@ -566,7 +565,7 @@ fn test_load_range_large_size_overflow() {
     // Try to load with size that would cause overflow when added to address
     assert!(matches!(
         memory.load_range(Word::MAX - 1, 2),
-        Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
+        Err(TemporaryError::IndexOutOfBounds)
     ));
 }
 

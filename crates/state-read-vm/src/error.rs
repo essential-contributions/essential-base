@@ -6,6 +6,7 @@ use crate::{
     asm::{self, Word},
     constraint, Gas,
 };
+use essential_constraint_vm::error::TemporaryError;
 use thiserror::Error;
 
 /// Shorthand for a `Result` where the error type is a `StateReadError`.
@@ -19,9 +20,6 @@ pub type OpSyncResult<T> = Result<T, OpSyncError>;
 
 /// Shorthand for a `Result` where the error type is an `OpAsyncError`.
 pub type OpAsyncResult<T, E> = Result<T, OpAsyncError<E>>;
-
-/// Shorthand for a `Result` where the error type is a [`StateMemoryError`].
-pub type StateMemoryResult<T> = Result<T, StateMemoryError>;
 
 /// State read execution failure.
 #[derive(Debug, Error)]
@@ -77,9 +75,6 @@ pub enum OpSyncError {
     /// An error occurred during a `TotalControlFlow` operation.
     #[error("control flow operation error: {0}")]
     TotalControlFlow(#[from] ControlFlowError),
-    /// An error occurred during a `StateSlots` operation.
-    #[error("state slots operation error: {0}")]
-    StateSlots(#[from] StateMemoryError),
     /// The next program counter would overflow.
     #[error("the next program counter would overflow")]
     PcOverflow,
@@ -91,9 +86,9 @@ pub enum OpAsyncError<E> {
     /// An error occurred during a `StateRead` operation.
     #[error("state read operation error: {0}")]
     StateRead(E),
-    /// A `StateSlots` access related error occurred.
-    #[error("state slots error: {0}")]
-    Memory(#[from] StateMemoryError),
+    /// A memory access related error occurred.
+    #[error("temporary memory error: {0}")]
+    Memory(#[from] TemporaryError),
     /// An error occurred during a `Stack` operation.
     #[error("stack operation error: {0}")]
     Stack(#[from] StackError),
@@ -110,17 +105,6 @@ pub enum ControlFlowError {
     /// Condition values must be 0 (false) or 1 (true).
     #[error("invalid condition value {0}, expected 0 (false) or 1 (true)")]
     InvalidJumpIfCondition(Word),
-}
-
-/// Errors occuring during [`crate::StateMemory`] operation.
-#[derive(Debug, Error)]
-pub enum StateMemoryError {
-    /// Attempted to access a state memory slot index that was out of bounds.
-    #[error("index out of bounds")]
-    IndexOutOfBounds,
-    /// An operation would have caused state memory to overflow.
-    #[error("operation would cause state slots to overflow")]
-    Overflow,
 }
 
 impl<E> From<core::convert::Infallible> for OpError<E> {
