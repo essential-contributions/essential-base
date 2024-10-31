@@ -227,7 +227,7 @@ async fn predicate_graph_memory_passing() {
     let a = Program(
         asm::to_bytes([
             PUSH(3),
-            ALOCT,
+            ALOC,
             PUSH(1),
             STO,
             PUSH(1),
@@ -244,7 +244,7 @@ async fn predicate_graph_memory_passing() {
     let b = Program(
         asm::to_bytes([
             PUSH(3),
-            ALOCT,
+            ALOC,
             PUSH(4),
             STO,
             PUSH(1),
@@ -409,7 +409,7 @@ async fn predicate_graph_state_read() {
             PUSH(0),
             PUSH(0),
             PUSH(1),
-            LODS,
+            LODSM,
             // Remove the index, we're only reading one key.
             // POP,
             HLT,
