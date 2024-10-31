@@ -6,7 +6,7 @@ use crate::{
     asm::{self, Word},
     constraint, Gas,
 };
-use essential_constraint_vm::error::TemporaryError;
+use essential_constraint_vm::error::MemoryError;
 use thiserror::Error;
 
 /// Shorthand for a `Result` where the error type is a `StateReadError`.
@@ -87,8 +87,8 @@ pub enum OpAsyncError<E> {
     #[error("state read operation error: {0}")]
     StateRead(E),
     /// A memory access related error occurred.
-    #[error("temporary memory error: {0}")]
-    Memory(#[from] TemporaryError),
+    #[error("memory error: {0}")]
+    Memory(#[from] MemoryError),
     /// An error occurred during a `Stack` operation.
     #[error("stack operation error: {0}")]
     Stack(#[from] StackError),

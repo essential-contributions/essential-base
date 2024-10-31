@@ -468,16 +468,19 @@ StateRead:
                 - The `condition` is true.
               stack_in: [condition]
 
-        Temporary:
-          description: Operations for temporary memory.
+        Memory:
+          description: Operations for memory.
           group:
             Alloc:
               opcode: 0x70
               short: ALOC
               description: |
-                Allocate a new block of memory to the end of the temporary memory.
+                Allocate a new block of memory to the end.
+
                 Sets new memory to 0.
+
                 Returns the index to the start of the new block of memory.
+
                 Allocate 0 to get the current length of the memory.
               panics:
                 - Max memory size reached.
@@ -494,7 +497,7 @@ StateRead:
             Load:
               opcode: 0x72
               short: LOD
-              description: Load the value at the index of temporary memory onto the stack.
+              description: Load the value at the given index from memory onto the stack.
               panics:
                 - Index is out of bounds.
               stack_in: [index]
@@ -503,7 +506,7 @@ StateRead:
             Store:
               opcode: 0x73
               short: STO
-              description: Store the value at the index of temporary memory.
+              description: Store the value at the given index within memory.
               panics:
                 - Index is out of bounds.
               stack_in: [index, value]
@@ -511,7 +514,7 @@ StateRead:
             LoadRange:
               opcode: 0x74
               short: LODR
-              description: Load a range of words starting at the index of temporary memory.
+              description: Load a range of words starting at the index within memory.
               panics:
                 - Index is out of bounds.
                 - Index + len is out of bounds.
@@ -521,7 +524,7 @@ StateRead:
             StoreRange:
               opcode: 0x75
               short: STOR
-              description: Store a range of words starting at the index of temporary memory.
+              description: Store a range of words starting at the index within memory.
               panics:
                 - Index is out of bounds.
                 - Index + len is out of bounds.

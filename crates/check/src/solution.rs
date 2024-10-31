@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use essential_constraint_vm::{
-    error::{StackError, TemporaryError},
+    error::{MemoryError, StackError},
     Memory, Stack,
 };
 #[cfg(feature = "tracing")]
@@ -184,7 +184,7 @@ pub enum ProgramError<E> {
     ParentStackConcatOverflow(#[from] StackError),
     /// Concatenating the parent program [`Memory`] slices caused an overflow.
     #[error("concatenating parent program `Memory` slices caused an overflow: {0}")]
-    ParentMemoryConcatOverflow(#[from] TemporaryError),
+    ParentMemoryConcatOverflow(#[from] MemoryError),
     /// VM execution resulted in an error.
     #[error("VM execution error: {0}")]
     Vm(#[from] StateReadError<E>),
@@ -662,16 +662,16 @@ where
         vm.stack = stack.try_into()?;
 
         // Extend the memory.
-        let mut memory: Vec<Word> = std::mem::take(&mut vm.temp_memory).into();
+        let mut memory: Vec<Word> = std::mem::take(&mut vm.memory).into();
         memory.append(&mut parent_memory.into());
-        vm.temp_memory = memory.try_into()?;
+        vm.memory = memory.try_into()?;
     }
 
     #[cfg(feature = "tracing")]
     tracing::trace!(
         "VM initialised with: \n  ├── {:?}\n  └── {:?}",
         &vm.stack,
-        &vm.temp_memory
+        &vm.memory
     );
 
     // Setup solution data access for execution.
@@ -698,7 +698,7 @@ where
     let opt_satisfied = if ctx.children.is_empty() {
         Some(vm.stack[..] == [1])
     } else {
-        let output = Arc::new((vm.stack, vm.temp_memory));
+        let output = Arc::new((vm.stack, vm.memory));
         for tx in ctx.children {
             let _ = tx.send(output.clone());
         }

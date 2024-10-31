@@ -234,7 +234,7 @@ pub fn step_op(
         Op::Pred(op) => step_op_pred(op, stack).map(|_| None),
         Op::Stack(op) => step_op_stack(op, pc, stack, repeat),
         Op::TotalControlFlow(op) => step_on_total_control_flow(op, stack, pc),
-        Op::Temporary(op) => step_on_temporary(op, stack, memory).map(|_| None),
+        Op::Memory(op) => step_on_temporary(op, stack, memory).map(|_| None),
     }
 }
 
@@ -350,38 +350,34 @@ pub fn step_on_total_control_flow(
 }
 
 /// Step forward constraint checking by the given temporary operation.
-pub fn step_on_temporary(
-    op: asm::Temporary,
-    stack: &mut Stack,
-    memory: &mut Memory,
-) -> OpResult<()> {
+pub fn step_on_temporary(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -> OpResult<()> {
     match op {
-        asm::Temporary::Alloc => {
+        asm::Memory::Alloc => {
             let w = stack.pop()?;
             let len = memory.len()?;
             memory.alloc(w)?;
             Ok(stack.push(len)?)
         }
-        asm::Temporary::Store => {
+        asm::Memory::Store => {
             let [addr, w] = stack.pop2()?;
             memory.store(addr, w)?;
             Ok(())
         }
-        asm::Temporary::Load => stack.pop1_push1(|addr| {
+        asm::Memory::Load => stack.pop1_push1(|addr| {
             let w = memory.load(addr)?;
             Ok(w)
         }),
-        asm::Temporary::Free => {
+        asm::Memory::Free => {
             let addr = stack.pop()?;
             memory.free(addr)?;
             Ok(())
         }
-        asm::Temporary::LoadRange => {
+        asm::Memory::LoadRange => {
             let [addr, size] = stack.pop2()?;
             let words = memory.load_range(addr, size)?;
             Ok(stack.extend(words)?)
         }
-        asm::Temporary::StoreRange => {
+        asm::Memory::StoreRange => {
             let addr = stack.pop()?;
             stack.pop_len_words(|words| {
                 memory.store_range(addr, words)?;

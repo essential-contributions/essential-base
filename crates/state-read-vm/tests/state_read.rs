@@ -25,7 +25,7 @@ async fn state_read_3_42s() {
     let mem_len = num_keys * 2 + num_words;
     let ops = &[
         asm::Stack::Push(mem_len).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -39,8 +39,8 @@ async fn state_read_3_42s() {
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
         .unwrap();
-    assert_eq!(vm.temp_memory[..].len(), mem_len as usize);
-    assert_eq!(&vm.temp_memory[..], &[6, 1, 7, 1, 8, 1, 42, 42, 42]);
+    assert_eq!(vm.memory[..].len(), mem_len as usize);
+    assert_eq!(&vm.memory[..], &[6, 1, 7, 1, 8, 1, 42, 42, 42]);
 }
 
 #[tokio::test]
@@ -56,7 +56,7 @@ async fn state_read_some_none_some() {
     let mem_len = num_keys * 2 + num_words;
     let ops = &[
         asm::Stack::Push(mem_len).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -70,8 +70,8 @@ async fn state_read_some_none_some() {
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
         .unwrap();
-    assert_eq!(vm.temp_memory[..].len(), mem_len as usize);
-    assert_eq!(&vm.temp_memory[..], &[6, 1, 7, 0, 7, 1, 42, 42]);
+    assert_eq!(vm.memory[..].len(), mem_len as usize);
+    assert_eq!(&vm.memory[..], &[6, 1, 7, 0, 7, 1, 42, 42]);
 }
 
 #[tokio::test]
@@ -92,7 +92,7 @@ async fn state_read_ext() {
     let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(mem_len).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(addr0).into(),
         asm::Stack::Push(addr1).into(),
         asm::Stack::Push(addr2).into(),
@@ -116,8 +116,8 @@ async fn state_read_ext() {
     )
     .await
     .unwrap();
-    assert_eq!(vm.temp_memory[..].len(), mem_len as usize);
-    assert_eq!(&vm.temp_memory[..], &[6, 1, 7, 1, 8, 1, 40, 41, 42]);
+    assert_eq!(vm.memory[..].len(), mem_len as usize);
+    assert_eq!(&vm.memory[..], &[6, 1, 7, 1, 8, 1, 40, 41, 42]);
 }
 
 #[tokio::test]
@@ -131,7 +131,7 @@ async fn state_read_ext_nones() {
     let [addr0, addr1, addr2, addr3] = word_4_from_u8_32(ext_contract_addr.0);
     let ops = &[
         asm::Stack::Push(mem_len).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(addr0).into(),
         asm::Stack::Push(addr1).into(),
         asm::Stack::Push(addr2).into(),
@@ -155,8 +155,8 @@ async fn state_read_ext_nones() {
     )
     .await
     .unwrap();
-    assert_eq!(vm.temp_memory[..].len(), mem_len as usize);
-    assert_eq!(&vm.temp_memory[..], &[6, 0, 6, 0, 6, 0]);
+    assert_eq!(vm.memory[..].len(), mem_len as usize);
+    assert_eq!(&vm.memory[..], &[6, 0, 6, 0, 6, 0]);
 }
 
 #[tokio::test]
@@ -177,7 +177,7 @@ async fn state_read_various_size_values() {
     let mem_len = num_keys * 2 + num_words;
     let ops = &[
         asm::Stack::Push(mem_len).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(0).into(), // Key1
         asm::Stack::Push(0).into(), // Key2
@@ -191,13 +191,13 @@ async fn state_read_various_size_values() {
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .await
         .unwrap();
-    assert_eq!(vm.temp_memory[..].len(), mem_len as usize);
+    assert_eq!(vm.memory[..].len(), mem_len as usize);
     let mut expected = vec![10, 2, 12, 22, 34, 14, 48, 0, 48, 12]; // [index, len]s
     expected.append(&mut vec![0; 2]);
     expected.append(&mut vec![1; 22]);
     expected.append(&mut vec![2; 14]);
     expected.append(&mut vec![4; 12]);
-    assert_eq!(Vec::from(vm.temp_memory), expected);
+    assert_eq!(Vec::from(vm.memory), expected);
 }
 
 #[tokio::test]
@@ -227,7 +227,7 @@ async fn state_read_various_key_sizes() {
 
     let ops = &[
         asm::Stack::Push(mem_len).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(0).into(), // Key0
         asm::Stack::Push(1).into(), // key length
         asm::Stack::Push(3).into(), // num keys
@@ -256,5 +256,5 @@ async fn state_read_various_key_sizes() {
     let addr = expected.len() as Word + 2 * 2;
     expected.append(&mut vec![addr, 14, addr + 14, 0]);
     expected.append(&mut vec![2; 14]);
-    assert_eq!(&vm.temp_memory[..], &expected[..]);
+    assert_eq!(&vm.memory[..], &expected[..]);
 }

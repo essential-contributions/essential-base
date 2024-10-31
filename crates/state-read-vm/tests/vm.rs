@@ -237,7 +237,7 @@ async fn read_pre_post_state() {
         .unwrap();
 
     // Collect the memory.
-    let pre_state_mem: Vec<_> = vm.temp_memory.into();
+    let pre_state_mem: Vec<_> = vm.memory.into();
 
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
@@ -255,7 +255,7 @@ async fn read_pre_post_state() {
         .unwrap();
 
     // Collect the state slots.
-    let post_state_mem: Vec<_> = vm.temp_memory.into();
+    let post_state_mem: Vec<_> = vm.memory.into();
 
     // Memory should have been updated.
     assert_eq!(pre_state_mem, vec![6, 1, 7, 0, 7, 1, 40, 42, 0]);

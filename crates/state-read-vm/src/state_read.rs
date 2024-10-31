@@ -9,7 +9,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use essential_constraint_vm::error::TemporaryError;
+use essential_constraint_vm::error::MemoryError;
 use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Word};
 
 /// Access to state required by the state read VM.
@@ -83,7 +83,7 @@ where
     S: StateRead,
 {
     let mem_addr = vm.stack.pop()?;
-    let mem_addr = usize::try_from(mem_addr).map_err(|_| TemporaryError::IndexOutOfBounds)?;
+    let mem_addr = usize::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
     let future = read_key_range(state_read, contract_addr, vm)?;
     Ok(StateReadFuture {
         future,
@@ -101,7 +101,7 @@ where
     S: StateRead,
 {
     let mem_addr = vm.stack.pop()?;
-    let mem_addr = usize::try_from(mem_addr).map_err(|_| TemporaryError::IndexOutOfBounds)?;
+    let mem_addr = usize::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
     let future = read_key_range_ext(state_read, vm)?;
     Ok(StateReadFuture {
         future,
@@ -148,19 +148,18 @@ fn write_values_to_memory<E>(
     values: Vec<Vec<Word>>,
     vm: &mut Vm,
 ) -> OpAsyncResult<(), E> {
-    let values_len = Word::try_from(values.len()).map_err(|_| TemporaryError::Overflow)?;
-    let index_len_pairs_len = values_len.checked_mul(2).ok_or(TemporaryError::Overflow)?;
-    let mut mem_addr = Word::try_from(mem_addr).map_err(|_| TemporaryError::IndexOutOfBounds)?;
+    let values_len = Word::try_from(values.len()).map_err(|_| MemoryError::Overflow)?;
+    let index_len_pairs_len = values_len.checked_mul(2).ok_or(MemoryError::Overflow)?;
+    let mut mem_addr = Word::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
     let mut value_addr = mem_addr
         .checked_add(index_len_pairs_len)
-        .ok_or(TemporaryError::Overflow)?;
+        .ok_or(MemoryError::Overflow)?;
     for value in values {
-        let value_len = Word::try_from(value.len()).map_err(|_| TemporaryError::Overflow)?;
+        let value_len = Word::try_from(value.len()).map_err(|_| MemoryError::Overflow)?;
         // Write the [index, len] pair.
-        vm.temp_memory
-            .store_range(mem_addr, &[value_addr, value_len])?;
+        vm.memory.store_range(mem_addr, &[value_addr, value_len])?;
         // Write the value.
-        vm.temp_memory.store_range(value_addr, &value)?;
+        vm.memory.store_range(value_addr, &value)?;
         // No need to check addition here as `store_range` would have failed.
         value_addr += value_len;
         mem_addr += 2;

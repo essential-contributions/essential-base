@@ -363,11 +363,7 @@ where
     let pc_op = format!("0x{:02X}: {op:?}", vm.pc);
     match op_res {
         Ok(_) => {
-            tracing::trace!(
-                "{pc_op}\n  ├── {:?}\n  └── {:?}",
-                &vm.stack,
-                &vm.temp_memory
-            )
+            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", &vm.stack, &vm.memory)
         }
         Err(ref err) => {
             tracing::trace!("{pc_op}");

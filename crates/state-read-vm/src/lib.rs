@@ -56,7 +56,7 @@ pub struct Vm {
     /// The stack machine.
     pub stack: Stack,
     /// The memory for temporary storage of words.
-    pub temp_memory: essential_constraint_vm::Memory,
+    pub memory: essential_constraint_vm::Memory,
     /// The repeat stack.
     pub repeat: Repeat,
     /// Lazily cached data for the VM.
@@ -267,11 +267,11 @@ pub(crate) fn step_op_sync(
         stack,
         repeat,
         pc,
-        temp_memory,
+        memory,
         cache,
         ..
     } = vm;
-    match constraint::step_op(access, op, stack, temp_memory, *pc, repeat, cache)? {
+    match constraint::step_op(access, op, stack, memory, *pc, repeat, cache)? {
         Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
         Some(ProgramControlFlow::Halt) => return Ok(None),
         None => (),
