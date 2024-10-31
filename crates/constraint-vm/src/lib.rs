@@ -384,7 +384,7 @@ pub fn step_on_temporary(
             let words = memory.load_range(addr, size)?;
             Ok(stack.extend(words)?)
         }
-        essential_constraint_asm::Temporary::StoreRange => {
+        asm::Temporary::StoreRange => {
             let addr = stack.pop()?;
             stack.pop_len_words(|words| memory.store_range(addr, words))?;
             Ok(())
