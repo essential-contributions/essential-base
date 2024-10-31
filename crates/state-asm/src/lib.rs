@@ -19,8 +19,8 @@ pub mod effects;
 /// Typed representation of an operation its associated data.
 mod op {
     pub use essential_constraint_asm::{
-        Access, Alu, Constraint, Crypto, Pred, Stack, Temporary, ToBytes, ToOpcode,
-        TotalControlFlow, TryFromBytes,
+        Access, Alu, Constraint, Crypto, Memory, Pred, Stack, ToBytes, ToOpcode, TotalControlFlow,
+        TryFromBytes,
     };
     essential_asm_gen::gen_state_read_op_decls!();
     essential_asm_gen::gen_state_read_op_impls!();
@@ -90,8 +90,8 @@ mod tests {
         let ops: Vec<Op> = vec![
             Stack::Push(0x1234567812345678).into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-            StateMemory::AllocSlots.into(),
-            StateMemory::Length.into(),
+            StateRead::KeyRange,
+            StateRead::KeyRangeExtern,
         ];
         roundtrip(ops);
     }
@@ -110,11 +110,11 @@ mod tests {
     #[test]
     fn roundtrip_no_args() {
         let ops: Vec<Op> = vec![
-            StateMemory::Store.into(),
+            Memory::Store.into(),
             Access::ThisAddress.into(),
-            StateMemory::Load.into(),
+            Memory::Load.into(),
             Access::ThisContractAddress.into(),
-            StateMemory::Length.into(),
+            Access::DecisionVarLen.into(),
         ];
         roundtrip(ops);
     }

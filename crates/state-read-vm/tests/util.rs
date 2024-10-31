@@ -4,7 +4,7 @@
 
 use essential_state_read_vm::{
     types::{solution::SolutionData, ContentAddress, Key, PredicateAddress, Word},
-    Access, SolutionAccess, StateRead, StateSlots,
+    Access, StateRead,
 };
 use std::{
     collections::{BTreeMap, HashSet},
@@ -36,20 +36,11 @@ pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
     &*INSTANCE
 }
 
-pub(crate) fn test_solution_access() -> &'static SolutionAccess<'static> {
-    static INSTANCE: std::sync::LazyLock<SolutionAccess> =
-        std::sync::LazyLock::new(|| SolutionAccess {
-            data: test_solution_data_arr(),
-            index: 0,
-            mutable_keys: test_empty_keys(),
-        });
-    &INSTANCE
-}
-
 pub(crate) fn test_access() -> &'static Access<'static> {
     static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
-        solution: *test_solution_access(),
-        state_slots: StateSlots::EMPTY,
+        data: test_solution_data_arr(),
+        index: 0,
+        mutable_keys: test_empty_keys(),
     });
     &INSTANCE
 }

@@ -5,7 +5,6 @@ use crate::{
     error::{AccessError, MissingAccessArgError},
     repeat::Repeat,
     sets::encode_set,
-    types::convert::bool_from_word,
     OpResult, Stack,
 };
 use essential_constraint_asm::Word;
@@ -19,28 +18,15 @@ use std::collections::HashSet;
 #[cfg(test)]
 mod dec_vars;
 #[cfg(test)]
-mod num_slots;
-#[cfg(test)]
 mod predicate_exists;
-#[cfg(test)]
-mod state;
 #[cfg(test)]
 mod test_utils;
 #[cfg(test)]
 mod tests;
 
-/// All necessary solution data and state access required to check an individual predicate.
-#[derive(Clone, Copy, Debug)]
-pub struct Access<'a> {
-    /// All necessary solution data access required to check an individual predicate.
-    pub solution: SolutionAccess<'a>,
-    /// The pre and post mutation state slot values for the predicate being solved.
-    pub state_slots: StateSlots<'a>,
-}
-
 /// All necessary solution data access required to check an individual predicate.
 #[derive(Clone, Copy, Debug)]
-pub struct SolutionAccess<'a> {
+pub struct Access<'a> {
     /// The input data for each predicate being solved within the solution.
     ///
     /// We require *all* predicate solution data in order to handle checking
@@ -53,19 +39,7 @@ pub struct SolutionAccess<'a> {
     pub mutable_keys: &'a HashSet<&'a [Word]>,
 }
 
-/// The pre and post mutation state slot values for the predicate being solved.
-#[derive(Clone, Copy, Debug)]
-pub struct StateSlots<'a> {
-    /// Predicate state slot values before the solution's mutations are applied.
-    pub pre: &'a StateSlotSlice,
-    /// Predicate state slot values after the solution's mutations are applied.
-    pub post: &'a StateSlotSlice,
-}
-
-/// The state slots declared within the predicate.
-pub type StateSlotSlice = [Vec<Word>];
-
-impl<'a> SolutionAccess<'a> {
+impl<'a> Access<'a> {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
     /// the predicate at the given index within the given solution.
     ///
@@ -91,14 +65,6 @@ impl<'a> SolutionAccess<'a> {
             .get(self.index)
             .expect("predicate index out of range of solution data")
     }
-}
-
-impl<'a> StateSlots<'a> {
-    /// Empty state slots.
-    pub const EMPTY: Self = Self {
-        pre: &[],
-        post: &[],
-    };
 }
 
 /// A helper for collecting all mutable keys that are proposed for mutation for
@@ -168,41 +134,8 @@ pub(crate) fn decision_var_len(this_decision_vars: &[Value], stack: &mut Stack) 
 }
 
 /// `Access::MutKeys` implementation.
-pub(crate) fn push_mut_keys(solution: SolutionAccess, stack: &mut Stack) -> OpResult<()> {
-    encode_set(
-        solution.mutable_keys.iter().map(|k| k.iter().copied()),
-        stack,
-    )
-}
-
-/// `Access::State` implementation.
-pub(crate) fn state(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    let delta = stack.pop().map_err(|_| MissingAccessArgError::StateDelta)?;
-    let len = stack.pop().map_err(|_| MissingAccessArgError::StateLen)?;
-    let value_ix = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::StateValueIx)?;
-    let slot_ix = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::StateSlotIx)?;
-    let values = state_slot_value_range(slots, slot_ix, value_ix, len, delta)?;
-    stack.extend(values.iter().copied())?;
-    Ok(())
-}
-
-/// `Access::StateLen` implementation.
-pub(crate) fn state_len(slots: StateSlots, stack: &mut Stack) -> OpResult<()> {
-    let delta = stack.pop().map_err(|_| MissingAccessArgError::StateDelta)?;
-    let slot_ix = stack
-        .pop()
-        .map_err(|_| MissingAccessArgError::StateSlotIx)?;
-    let slot = state_slot(slots, slot_ix, delta)?;
-    let len =
-        Word::try_from(slot.len()).map_err(|_| AccessError::StateValueTooLarge(slot.len()))?;
-    stack
-        .push(len)
-        .expect("Can't fail because 2 are popped and 1 is pushed");
-    Ok(())
+pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> OpResult<()> {
+    encode_set(access.mutable_keys.iter().map(|k| k.iter().copied()), stack)
 }
 
 /// `Access::ThisAddress` implementation.
@@ -225,35 +158,10 @@ pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()>
 }
 
 /// Implementation of the `Access::NumSlots` operation.
-pub(crate) fn num_slots(
-    stack: &mut Stack,
-    state_slots: &StateSlots<'_>,
-    decision_variables: &[Value],
-) -> OpResult<()> {
-    const DEC_VAR_SLOTS: Word = 0;
-    const PRE_STATE_SLOTS: Word = 1;
-    const POST_STATE_SLOTS: Word = 2;
-
-    let which_slots = stack.pop()?;
-
-    match which_slots {
-        DEC_VAR_SLOTS => {
-            let num_slots = Word::try_from(decision_variables.len())
-                .map_err(|_| AccessError::SlotsLengthTooLarge(decision_variables.len()))?;
-            stack.push(num_slots)?;
-        }
-        PRE_STATE_SLOTS => {
-            let num_slots = Word::try_from(state_slots.pre.len())
-                .map_err(|_| AccessError::SlotsLengthTooLarge(state_slots.pre.len()))?;
-            stack.push(num_slots)?;
-        }
-        POST_STATE_SLOTS => {
-            let num_slots = Word::try_from(state_slots.post.len())
-                .map_err(|_| AccessError::SlotsLengthTooLarge(state_slots.post.len()))?;
-            stack.push(num_slots)?;
-        }
-        _ => return Err(AccessError::InvalidSlotType(which_slots).into()),
-    }
+pub(crate) fn decision_var_slots(stack: &mut Stack, decision_variables: &[Value]) -> OpResult<()> {
+    let num_slots = Word::try_from(decision_variables.len())
+        .map_err(|_| AccessError::SlotsLengthTooLarge(decision_variables.len()))?;
+    stack.push(num_slots)?;
     Ok(())
 }
 
@@ -327,50 +235,9 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
     result
 }
 
-fn state_slot(slots: StateSlots, slot_ix: Word, delta: Word) -> OpResult<&Vec<Word>> {
-    let delta = bool_from_word(delta).ok_or(AccessError::InvalidStateSlotDelta(delta))?;
-    let slots = state_slots_from_delta(slots, delta);
-    let ix = usize::try_from(slot_ix).map_err(|_| AccessError::StateSlotIxOutOfBounds(slot_ix))?;
-    let slot = slots
-        .get(ix)
-        .ok_or(AccessError::StateSlotIxOutOfBounds(slot_ix))?;
-    Ok(slot)
-}
-
-fn state_slot_value_range(
-    slots: StateSlots,
-    slot_ix: Word,
-    value_ix: Word,
-    len: Word,
-    delta: Word,
-) -> OpResult<&[Word]> {
-    let delta = bool_from_word(delta).ok_or(AccessError::InvalidStateSlotDelta(delta))?;
-    let slots = state_slots_from_delta(slots, delta);
-    let slot_ix =
-        usize::try_from(slot_ix).map_err(|_| AccessError::StateSlotIxOutOfBounds(slot_ix))?;
-    let range = range_from_start_len(value_ix, len).ok_or(AccessError::InvalidAccessRange)?;
-    let values = slots
-        .get(slot_ix)
-        .ok_or(AccessError::StateSlotIxOutOfBounds(slot_ix as Word))?
-        .get(range.clone())
-        .ok_or(AccessError::StateValueRangeOutOfBounds(
-            range.start as Word,
-            range.end as Word,
-        ))?;
-    Ok(values)
-}
-
 fn range_from_start_len(start: Word, len: Word) -> Option<std::ops::Range<usize>> {
     let start = usize::try_from(start).ok()?;
     let len = usize::try_from(len).ok()?;
     let end = start.checked_add(len)?;
     Some(start..end)
-}
-
-fn state_slots_from_delta(slots: StateSlots, delta: bool) -> &StateSlotSlice {
-    if delta {
-        slots.post
-    } else {
-        slots.pre
-    }
 }

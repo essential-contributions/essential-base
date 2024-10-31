@@ -72,9 +72,9 @@ pub enum OpError {
     /// An error occurred during a `TotalControlFlow` operation.
     #[error("total control flow operation error: {0}")]
     TotalControlFlow(#[from] TotalControlFlowError),
-    /// An error occurred during a `Temporary` operation.
+    /// An error occurred during a `Memory` operation.
     #[error("temporary operation error: {0}")]
-    Temporary(#[from] TemporaryError),
+    Memory(#[from] MemoryError),
     /// An error occurred while parsing an operation from bytes.
     #[error("bytecode error: {0}")]
     FromBytes(#[from] asm::FromBytesError),
@@ -280,12 +280,12 @@ pub enum TotalControlFlowError {
     Panic(Vec<Word>),
 }
 
-/// Shorthand for a `Result` where the error type is a `TemporaryError`.
-pub type TemporaryResult<T> = Result<T, TemporaryError>;
+/// Shorthand for a `Result` where the error type is a `MemoryError`.
+pub type MemoryResult<T> = Result<T, MemoryError>;
 
-/// Temporary operation error.
+/// Memory operation error.
 #[derive(Debug, Error)]
-pub enum TemporaryError {
+pub enum MemoryError {
     /// Attempted to pop a word from an empty memory.
     #[error("attempted to pop an empty memory")]
     Empty,
