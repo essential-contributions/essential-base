@@ -115,7 +115,7 @@ fn test_free_negative_address() {
     let mut memory = Memory::new();
     memory.alloc(5).unwrap();
 
-    // Test with negative index (assuming Word is signed)
+    // Test with negative index
     assert!(matches!(
         memory.free(-1),
         Err(OpError::Temporary(TemporaryError::IndexOutOfBounds))
