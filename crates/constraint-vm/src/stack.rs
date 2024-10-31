@@ -7,6 +7,9 @@ use crate::{
 };
 use essential_types::convert::bool_from_word;
 
+#[cfg(test)]
+mod frame_tests;
+
 /// The VM's `Stack`, i.e. a `Vec` of `Word`s updated during each step of execution.
 ///
 /// A light wrapper around `Vec<Word>` providing helper methods specific to
@@ -36,6 +39,41 @@ impl Stack {
         for word in words {
             self.push(word)?;
         }
+        Ok(())
+    }
+
+    /// Reserve a length of zeroed words on the stack.
+    pub(crate) fn reserve_zeroed(&mut self) -> StackResult<()> {
+        let len = self.pop()?;
+        let len = usize::try_from(len).map_err(|_| StackError::IndexOutOfBounds)?;
+        let new_len = self.len().saturating_add(len);
+        if new_len > Self::SIZE_LIMIT {
+            return Err(StackError::IndexOutOfBounds);
+        }
+        self.0.resize(new_len, 0);
+        Ok(())
+    }
+
+    /// Load a word from the given index.
+    pub(crate) fn load(&mut self) -> StackResult<()> {
+        let ix = self.pop()?;
+        let ix = usize::try_from(ix).map_err(|_| StackError::IndexOutOfBounds)?;
+        let word = self
+            .0
+            .get(ix)
+            .copied()
+            .ok_or(StackError::IndexOutOfBounds)?;
+        self.push(word)
+    }
+
+    /// Store a word at the given index.
+    pub(crate) fn store(&mut self) -> StackResult<()> {
+        let [ix, word] = self.pop2()?;
+        let ix = usize::try_from(ix).map_err(|_| StackError::IndexOutOfBounds)?;
+        let Some(w) = self.0.get_mut(ix) else {
+            return Err(StackError::IndexOutOfBounds);
+        };
+        *w = word;
         Ok(())
     }
 

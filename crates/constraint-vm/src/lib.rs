@@ -335,6 +335,9 @@ pub fn step_op_stack(
         asm::Stack::Select => stack.select().map_err(From::from),
         asm::Stack::SelectRange => stack.select_range().map_err(From::from),
         asm::Stack::Repeat => repeat::repeat(pc, stack, repeat),
+        asm::Stack::Reserve => stack.reserve_zeroed().map_err(From::from),
+        asm::Stack::Load => stack.load().map_err(From::from),
+        asm::Stack::Store => stack.store().map_err(From::from),
         asm::Stack::RepeatEnd => unreachable!(),
     };
     r.map(|_| None)
@@ -372,6 +375,20 @@ pub fn step_on_temporary(
             memory.store(addr, w)
         }
         asm::Temporary::Load => stack.pop1_push1(|addr| memory.load(addr)),
+        asm::Temporary::Free => {
+            let addr = stack.pop()?;
+            memory.free(addr)
+        }
+        asm::Temporary::LoadRange => {
+            let [addr, size] = stack.pop2()?;
+            let words = memory.load_range(addr, size)?;
+            Ok(stack.extend(words)?)
+        }
+        asm::Temporary::StoreRange => {
+            let addr = stack.pop()?;
+            stack.pop_len_words(|words| memory.store_range(addr, words))?;
+            Ok(())
+        }
     }
 }
 
