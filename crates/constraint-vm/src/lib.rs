@@ -375,7 +375,7 @@ pub fn step_on_temporary(
             memory.store(addr, w)
         }
         asm::Temporary::Load => stack.pop1_push1(|addr| memory.load(addr)),
-        essential_constraint_asm::Temporary::Free => {
+        asm::Temporary::Free => {
             let addr = stack.pop()?;
             memory.free(addr)
         }
