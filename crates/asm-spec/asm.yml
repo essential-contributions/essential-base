@@ -113,7 +113,10 @@ StateRead:
             Load:
               opcode: 0x0C
               short: LODS
-              description: Load the value at the given stack depth index relative to the bottom.
+              description: |
+                Load the value at the given stack depth index relative to the bottom.
+
+                `0` is the index of the element at the bottom of the stack.
               panics:
                 - Index is out of range.
               stack_in: [index]

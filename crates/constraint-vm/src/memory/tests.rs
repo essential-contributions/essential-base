@@ -1,6 +1,5 @@
-use crate::error::OpError;
-
 use super::*;
+use crate::error::OpError;
 
 #[test]
 fn test_memory_store_load() {
@@ -168,14 +167,12 @@ fn test_free_capacity_reduction() {
     let mut memory = Memory::new();
     memory.alloc(1000).unwrap();
 
-    // Record initial capacity
-    let initial_capacity = memory.0.capacity();
-
     // Free most of the memory
-    memory.free(10).unwrap();
+    let index_to_keep = 100;
+    memory.free(index_to_keep).unwrap();
 
     // Verify capacity has been reduced
-    assert!(memory.0.capacity() < initial_capacity);
+    assert_eq!(memory.0.capacity(), index_to_keep as usize);
 }
 
 #[test]
