@@ -1,7 +1,9 @@
 use essential_types::{
-    contract::Contract, predicate::Predicate, solution::Solution, Block, ContentAddress,
+    contract::Contract,
+    predicate::{Predicate, Program},
+    solution::Solution,
+    Block, ContentAddress,
 };
-use sha2::Digest;
 
 use crate::{hash, Address};
 
@@ -13,17 +15,18 @@ impl Address for Block {
 
 impl Address for Predicate {
     fn content_address(&self) -> ContentAddress {
-        let Ok(header) = self.encoded_header() else {
+        let Ok(bytes) = self.encode() else {
             // Invalid predicates can't be hashed.
             return ContentAddress([0; 32]);
         };
-        let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
-        hasher.update(header.fixed_size_header.0);
-        hasher.update(header.lens);
-        for item in self.programs() {
-            hasher.update(item);
-        }
-        ContentAddress(hasher.finalize().into())
+        let bytes: Vec<_> = bytes.collect();
+        ContentAddress(crate::hash_bytes(&bytes))
+    }
+}
+
+impl Address for Program {
+    fn content_address(&self) -> ContentAddress {
+        ContentAddress(crate::hash_bytes(&self.0))
     }
 }
 
