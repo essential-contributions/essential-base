@@ -42,7 +42,7 @@ pub struct Signature(
     pub u8,
 );
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 /// Content address of a predicate or contract.
 pub struct ContentAddress(pub Hash);
