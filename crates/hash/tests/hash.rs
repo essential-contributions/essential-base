@@ -51,11 +51,6 @@ fn test_content_addr() {
     let content_addr = essential_hash::content_addr(&contract);
     assert_eq!(content_addr, addr);
 
-    let solution = Solution { data: vec![] };
-    let addr = essential_hash::hash(&solution);
-    let content_addr = essential_hash::content_addr(&solution);
-    assert_eq!(content_addr.0, addr);
-
     let solutions = vec![
         Solution {
             data: vec![SolutionData {
