@@ -541,7 +541,9 @@ StateRead:
         All keys are assumed to be the same length.
 
         An [index, len] pair is written into memory for each value, followed by
-        the values themselves.
+        the values themselves. E.g. when reading values *a* and *b*, they will
+        be laid out in memory from the given `mem_addr` as follows:
+        `[a_addr, a_len, b_addr, b_len, a_value, b_value]`
       stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, mem_addr]
 
     KeyRangeExtern:
@@ -557,6 +559,8 @@ StateRead:
         The external state is at the `ext` address.
 
         An [index, len] pair is written into memory for each value, followed by
-        the values themselves.
+        the values themselves. E.g. when reading values *a* and *b*, they will
+        be laid out in memory from the given `mem_addr` as follows:
+        `[a_addr, a_len, b_addr, b_len, a_value, b_value]`
       stack_in:
         [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, ...key_wN, key_len, num_keys_to_read, mem_addr]
