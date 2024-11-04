@@ -388,10 +388,9 @@ async fn predicate_graph_state_read() {
     // Push the key and prepare the stack for the key read.
     let a = Program(
         asm::to_bytes(key.iter().map(|&w| PUSH(w)).chain([
-            // Push the length, num keys to read and slot index for the `KeyRange` op.
+            // Push the length and num keys to read for the `KeyRange` op.
             PUSH(4),
             PUSH(1),
-            // PUSH(0),
             HLT,
         ]))
         .collect(),
@@ -401,6 +400,7 @@ async fn predicate_graph_state_read() {
     let b = Program(
         asm::to_bytes([
             // Allocate space for reading in [index, len, value].
+            // ALOC returns `0` on the stack, i.e. the `mem_addr` to read into.
             PUSH(3),
             ALOC,
             // Read the key range into memory.
