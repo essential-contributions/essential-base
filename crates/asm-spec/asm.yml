@@ -348,14 +348,14 @@ StateRead:
               stack_out: [len]
 
             DecisionVarSlots:
-              opcode: 0x3B
+              opcode: 0x39
               short: NSLT
               description: Get the number of decision var slots.
               stack_in: []
               stack_out: [len]
 
             PredicateExists:
-              opcode: 0x3C
+              opcode: 0x3A
               short: PEX
               description: |
                 Check if a solution to a predicate exists within the same solution
@@ -531,7 +531,7 @@ StateRead:
               stack_in: [index, values, len]
 
     KeyRange:
-      opcode: 0x90
+      opcode: 0x80
       short: KRNG
       description: |
         Read a range of values at each key from state starting at the key
@@ -545,7 +545,7 @@ StateRead:
       stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, mem_addr]
 
     KeyRangeExtern:
-      opcode: 0x91
+      opcode: 0x81
       short: KREX
       description: |
         Read a range of values at each key from external state starting at the key
