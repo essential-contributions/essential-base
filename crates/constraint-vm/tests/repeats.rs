@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use essential_constraint_asm as asm;
-use essential_constraint_vm::{eval_ops, Access, SolutionAccess, StateSlots};
+use essential_constraint_vm::{eval_ops, Access};
 use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
 
 #[test]
@@ -10,19 +10,16 @@ fn test_forall_in_asm() {
     let _ = tracing_subscriber::fmt::try_init();
     let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        solution: SolutionAccess {
-            data: &[SolutionData {
-                predicate_to_solve: PredicateAddress {
-                    contract: ContentAddress([0; 32]),
-                    predicate: ContentAddress([0; 32]),
-                },
-                decision_variables: vec![vec![2], vec![4, 6], vec![8, 12]],
-                state_mutations: vec![],
-            }],
-            index: 0,
-            mutable_keys: &mutable_keys,
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &[SolutionData {
+            predicate_to_solve: PredicateAddress {
+                contract: ContentAddress([0; 32]),
+                predicate: ContentAddress([0; 32]),
+            },
+            decision_variables: vec![vec![2], vec![4, 6], vec![8, 12]],
+            state_mutations: vec![],
+        }],
+        index: 0,
+        mutable_keys: &mutable_keys,
     };
 
     // let len: int;
@@ -69,19 +66,16 @@ fn test_forall_in_asm() {
 fn test_fold_filter_in_asm() {
     let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        solution: SolutionAccess {
-            data: &[SolutionData {
-                predicate_to_solve: PredicateAddress {
-                    contract: ContentAddress([0; 32]),
-                    predicate: ContentAddress([0; 32]),
-                },
-                decision_variables: vec![],
-                state_mutations: vec![],
-            }],
-            index: 0,
-            mutable_keys: &mutable_keys,
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &[SolutionData {
+            predicate_to_solve: PredicateAddress {
+                contract: ContentAddress([0; 32]),
+                predicate: ContentAddress([0; 32]),
+            },
+            decision_variables: vec![],
+            state_mutations: vec![],
+        }],
+        index: 0,
+        mutable_keys: &mutable_keys,
     };
 
     // let list: int[3] = [1, 2, 3];
@@ -98,35 +92,35 @@ fn test_fold_filter_in_asm() {
     let ops = &[
         // tmp acc: int = 0;
         asm::Stack::Push(1).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // for i in 0..3 unrolled
         // acc += list[0];
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // acc += list[1];
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Stack::Push(2).into(),
         asm::Alu::Add.into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // acc += list[2];
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Stack::Push(3).into(),
         asm::Alu::Add.into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // sum == acc;
         asm::Stack::Push(6).into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Pred::Eq.into(),
     ];
     let res = eval_ops(ops, access).unwrap();
@@ -145,9 +139,9 @@ fn test_fold_filter_in_asm() {
     let ops = &[
         // tmp count: int = 0;
         asm::Stack::Push(1).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // for i in 0..3 unrolled
         // if list[0] % 2 == 0
         asm::Stack::Push(11).into(), // Num to jump
@@ -160,16 +154,16 @@ fn test_fold_filter_in_asm() {
         asm::TotalControlFlow::JumpForwardIf.into(),
         // acc.push(list[0]);
         asm::Stack::Push(1).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(1).into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // count += 1;
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // if list[1] % 2 == 0
         asm::Stack::Push(11).into(), // Num to jump
         asm::Stack::Push(2).into(),
@@ -181,16 +175,16 @@ fn test_fold_filter_in_asm() {
         asm::TotalControlFlow::JumpForwardIf.into(),
         // acc.push(list[1]);
         asm::Stack::Push(1).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(2).into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // count += 1;
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // if list[2] % 2 == 0
         asm::Stack::Push(11).into(), // Num to jump
         asm::Stack::Push(3).into(),
@@ -202,24 +196,24 @@ fn test_fold_filter_in_asm() {
         asm::TotalControlFlow::JumpForwardIf.into(),
         // acc.push(list[2]);
         asm::Stack::Push(1).into(),
-        asm::Temporary::Alloc.into(),
+        asm::Memory::Alloc.into(),
         asm::Stack::Push(3).into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // count += 1;
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
-        asm::Temporary::Store.into(),
+        asm::Memory::Store.into(),
         // count == 1 && even == acc;
         asm::Stack::Push(0).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Pred::Eq.into(),
         asm::Stack::Push(2).into(),
         asm::Stack::Push(1).into(),
-        asm::Temporary::Load.into(),
+        asm::Memory::Load.into(),
         asm::Pred::Eq.into(),
         asm::Pred::And.into(),
     ];

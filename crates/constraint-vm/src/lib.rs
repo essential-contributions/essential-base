@@ -33,15 +33,13 @@
 //! behaviour of individual operations.
 #![deny(missing_docs, unsafe_code)]
 
-pub use access::{
-    mut_keys, mut_keys_set, mut_keys_slices, Access, SolutionAccess, StateSlotSlice, StateSlots,
-};
+pub use access::{mut_keys, mut_keys_set, mut_keys_slices, Access};
 #[doc(inline)]
 pub use bytecode::{BytecodeMapped, BytecodeMappedLazy, BytecodeMappedSlice};
 pub use cached::LazyCache;
 #[doc(inline)]
 pub use error::{CheckResult, ConstraintResult, OpResult, StackResult};
-use error::{ConstraintError, ConstraintErrors, ConstraintsUnsatisfied};
+use error::{ConstraintError, ConstraintErrors, ConstraintsUnsatisfied, OpError};
 #[doc(inline)]
 pub use essential_constraint_asm as asm;
 use essential_constraint_asm::Op;
@@ -236,7 +234,7 @@ pub fn step_op(
         Op::Pred(op) => step_op_pred(op, stack).map(|_| None),
         Op::Stack(op) => step_op_stack(op, pc, stack, repeat),
         Op::TotalControlFlow(op) => step_on_total_control_flow(op, stack, pc),
-        Op::Temporary(op) => step_on_temporary(op, stack, memory).map(|_| None),
+        Op::Memory(op) => step_on_temporary(op, stack, memory).map(|_| None),
     }
 }
 
@@ -250,27 +248,21 @@ pub fn step_op_access(
 ) -> OpResult<()> {
     match op {
         asm::Access::DecisionVar => {
-            access::decision_var(&access.solution.this_data().decision_variables, stack)
+            access::decision_var(&access.this_data().decision_variables, stack)
         }
         asm::Access::DecisionVarLen => {
-            access::decision_var_len(&access.solution.this_data().decision_variables, stack)
+            access::decision_var_len(&access.this_data().decision_variables, stack)
         }
-        asm::Access::MutKeys => access::push_mut_keys(access.solution, stack),
-        asm::Access::State => access::state(access.state_slots, stack),
-        asm::Access::StateLen => access::state_len(access.state_slots, stack),
-        asm::Access::ThisAddress => access::this_address(access.solution.this_data(), stack),
+        asm::Access::DecisionVarSlots => {
+            access::decision_var_slots(stack, &access.this_data().decision_variables)
+        }
+        asm::Access::MutKeys => access::push_mut_keys(access, stack),
+        asm::Access::ThisAddress => access::this_address(access.this_data(), stack),
         asm::Access::ThisContractAddress => {
-            access::this_contract_address(access.solution.this_data(), stack)
+            access::this_contract_address(access.this_data(), stack)
         }
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
-        asm::Access::NumSlots => access::num_slots(
-            stack,
-            &access.state_slots,
-            &access.solution.this_data().decision_variables,
-        ),
-        asm::Access::PredicateExists => {
-            access::predicate_exists(stack, access.solution.data, cache)
-        }
+        asm::Access::PredicateExists => access::predicate_exists(stack, access.data, cache),
     }
 }
 
@@ -358,35 +350,39 @@ pub fn step_on_total_control_flow(
 }
 
 /// Step forward constraint checking by the given temporary operation.
-pub fn step_on_temporary(
-    op: asm::Temporary,
-    stack: &mut Stack,
-    memory: &mut Memory,
-) -> OpResult<()> {
+pub fn step_on_temporary(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -> OpResult<()> {
     match op {
-        asm::Temporary::Alloc => {
+        asm::Memory::Alloc => {
             let w = stack.pop()?;
             let len = memory.len()?;
             memory.alloc(w)?;
             Ok(stack.push(len)?)
         }
-        asm::Temporary::Store => {
+        asm::Memory::Store => {
             let [addr, w] = stack.pop2()?;
-            memory.store(addr, w)
+            memory.store(addr, w)?;
+            Ok(())
         }
-        asm::Temporary::Load => stack.pop1_push1(|addr| memory.load(addr)),
-        asm::Temporary::Free => {
+        asm::Memory::Load => stack.pop1_push1(|addr| {
+            let w = memory.load(addr)?;
+            Ok(w)
+        }),
+        asm::Memory::Free => {
             let addr = stack.pop()?;
-            memory.free(addr)
+            memory.free(addr)?;
+            Ok(())
         }
-        asm::Temporary::LoadRange => {
+        asm::Memory::LoadRange => {
             let [addr, size] = stack.pop2()?;
             let words = memory.load_range(addr, size)?;
             Ok(stack.extend(words)?)
         }
-        asm::Temporary::StoreRange => {
+        asm::Memory::StoreRange => {
             let addr = stack.pop()?;
-            stack.pop_len_words(|words| memory.store_range(addr, words))?;
+            stack.pop_len_words(|words| {
+                memory.store_range(addr, words)?;
+                Ok::<_, OpError>(())
+            })?;
             Ok(())
         }
     }
@@ -427,20 +423,11 @@ pub(crate) mod test_util {
         &*INSTANCE
     }
 
-    pub(crate) fn test_solution_access() -> &'static SolutionAccess<'static> {
-        static INSTANCE: std::sync::LazyLock<SolutionAccess> =
-            std::sync::LazyLock::new(|| SolutionAccess {
-                data: test_solution_data_arr(),
-                index: 0,
-                mutable_keys: test_empty_keys(),
-            });
-        &INSTANCE
-    }
-
     pub(crate) fn test_access() -> &'static Access<'static> {
         static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
-            solution: *test_solution_access(),
-            state_slots: StateSlots::EMPTY,
+            data: test_solution_data_arr(),
+            index: 0,
+            mutable_keys: test_empty_keys(),
         });
         &INSTANCE
     }

@@ -164,12 +164,9 @@ fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
         state_mutations: vec![],
     }];
     let access = Access {
-        solution: SolutionAccess {
-            data: &data,
-            index: 0,
-            mutable_keys: test_empty_keys(),
-        },
-        state_slots: StateSlots::EMPTY,
+        data: &data,
+        index: 0,
+        mutable_keys: test_empty_keys(),
     };
     exec_ops(&ops, access)
         .map_err(|e| match e {
@@ -177,4 +174,16 @@ fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
             crate::error::ConstraintError::Op(_, e) => e,
         })
         .map(|stack| stack.into())
+}
+
+#[test]
+fn test_dec_var_slots() {
+    let vars = std::iter::repeat(vec![-1, -2, -3, 900])
+        .take(12)
+        .collect::<Vec<_>>();
+
+    let mut stack = crate::Stack::default();
+
+    super::decision_var_slots(&mut stack, &vars).unwrap();
+    assert_eq!(stack.pop().unwrap(), 12);
 }
