@@ -9,6 +9,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
+use essential_constraint_vm::error::MemoryError;
 use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Word};
 
 /// Access to state required by the state read VM.
@@ -45,8 +46,8 @@ where
 {
     /// The future produced by the `StateRead::key_range` implementation.
     future: S::Future,
-    /// The index of the slot that this should start writing into.
-    slot_index: usize,
+    /// The memory address at which this should start writing into.
+    mem_addr: usize,
     /// Access to the `Vm` so that the result of the future can be written to memory.
     pub(crate) vm: &'vm mut Vm,
 }
@@ -62,10 +63,10 @@ where
         match Pin::new(&mut self.future).poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(res) => {
-                let slot_index = self.slot_index;
+                let mem_addr = self.mem_addr;
                 let res = res
                     .map_err(OpAsyncError::StateRead)
-                    .and_then(|words| write_values_to_state_slots(self.vm, slot_index, words));
+                    .and_then(|words| write_values_to_memory(mem_addr, words, self.vm));
                 Poll::Ready(res)
             }
         }
@@ -81,12 +82,12 @@ pub fn key_range<'vm, S>(
 where
     S: StateRead,
 {
-    let slot_index = vm.stack.pop()?;
-    let slot_index = usize::try_from(slot_index).map_err(|_| StackError::IndexOutOfBounds)?;
+    let mem_addr = vm.stack.pop()?;
+    let mem_addr = usize::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
     let future = read_key_range(state_read, contract_addr, vm)?;
     Ok(StateReadFuture {
         future,
-        slot_index,
+        mem_addr,
         vm,
     })
 }
@@ -99,12 +100,12 @@ pub fn key_range_ext<'vm, S>(
 where
     S: StateRead,
 {
-    let slot_index = vm.stack.pop()?;
-    let slot_index = usize::try_from(slot_index).map_err(|_| StackError::IndexOutOfBounds)?;
+    let mem_addr = vm.stack.pop()?;
+    let mem_addr = usize::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
     let future = read_key_range_ext(state_read, vm)?;
     Ok(StateReadFuture {
         future,
-        slot_index,
+        mem_addr,
         vm,
     })
 }
@@ -141,12 +142,27 @@ where
     Ok(state_read.key_range(contract_addr, key, num_keys))
 }
 
-/// Write the given values to mutable state slots.
-fn write_values_to_state_slots<E>(
-    vm: &mut Vm,
-    slot_index: usize,
+/// Write the given values to memory.
+fn write_values_to_memory<E>(
+    mem_addr: usize,
     values: Vec<Vec<Word>>,
+    vm: &mut Vm,
 ) -> OpAsyncResult<(), E> {
-    vm.state_memory.store_slots_range(slot_index, values)?;
+    let values_len = Word::try_from(values.len()).map_err(|_| MemoryError::Overflow)?;
+    let index_len_pairs_len = values_len.checked_mul(2).ok_or(MemoryError::Overflow)?;
+    let mut mem_addr = Word::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
+    let mut value_addr = mem_addr
+        .checked_add(index_len_pairs_len)
+        .ok_or(MemoryError::Overflow)?;
+    for value in values {
+        let value_len = Word::try_from(value.len()).map_err(|_| MemoryError::Overflow)?;
+        // Write the [index, len] pair.
+        vm.memory.store_range(mem_addr, &[value_addr, value_len])?;
+        // Write the value.
+        vm.memory.store_range(value_addr, &value)?;
+        // No need to check addition here as `store_range` would have failed.
+        value_addr += value_len;
+        mem_addr += 2;
+    }
     Ok(())
 }
