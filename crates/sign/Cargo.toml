@@ -1,6 +1,6 @@
 [package]
 name = "essential-sign"
-version = "0.5.0"
+version = "0.6.0"
 description = "Public key cryptography for the Essential ecosystem"
 edition.workspace = true
 authors.workspace = true
