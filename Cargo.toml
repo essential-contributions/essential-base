@@ -16,8 +16,8 @@ essential-asm-gen = { path = "crates/asm-gen", version = "0.6.0" }
 essential-asm-spec = { path = "crates/asm-spec", version = "0.5.0" }
 essential-constraint-asm = { path = "crates/constraint-asm", version = "0.6.0" }
 essential-constraint-vm = { path = "crates/constraint-vm", version = "0.6.0" }
-essential-hash = { path = "crates/hash", version = "0.6.0" }
-essential-sign = { path = "crates/sign", version = "0.6.0" }
+essential-hash = { path = "crates/hash", version = "0.7.0" }
+essential-sign = { path = "crates/sign", version = "0.7.0" }
 essential-state-asm = { path = "crates/state-asm", version = "0.6.0" }
 essential-state-read-vm = { path = "crates/state-read-vm", version = "0.7.0" }
 essential-types = { path = "crates/types", version = "0.5.0" }
