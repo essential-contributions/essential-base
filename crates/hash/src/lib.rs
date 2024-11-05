@@ -74,16 +74,3 @@ pub fn hash_bytes_iter<'i>(iter: impl IntoIterator<Item = &'i [u8]>) -> Hash {
     }
     hasher.finalize().into()
 }
-
-/// Hash the length of the slice, then hash the words of the slice itself.
-fn hash_len_then_words(words: &[Word], hasher: &mut impl sha2::Digest) {
-    let len = words.len() as Word;
-    hasher.update(bytes_from_word(len));
-    words
-        .iter()
-        .copied()
-        .map(bytes_from_word)
-        .for_each(|bytes| {
-            hasher.update(bytes);
-        });
-}
