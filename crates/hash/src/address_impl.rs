@@ -1,9 +1,11 @@
+use crate::Address;
 use essential_types::{
-    contract::Contract, predicate::Predicate, solution::Solution, Block, ContentAddress,
+    contract::Contract,
+    predicate::Predicate,
+    solution::{Solution, SolutionData},
+    Block, ContentAddress,
 };
 use sha2::Digest;
-
-use crate::{hash, Address};
 
 impl Address for Block {
     fn content_address(&self) -> ContentAddress {
@@ -17,7 +19,7 @@ impl Address for Predicate {
             // Invalid predicates can't be hashed.
             return ContentAddress([0; 32]);
         };
-        let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
+        let mut hasher = <sha2::Sha256 as Digest>::new();
         hasher.update(header.fixed_size_header.0);
         hasher.update(header.lens);
         for item in self.programs() {
@@ -33,8 +35,19 @@ impl Address for Contract {
     }
 }
 
+/// Hash the [`SolutionData`] in a manner that treats `state_mutations` like a set.
+///
+/// Hashing occurs as follows:
+///
+/// - predicate_to_solve.contract.0
+impl Address for SolutionData {
+    fn content_address(&self) -> ContentAddress {
+        ContentAddress(crate::hash(self))
+    }
+}
+
 impl Address for Solution {
     fn content_address(&self) -> ContentAddress {
-        ContentAddress(hash(self))
+        crate::solution_addr::from_solution(self)
     }
 }
