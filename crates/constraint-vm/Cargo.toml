@@ -1,6 +1,6 @@
 [package]
 name = "essential-constraint-vm"
-version = "0.5.0"
+version = "0.6.0"
 description = "The Essential constraint checking VM"
 edition.workspace = true
 authors.workspace = true
