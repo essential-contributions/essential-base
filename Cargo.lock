@@ -437,11 +437,10 @@ name = "essential-check"
 version = "0.7.0"
 dependencies = [
  "criterion",
- "essential-constraint-vm",
  "essential-hash",
  "essential-sign",
- "essential-state-read-vm",
  "essential-types",
+ "essential-vm",
  "rand",
  "rayon",
  "secp256k1",
@@ -453,21 +452,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "essential-constraint-asm"
-version = "0.5.0"
-dependencies = [
- "essential-asm-gen",
- "essential-types",
- "serde",
-]
-
-[[package]]
 name = "essential-constraint-vm"
 version = "0.5.0"
 dependencies = [
  "criterion",
  "ed25519-dalek",
- "essential-constraint-asm",
  "essential-types",
  "rand",
  "rayon",
@@ -506,26 +495,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "essential-state-read-vm"
-version = "0.6.0"
-dependencies = [
- "essential-asm",
- "essential-constraint-vm",
- "essential-types",
- "futures",
- "rand",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "essential-types"
 version = "0.4.0"
 dependencies = [
  "hex",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "essential-vm"
+version = "0.6.0"
+dependencies = [
+ "criterion",
+ "ed25519-dalek",
+ "essential-asm",
+ "essential-types",
+ "futures",
+ "rand",
+ "secp256k1",
+ "sha2",
+ "test-case",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

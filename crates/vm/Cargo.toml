@@ -1,7 +1,7 @@
 [package]
-name = "essential-state-read-vm"
+name = "essential-vm"
 version = "0.6.0"
-description = "The Essential state reading VM"
+description = "The Essential VM"
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -9,16 +9,26 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+ed25519-dalek = { workspace = true }
 essential-asm = { workspace = true }
-essential-constraint-vm = { workspace = true }
 essential-types = { workspace = true }
+secp256k1 = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 futures = { workspace = true }
 rand = { workspace = true }
+secp256k1 = { workspace = true, features = ["rand"]}
+test-case.workspace = true
 tokio = { workspace = true }
+tracing-subscriber.workspace = true
 
 [features]
 tracing = ["dep:tracing"]
+
+[[bench]]
+name = "eval"
+harness = false

@@ -1,59 +1,115 @@
-//! The types of errors that might occur throughout constraint checking.
+//! The types of errors that might occur throughout state read execution.
 
+pub use crate::constraint::error::{StackError, StackResult};
+#[doc(inline)]
 use crate::{
     asm::{self, Word},
-    Stack,
+    constraint, Gas,
 };
-use core::fmt;
+use essential_constraint_vm::error::MemoryError;
 use thiserror::Error;
 
-/// Shorthand for a `Result` where the error type is a `CheckError`.
-pub type CheckResult<T> = Result<T, CheckError>;
-
-/// Predicate checking error.
-#[derive(Debug, Error)]
-pub enum CheckError {
-    /// Errors occurred while executing one or more constraints.
-    #[error("errors occurred while executing one or more constraints: {0}")]
-    ConstraintErrors(#[from] ConstraintErrors),
-    /// One or more constraints were unsatisfied.
-    #[error("one or more constraints were unsatisfied: {0}")]
-    ConstraintsUnsatisfied(#[from] ConstraintsUnsatisfied),
-}
-
-/// The index of each failed constraint alongside the error it produced.
-#[derive(Debug, Error)]
-pub struct ConstraintErrors(pub Vec<(usize, ConstraintError)>);
-
-/// The index of each constraint that was not satisfied.
-#[derive(Debug, Error)]
-pub struct ConstraintsUnsatisfied(pub Vec<usize>);
-
-/// Shorthand for a `Result` where the error type is a `ConstraintError`.
-pub type ConstraintResult<T> = Result<T, ConstraintError>;
-
-/// Constraint checking error.
-#[derive(Debug, Error)]
-pub enum ConstraintError {
-    /// Evaluation should have resulted with a `0` (false) or `1` (true) at the
-    /// top of the stack, but did not.
-    #[error(
-        "invalid constraint evaluation result\n  \
-        expected: [0] (false) or [1] (true)\n  \
-        found:    {0:?}"
-    )]
-    InvalidEvaluation(Stack),
-    /// The operation at the specified index failed.
-    #[error("operation at index {0} failed: {1}")]
-    Op(usize, OpError),
-}
+/// Shorthand for a `Result` where the error type is a `StateReadError`.
+pub type StateReadResult<T, E> = Result<T, StateReadError<E>>;
 
 /// Shorthand for a `Result` where the error type is an `OpError`.
-pub type OpResult<T> = Result<T, OpError>;
+pub type OpResult<T, E> = Result<T, OpError<E>>;
+
+/// Shorthand for a `Result` where the error type is an `OpSyncError`.
+pub type OpSyncResult<T> = Result<T, OpSyncError>;
+
+/// Shorthand for a `Result` where the error type is an `OpAsyncError`.
+pub type OpAsyncResult<T, E> = Result<T, OpAsyncError<E>>;
+
+/// State read execution failure.
+#[derive(Debug, Error)]
+pub enum StateReadError<E> {
+    /// The operation at the specified index failed.
+    #[error("operation at index {0} failed: {1}")]
+    Op(usize, OpError<E>),
+    /// The program counter is out of range.
+    #[error("program counter {0} out of range (note: programs must end with `Halt`)")]
+    PcOutOfRange(usize),
+}
+
+/// An individual operation failed during state read execution.
+#[derive(Debug, Error)]
+pub enum OpError<E> {
+    /// A synchronous operation failed.
+    #[error("synchronous operation failed: {0}")]
+    Sync(#[from] OpSyncError),
+    /// An asynchronous operation failed.
+    #[error("asynchronous operation failed: {0}")]
+    Async(#[from] OpAsyncError<E>),
+    /// An error occurred while parsing an operation from bytes.
+    #[error("bytecode error: {0}")]
+    FromBytes(#[from] asm::FromBytesError),
+    /// The total gas limit was exceeded.
+    #[error("{0}")]
+    OutOfGas(#[from] OutOfGasError),
+}
+
+/// The gas cost of performing an operation would exceed the gas limit.
+#[derive(Debug, Error)]
+#[error(
+    "operation cost would exceed gas limit\n  \
+    spent: {spent} gas\n  \
+    op cost: {op_gas} gas\n  \
+    limit: {limit} gas"
+)]
+pub struct OutOfGasError {
+    /// Total spent prior to the operation that would exceed the limit.
+    pub spent: Gas,
+    /// The gas required for the operation that failed.
+    pub op_gas: Gas,
+    /// The total gas limit that would be exceeded.
+    pub limit: Gas,
+}
+
+/// A synchronous operation failed.
+#[derive(Debug, Error)]
+pub enum OpSyncError {
+    /// An error occurred during a `Constraint` operation.
+    #[error("constraint operation error: {0}")]
+    Constraint(#[from] constraint::error::OpError),
+    /// An error occurred during a `TotalControlFlow` operation.
+    #[error("control flow operation error: {0}")]
+    TotalControlFlow(#[from] ControlFlowError),
+    /// The next program counter would overflow.
+    #[error("the next program counter would overflow")]
+    PcOverflow,
+}
+
+/// A synchronous operation failed.
+#[derive(Debug, Error)]
+pub enum OpAsyncError<E> {
+    /// An error occurred during a `StateRead` operation.
+    #[error("state read operation error: {0}")]
+    StateRead(E),
+    /// A memory access related error occurred.
+    #[error("memory error: {0}")]
+    Memory(#[from] MemoryError),
+    /// An error occurred during a `Stack` operation.
+    #[error("stack operation error: {0}")]
+    Stack(#[from] StackError),
+    /// The next program counter would overflow.
+    #[error("the next program counter would overflow")]
+    PcOverflow,
+}
+
+/// Errors occuring during `TotalControlFlow` operation.
+#[derive(Debug, Error)]
+pub enum ControlFlowError {
+    /// A `JumpIf` operation encountered an invalid condition.
+    ///
+    /// Condition values must be 0 (false) or 1 (true).
+    #[error("invalid condition value {0}, expected 0 (false) or 1 (true)")]
+    InvalidJumpIfCondition(Word),
+}
 
 /// An individual operation failed during constraint checking error.
 #[derive(Debug, Error)]
-pub enum OpError {
+pub enum ConstraintOpError {
     /// An error occurred during an `Access` operation.
     #[error("access operation error: {0}")]
     Access(#[from] AccessError),
@@ -316,33 +372,15 @@ pub enum EncodeError {
     ItemLengthTooLarge(usize),
 }
 
-impl fmt::Display for ConstraintErrors {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("the constraints at the following indices failed: \n")?;
-        for (ix, err) in &self.0 {
-            f.write_str(&format!("  {ix}: {err}\n"))?;
-        }
-        Ok(())
-    }
-}
 
-impl fmt::Display for ConstraintsUnsatisfied {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("the constraints at the following indices returned false: \n")?;
-        for ix in &self.0 {
-            f.write_str(&format!("  {ix}\n"))?;
-        }
-        Ok(())
-    }
-}
-
-impl From<core::convert::Infallible> for OpError {
+impl<E> From<core::convert::Infallible> for OpError<E> {
     fn from(err: core::convert::Infallible) -> Self {
         match err {}
     }
 }
-impl From<MissingAccessArgError> for OpError {
-    fn from(err: MissingAccessArgError) -> Self {
-        AccessError::MissingArg(err).into()
+
+impl From<StackError> for OpSyncError {
+    fn from(err: StackError) -> Self {
+        OpSyncError::Constraint(err.into())
     }
 }

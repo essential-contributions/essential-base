@@ -16,19 +16,17 @@ ed25519-dalek = "2.1.1"
 essential-asm = { path = "crates/asm", version = "0.5.0" }
 essential-asm-gen = { path = "crates/asm-gen", version = "0.5.0" }
 essential-asm-spec = { path = "crates/asm-spec", version = "0.4.0" }
-essential-constraint-asm = { path = "crates/constraint-asm", version = "0.5.0" }
-essential-constraint-vm = { path = "crates/constraint-vm", version = "0.5.0" }
 essential-hash = { path = "crates/hash", version = "0.5.0" }
 essential-sign = { path = "crates/sign", version = "0.5.0" }
-essential-state-read-vm = { path = "crates/state-read-vm", version = "0.6.0" }
+essential-vm = { path = "crates/vm", version = "0.6.0" }
 essential-types = { path = "crates/types", version = "0.4.0" }
-futures = "0.3" # For `state-read-vm` tests.
+futures = "0.3" # For `vm` tests.
 hex = "0.4.3"
 postcard = { version = "1.0.10", features = ["alloc"] }
 proc-macro2 = "1"
 quote = "1"
-rand = { version = "0.8", features = ["small_rng"] } # For VM tests.
-rayon = "1" # For `constraint-vm` parallelisation.
+rand = { version = "0.8", features = ["small_rng"] } # For `vm` tests.
+rayon = "1" # For `vm` parallelisation.
 schemars = "0.8.21"
 secp256k1 = { version = "0.30", features = ["recovery"] }
 serde = { version = "1.0.210", features = ["derive"] }

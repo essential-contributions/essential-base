@@ -9,11 +9,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-essential-constraint-vm = { workspace = true }
 essential-hash = { workspace = true, optional = true }
 essential-sign = { workspace = true }
-essential-state-read-vm = { workspace = true }
 essential-types = { workspace = true }
+essential-vm = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -31,8 +30,7 @@ tracing-subscriber.workspace = true
 tracing = [
     "dep:essential-hash",
     "dep:tracing",
-    "essential-constraint-vm/tracing",
-    "essential-state-read-vm/tracing",
+    "essential-vm/tracing",
 ]
 
 [[bench]]

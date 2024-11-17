@@ -15,11 +15,8 @@ pub mod predicate;
 pub mod serde;
 pub mod solution;
 
-/// Constraint code serialized as json.
-pub type ConstraintBytecode = Vec<u8>;
-
-/// State read code serialized as json.
-pub type StateReadBytecode = Vec<u8>;
+/// Essential ASM encoded as bytes.
+pub type Bytecode = Vec<u8>;
 
 /// Single unit of data.
 pub type Word = i64;

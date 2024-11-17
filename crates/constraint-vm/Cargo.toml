@@ -10,7 +10,6 @@ repository.workspace = true
 
 [dependencies]
 ed25519-dalek = { workspace = true }
-essential-constraint-asm = { workspace = true }
 essential-types = { workspace = true }
 rayon = { workspace = true }
 secp256k1 = { workspace = true }
