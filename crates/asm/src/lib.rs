@@ -1,7 +1,7 @@
-//! Assembly for checking constraints.
+//! Assembly for the Essential VM.
 //!
 //! # Op Table
-#![doc = essential_asm_gen::gen_constraint_ops_docs_table!()]
+#![doc = essential_asm_gen::gen_ops_docs_table!()]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -10,9 +10,12 @@ use core::fmt;
 #[doc(inline)]
 pub use essential_types::Word;
 #[doc(inline)]
-pub use op::{Constraint as Op, *};
+pub use op::{StateRead as Op, *};
 #[doc(inline)]
-pub use opcode::{Constraint as Opcode, InvalidOpcodeError, NotEnoughBytesError};
+pub use opcode::{InvalidOpcodeError, NotEnoughBytesError, StateRead as Opcode};
+
+/// Determine the effects of a program.
+pub mod effects;
 
 /// Typed representation of an operation its associated data.
 mod op {
@@ -44,18 +47,18 @@ mod op {
         ) -> Option<Result<Self, Self::Error>>;
     }
 
-    essential_asm_gen::gen_constraint_op_decls!();
-    essential_asm_gen::gen_constraint_op_impls!();
+    essential_asm_gen::gen_all_op_decls!();
+    essential_asm_gen::gen_all_op_impls!();
 
     /// Provides the operation type bytes iterators.
     pub mod bytes_iter {
-        essential_asm_gen::gen_constraint_op_bytes_iter!();
+        essential_asm_gen::gen_all_op_bytes_iter!();
     }
 
     /// Short hand names for the operations.
     pub mod short {
-        use super::{Constraint as Op, *};
-        essential_asm_gen::gen_constraint_op_consts!();
+        use super::{StateRead as Op, *};
+        essential_asm_gen::gen_all_op_consts!();
     }
 }
 
@@ -106,8 +109,8 @@ pub mod opcode {
     #[cfg(feature = "std")]
     impl std::error::Error for NotEnoughBytesError {}
 
-    essential_asm_gen::gen_constraint_opcode_decls!();
-    essential_asm_gen::gen_constraint_opcode_impls!();
+    essential_asm_gen::gen_all_opcode_decls!();
+    essential_asm_gen::gen_all_opcode_impls!();
 }
 
 /// Errors that can occur while parsing ops from bytes.
@@ -190,30 +193,19 @@ mod tests {
         let ops: Vec<Op> = vec![
             Stack::Push(0x1234567812345678).into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-            Stack::Swap.into(),
-            Stack::Dup.into(),
+            StateRead::KeyRange,
+            StateRead::KeyRangeExtern,
         ];
         roundtrip(ops);
     }
 
     #[test]
+    #[allow(clippy::useless_conversion)]
     fn roundtrip_args_end() {
         let ops: Vec<Op> = vec![
-            Stack::Swap.into(),
-            Stack::Dup.into(),
+            StateRead::KeyRange.into(),
+            StateRead::KeyRangeExtern.into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-        ];
-        roundtrip(ops);
-    }
-
-    #[test]
-    fn roundtrip_args_interspersed() {
-        let ops: Vec<Op> = vec![
-            Stack::Push(0x1234567812345678).into(),
-            Stack::Swap.into(),
-            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-            Stack::Dup.into(),
-            Stack::Push(0x1234567812345678).into(),
         ];
         roundtrip(ops);
     }
@@ -221,11 +213,11 @@ mod tests {
     #[test]
     fn roundtrip_no_args() {
         let ops: Vec<Op> = vec![
+            Memory::Store.into(),
             Access::ThisAddress.into(),
+            Memory::Load.into(),
             Access::ThisContractAddress.into(),
-            Stack::Swap.into(),
-            Stack::Dup.into(),
-            Crypto::Sha256.into(),
+            Access::DecisionVarLen.into(),
         ];
         roundtrip(ops);
     }

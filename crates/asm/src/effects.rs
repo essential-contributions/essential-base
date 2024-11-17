@@ -1,6 +1,5 @@
-use crate::StateRead as StateReadOp;
+use crate::{Access, Constraint, StateRead};
 use bitflags::bitflags;
-use essential_constraint_asm::{Access, Constraint as ConstraintOp};
 
 /// Flags to indicate the effects of state read operations.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -8,29 +7,29 @@ pub struct Effects(u8);
 
 bitflags! {
     impl Effects: u8 {
-        /// Flag for [´StateReadOp::KeyRange´]
+        /// Flag for [´StateRead::KeyRange´]
         const KeyRange = 1 << 0;
-        /// Flag for [´StateReadOp::KeyRangeExtern´]
+        /// Flag for [´StateRead::KeyRangeExtern´]
         const KeyRangeExtern = 1 << 1;
-        /// Flag for [´StateReadOp::Constraint::Access::ThisAddress´]
+        /// Flag for [´StateRead::Constraint::Access::ThisAddress´]
         const ThisAddress = 1 << 2;
-        /// Flag for [´StateReadOp::Constraint::Access::ThisContractAddress´]
+        /// Flag for [´StateRead::Constraint::Access::ThisContractAddress´]
         const ThisContractAddress = 1 << 3;
     }
 }
 
 /// Determine effects of the given state read program.
-pub fn analyze(ops: &[StateReadOp]) -> Effects {
+pub fn analyze(ops: &[StateRead]) -> Effects {
     let mut effects = Effects::empty();
 
     for op in ops {
         match op {
-            StateReadOp::KeyRangeExtern => effects |= Effects::KeyRangeExtern,
-            StateReadOp::KeyRange => effects |= Effects::KeyRange,
-            StateReadOp::Constraint(ConstraintOp::Access(Access::ThisAddress)) => {
+            StateRead::KeyRangeExtern => effects |= Effects::KeyRangeExtern,
+            StateRead::KeyRange => effects |= Effects::KeyRange,
+            StateRead::Constraint(Constraint::Access(Access::ThisAddress)) => {
                 effects |= Effects::ThisAddress
             }
-            StateReadOp::Constraint(ConstraintOp::Access(Access::ThisContractAddress)) => {
+            StateRead::Constraint(Constraint::Access(Access::ThisContractAddress)) => {
                 effects |= Effects::ThisContractAddress
             }
             _ => {}
@@ -46,7 +45,7 @@ pub fn analyze(ops: &[StateReadOp]) -> Effects {
 
 #[cfg(test)]
 mod test {
-    use super::{analyze, Access, ConstraintOp, Effects, StateReadOp};
+    use super::{analyze, Access, Constraint, Effects, StateRead};
 
     #[test]
     fn none() {
@@ -56,21 +55,21 @@ mod test {
 
     #[test]
     fn key_range() {
-        let ops = &[StateReadOp::KeyRange];
+        let ops = &[StateRead::KeyRange];
         let effects = analyze(ops);
         assert!(effects.contains(Effects::KeyRange));
     }
 
     #[test]
     fn key_range_extern() {
-        let ops = &[StateReadOp::KeyRangeExtern];
+        let ops = &[StateRead::KeyRangeExtern];
         let effects = analyze(ops);
         assert!(effects.contains(Effects::KeyRangeExtern));
     }
 
     #[test]
     fn this_address() {
-        let ops = &[StateReadOp::Constraint(ConstraintOp::Access(
+        let ops = &[StateRead::Constraint(Constraint::Access(
             Access::ThisAddress,
         ))];
         let effects = analyze(ops);
@@ -79,7 +78,7 @@ mod test {
 
     #[test]
     fn this_contract_address() {
-        let ops = &[StateReadOp::Constraint(ConstraintOp::Access(
+        let ops = &[StateRead::Constraint(Constraint::Access(
             Access::ThisContractAddress,
         ))];
         let effects = analyze(ops);
@@ -89,10 +88,10 @@ mod test {
     #[test]
     fn all_effects() {
         let ops = &[
-            StateReadOp::KeyRange,
-            StateReadOp::KeyRangeExtern,
-            StateReadOp::Constraint(ConstraintOp::Access(Access::ThisAddress)),
-            StateReadOp::Constraint(ConstraintOp::Access(Access::ThisContractAddress)),
+            StateRead::KeyRange,
+            StateRead::KeyRangeExtern,
+            StateRead::Constraint(Constraint::Access(Access::ThisAddress)),
+            StateRead::Constraint(Constraint::Access(Access::ThisContractAddress)),
         ];
         let effects = analyze(ops);
         assert!(effects.contains(Effects::KeyRange));

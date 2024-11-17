@@ -9,8 +9,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+essential-asm = { workspace = true }
 essential-constraint-vm = { workspace = true }
-essential-state-asm = { workspace = true }
 essential-types = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
