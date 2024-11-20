@@ -215,7 +215,7 @@ async fn read_pre_post_state() {
     // Construct access to the necessary solution data for the VM.
     let access = Access::new(&solution, predicate_index, &mutable_keys);
 
-    // A simple state read program that reads words directly to memory.
+    // A simple program that reads words directly to memory.
     let ops = &[
         PUSH(9), // index, len, index, len, index, len, val, val, val
         ALOC,

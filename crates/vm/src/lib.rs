@@ -1,4 +1,4 @@
-//! The essential state read VM implementation.
+//! The essential VM implementation.
 //!
 //! ## Reading State
 //!
@@ -30,9 +30,9 @@
 
 pub use access::{mut_keys, mut_keys_set, mut_keys_slices, Access};
 pub use cached::LazyCache;
+use error::OpSyncError;
 #[doc(inline)]
-pub use error::{ConstraintResult, OpAsyncResult, OpResult, OpSyncResult, StateReadResult};
-use error::{OpSyncError, StateReadError};
+pub use error::{ConstraintResult, ExecutionResult, OpAsyncResult, OpResult, OpSyncResult};
 #[doc(inline)]
 pub use essential_asm::{self as asm, Op};
 pub use essential_types as types;
@@ -75,7 +75,7 @@ mod vm;
 /// Unit used to measure gas.
 pub type Gas = u64;
 
-/// Shorthand for the `BytecodeMapped` type representing a mapping to/from state read [`Op`]s.
+/// Shorthand for the `BytecodeMapped` type representing a mapping to/from [`Op`]s.
 pub type BytecodeMapped<Bytes = Vec<u8>> = bytecode::BytecodeMapped<Op, Bytes>;
 /// Shorthand for the `BytecodeMappedSlice` type for mapping [`Op`]s.
 pub type BytecodeMappedSlice<'a> = bytecode::BytecodeMappedSlice<'a, Op>;

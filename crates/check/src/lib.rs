@@ -10,8 +10,6 @@
 //! - [`predicate::check_signed_contract`] validates a signed contract.
 //! - [`predicate::check_contract`] validates a contract.
 //! - [`predicate::check`] validate an individual predicate.
-//! - [`predicate::check_state_reads`] validate a predicate's state read bytecode.
-//! - [`predicate::check_constraints`] validate a predicate's constraint bytecode.
 //!
 //! ## Solution Validation
 //!
@@ -23,10 +21,6 @@
 //!
 //! - [`solution::check_predicates`] validates a solution's data against their associated predicates.
 //! - [`solution::check_predicate`] validates a single solution data against an associated predicate.
-//! - [`solution::check_predicate_constraints`] the predicate constraint checking part of solution
-//!   data validation.
-//! - [`solution::check_decision_variable_lengths`] checks the expected number of
-//!   decision variables.
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

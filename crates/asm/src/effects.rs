@@ -18,7 +18,7 @@ bitflags! {
     }
 }
 
-/// Determine effects of the given state read program.
+/// Determine effects of the given program.
 pub fn analyze(ops: &[StateRead]) -> Effects {
     let mut effects = Effects::empty();
 

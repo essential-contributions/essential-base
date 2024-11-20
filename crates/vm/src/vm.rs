@@ -1,11 +1,12 @@
 //! The VM state machine, used to drive forward execution.
 
 use crate::{
-    error::OpError, future, Access, BytecodeMapped, BytecodeMappedLazy, Gas, GasLimit, LazyCache,
-    Memory, Op, OpAccess, OpGasCost, Repeat, Stack, StateRead, StateReadError,
+    error::{ExecutionError, OpError},
+    future, Access, BytecodeMapped, BytecodeMappedLazy, Gas, GasLimit, LazyCache, Memory, Op,
+    OpAccess, OpGasCost, Repeat, Stack, StateRead,
 };
 
-/// The operation execution state of the State Read VM.
+/// The operation execution state of the VM.
 #[derive(Debug, Default, PartialEq)]
 pub struct Vm {
     /// The program counter, i.e. index of the current operation within the program.
@@ -40,7 +41,7 @@ impl Vm {
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, StateReadError<S::Error>>
+    ) -> Result<Gas, ExecutionError<S::Error>>
     where
         S: StateRead,
     {
@@ -67,7 +68,7 @@ impl Vm {
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, StateReadError<S::Error>>
+    ) -> Result<Gas, ExecutionError<S::Error>>
     where
         S: StateRead,
         B: core::ops::Deref<Target = [u8]>,
@@ -96,7 +97,7 @@ impl Vm {
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, StateReadError<S::Error>>
+    ) -> Result<Gas, ExecutionError<S::Error>>
     where
         S: StateRead,
         I: IntoIterator<Item = u8>,
@@ -126,7 +127,7 @@ impl Vm {
         op_access: OA,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, StateReadError<S::Error>>
+    ) -> Result<Gas, ExecutionError<S::Error>>
     where
         S: StateRead,
         OA: OpAccess<Op = Op> + Unpin,

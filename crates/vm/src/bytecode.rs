@@ -1,4 +1,4 @@
-//! Items related to bytecode representation for the State Read VM.
+//! Items related to bytecode representation for the VM assembly.
 
 use crate::asm::{opcode::ParseOp, ToBytes, ToOpcode, TryFromBytes};
 

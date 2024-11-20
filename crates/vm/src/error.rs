@@ -1,4 +1,4 @@
-//! The types of errors that might occur throughout state read execution.
+//! The types of errors that might occur throughout execution.
 
 #[doc(inline)]
 use crate::{
@@ -8,8 +8,8 @@ use crate::{
 use core::fmt;
 use thiserror::Error;
 
-/// Shorthand for a `Result` where the error type is a `StateReadError`.
-pub type StateReadResult<T, E> = Result<T, StateReadError<E>>;
+/// Shorthand for a `Result` where the error type is a `ExecutionError`.
+pub type ExecutionResult<T, E> = Result<T, ExecutionError<E>>;
 
 /// Shorthand for a `Result` where the error type is an `OpError`.
 pub type OpResult<T, E> = Result<T, OpError<E>>;
@@ -45,9 +45,9 @@ pub struct ConstraintErrors(pub Vec<(usize, ConstraintError)>);
 #[derive(Debug, Error)]
 pub struct ConstraintsUnsatisfied(pub Vec<usize>);
 
-/// State read execution failure.
+/// Execution failure.
 #[derive(Debug, Error)]
-pub enum StateReadError<E> {
+pub enum ExecutionError<E> {
     /// The operation at the specified index failed.
     #[error("operation at index {0} failed: {1}")]
     Op(usize, OpError<E>),
@@ -56,7 +56,7 @@ pub enum StateReadError<E> {
     PcOutOfRange(usize),
 }
 
-/// An individual operation failed during state read execution.
+/// An individual operation failed during execution.
 #[derive(Debug, Error)]
 pub enum OpError<E> {
     /// A synchronous operation failed.

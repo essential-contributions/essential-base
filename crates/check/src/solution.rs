@@ -9,7 +9,7 @@ use crate::{
     vm::{
         self,
         asm::{self, FromBytesError},
-        error::{ConstraintsUnsatisfied, MemoryError, StackError, StateReadError},
+        error::{ConstraintsUnsatisfied, MemoryError, StackError, ExecutionError},
         Access, BytecodeMapped, Gas, GasLimit, Memory, Stack, StateRead,
     },
 };
@@ -184,7 +184,7 @@ pub enum ProgramError<E> {
     ParentMemoryConcatOverflow(#[from] MemoryError),
     /// VM execution resulted in an error.
     #[error("VM execution error: {0}")]
-    Vm(#[from] StateReadError<E>),
+    Vm(#[from] ExecutionError<E>),
 }
 
 /// The number of decision variables provided by the solution data differs to
@@ -368,10 +368,10 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
 
 /// Checks all of a solution's `SolutionData` against its associated predicates.
 ///
-/// For each of the solution's `data` elements, a single task is spawned that
-/// reads the pre and post state slots for the associated predicate with access to
-/// the given `pre_state` and `post_state`, then checks all constraints over the
-/// resulting pre and post state slots.
+/// For each of the solution's `data` elements, we load the associated predicate and
+/// its programs and execute each asynchronously in topological order. The leaf nodes
+/// are treated as constraints and if any constraint returns `false`, the solution is
+/// considered to be invalid.
 ///
 /// **NOTE:** This assumes that the given `Solution` and all `Predicate`s
 /// have already been independently validated using
@@ -628,7 +628,7 @@ where
 {
     let program_mapped = BytecodeMapped::try_from(&program.0[..])?;
 
-    // Create a new state read VM.
+    // Create a new VM.
     let mut vm = vm::Vm::default();
 
     #[cfg(feature = "tracing")]

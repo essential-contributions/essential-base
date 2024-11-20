@@ -11,7 +11,7 @@ use core::{
 };
 use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Word};
 
-/// Access to state required by the state read VM.
+/// Read-only access to state required by the VM.
 pub trait StateRead {
     /// An error type describing any cases that might occur during state reading.
     type Error: core::fmt::Debug + core::fmt::Display;

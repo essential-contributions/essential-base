@@ -1,11 +1,11 @@
 StateRead:
-  description: All operations available to state-read execution.
+  description: All operations available execution, including state read operations.
   group:
     Constraint:
       description: |
         All operations available to the constraint checker.
 
-        Note that this is a subset of the operations available to state read execution.
+        Note that this is a subset of ops that should perform no I/O.
       group:
         Stack:
           description: Operations related to stack manipulation.
