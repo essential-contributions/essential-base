@@ -452,8 +452,8 @@ fn impl_from_subgroups(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
 }
 
 /// Wrap an expression with the given nested op group naming.
-/// E.g. the args [StateRead, Constraint, Stack]` and `my_expr` becomes
-/// `StateRead::Constraint(Constraint::Stack(my_expr))`.
+/// E.g. the args [Op, Stack]` and `my_expr` becomes
+/// `Op::Stack(my_expr)`.
 fn enum_variant_tuple1_expr(names: &[String], mut expr: syn::Expr) -> syn::Expr {
     assert!(!names.is_empty(), "Expecting at least one variant name");
     let mut idents: Vec<_> = names
@@ -469,7 +469,7 @@ fn enum_variant_tuple1_expr(names: &[String], mut expr: syn::Expr) -> syn::Expr 
 }
 
 /// Generate an opcode expression from the given nested op group naming.
-/// E.g. `[Constraint, Stack, Push]` becomes `Constraint::Stack(Stack::Push)`.
+/// E.g. `[Op, Stack, Push]` becomes `Op::Stack(Stack::Push)`.
 fn opcode_expr_from_names(names: &[String]) -> syn::Expr {
     assert!(
         names.len() >= 2,

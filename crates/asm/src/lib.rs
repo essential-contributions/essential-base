@@ -10,9 +10,9 @@ use core::fmt;
 #[doc(inline)]
 pub use essential_types::Word;
 #[doc(inline)]
-pub use op::{StateRead as Op, *};
+pub use op::{Op, *};
 #[doc(inline)]
-pub use opcode::{InvalidOpcodeError, NotEnoughBytesError, StateRead as Opcode};
+pub use opcode::{InvalidOpcodeError, NotEnoughBytesError, Op as Opcode};
 
 /// Determine the effects of a program.
 pub mod effects;
@@ -57,7 +57,7 @@ mod op {
 
     /// Short hand names for the operations.
     pub mod short {
-        use super::{StateRead as Op, *};
+        use super::{Op, *};
         essential_asm_gen::gen_all_op_consts!();
     }
 }
@@ -193,8 +193,8 @@ mod tests {
         let ops: Vec<Op> = vec![
             Stack::Push(0x1234567812345678).into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
-            StateRead::KeyRange,
-            StateRead::KeyRangeExtern,
+            Memory::Load.into(),
+            Memory::Store.into(),
         ];
         roundtrip(ops);
     }

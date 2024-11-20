@@ -4,7 +4,7 @@ use crate::{Group, Node, Op, Tree};
 
 /// Recursively visit all group nodes within the op tree that pass the given
 /// predicate in depth-first visit order. The first argument is the stack of
-/// nested names (e.g. `[Constraint, Alu]`) and is guaranteed to be non-empty.
+/// nested names (e.g. `[Op, Alu]`) and is guaranteed to be non-empty.
 pub fn groups_filtered(
     tree: &Tree,
     pred: &impl Fn(&str) -> bool,
