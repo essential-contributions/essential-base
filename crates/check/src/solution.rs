@@ -9,7 +9,7 @@ use crate::{
     vm::{
         self,
         asm::{self, FromBytesError},
-        error::{ConstraintsUnsatisfied, MemoryError, StackError, ExecutionError},
+        error::{ConstraintsUnsatisfied, ExecutionError, MemoryError, StackError},
         Access, BytecodeMapped, Gas, GasLimit, Memory, Stack, StateRead,
     },
 };

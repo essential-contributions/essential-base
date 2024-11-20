@@ -1,6 +1,6 @@
 use crate::{
     asm::Op,
-    error::{OpAsyncError, OpError, OutOfGasError, ExecutionError},
+    error::{ExecutionError, OpAsyncError, OpError, OutOfGasError},
     state_read::{self, StateReadFuture},
     step_op_sync, Access, ContentAddress, Gas, GasLimit, OpAccess, OpAsync, OpAsyncResult,
     OpGasCost, OpKind, StateRead, Vm,
