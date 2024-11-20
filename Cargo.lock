@@ -452,23 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "essential-constraint-vm"
-version = "0.5.0"
-dependencies = [
- "criterion",
- "ed25519-dalek",
- "essential-types",
- "rand",
- "rayon",
- "secp256k1",
- "sha2",
- "test-case",
- "thiserror",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "essential-hash"
 version = "0.5.0"
 dependencies = [
