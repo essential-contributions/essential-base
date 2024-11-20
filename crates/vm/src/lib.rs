@@ -186,8 +186,7 @@ pub(crate) fn trace_op_res<OA, T, E>(
     stack: &Stack,
     memory: &Memory,
     op_res: Result<T, E>,
-)
-where
+) where
     OA: OpAccess,
     OA::Op: core::fmt::Debug,
     E: core::fmt::Display,
