@@ -1,7 +1,7 @@
 use essential_check::{
     sign::secp256k1::{PublicKey, Secp256k1, SecretKey},
-    state_read_vm::StateRead,
     types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
+    vm::StateRead,
 };
 use essential_types::{
     contract::{self, Contract},

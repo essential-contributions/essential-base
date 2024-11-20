@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use essential_check::constraint_vm;
+use essential_check::vm;
 use essential_types::{
     contract::Contract,
     predicate::{Edge, Node, Predicate, Program, Reads},
@@ -16,30 +16,30 @@ pub mod util;
 async fn test_encoding_sig_and_pub_key() {
     tracing_subscriber::fmt::init();
     let program = Arc::new(Program(
-        constraint_vm::asm::to_bytes([
+        vm::asm::to_bytes([
             // Get the secp256k1 public key. It is 5 slots.
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Stack::Push(5).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
+            vm::asm::Stack::Push(0).into(),
+            vm::asm::Stack::Push(0).into(),
+            vm::asm::Stack::Push(5).into(),
+            vm::asm::Access::DecisionVar.into(),
             // Hash the key.
-            constraint_vm::asm::Stack::Push(5 * 8).into(),
-            constraint_vm::asm::Crypto::Sha256.into(),
+            vm::asm::Stack::Push(5 * 8).into(),
+            vm::asm::Crypto::Sha256.into(),
             // Get the secp256k1 signature. It is 9 slots.
-            constraint_vm::asm::Stack::Push(1).into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Stack::Push(9).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
+            vm::asm::Stack::Push(1).into(),
+            vm::asm::Stack::Push(0).into(),
+            vm::asm::Stack::Push(9).into(),
+            vm::asm::Access::DecisionVar.into(),
             // Recover the public key.
-            constraint_vm::asm::Crypto::RecoverSecp256k1.into(),
+            vm::asm::Crypto::RecoverSecp256k1.into(),
             // Get the secp256k1 public key. It is 5 slots.
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Stack::Push(0).into(),
-            constraint_vm::asm::Stack::Push(5).into(),
-            constraint_vm::asm::Access::DecisionVar.into(),
+            vm::asm::Stack::Push(0).into(),
+            vm::asm::Stack::Push(0).into(),
+            vm::asm::Stack::Push(5).into(),
+            vm::asm::Access::DecisionVar.into(),
             // Compare the two public keys.
-            constraint_vm::asm::Stack::Push(5).into(),
-            constraint_vm::asm::Pred::EqRange.into(),
+            vm::asm::Stack::Push(5).into(),
+            vm::asm::Pred::EqRange.into(),
         ])
         .collect(),
     ));

@@ -1,20 +1,17 @@
 //! Items related to validating `Solution`s.
 
 use crate::{
-    constraint_vm::{self, error::ConstraintsUnsatisfied},
-    state_read_vm::{
-        self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
-        StateRead,
-    },
     types::{
         predicate::Predicate,
         solution::{Solution, SolutionData, SolutionDataIndex},
         Key, PredicateAddress, Word,
     },
-};
-use essential_constraint_vm::{
-    error::{MemoryError, StackError},
-    Memory, Stack,
+    vm::{
+        self,
+        asm::{self, FromBytesError},
+        error::{ConstraintsUnsatisfied, MemoryError, StackError, StateReadError},
+        Access, BytecodeMapped, Gas, GasLimit, Memory, Stack, StateRead,
+    },
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
@@ -206,7 +203,7 @@ pub struct InvalidDecisionVariablesLength {
 pub enum PredicateConstraintsError {
     /// Constraint checking failed.
     #[error("check failed: {0}")]
-    Check(#[from] constraint_vm::error::CheckError),
+    Check(#[from] vm::error::CheckError),
     /// Failed to receive result from spawned task.
     #[error("failed to recv: {0}")]
     Recv(#[from] oneshot::error::RecvError),
@@ -632,7 +629,7 @@ where
     let program_mapped = BytecodeMapped::try_from(&program.0[..])?;
 
     // Create a new state read VM.
-    let mut vm = state_read_vm::Vm::default();
+    let mut vm = vm::Vm::default();
 
     #[cfg(feature = "tracing")]
     tracing::trace!(
@@ -675,11 +672,11 @@ where
     );
 
     // Setup solution data access for execution.
-    let mut_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+    let mut_keys = vm::mut_keys_set(&solution, solution_data_index);
     let access = Access::new(&solution, solution_data_index, &mut_keys);
 
     // FIXME: Provide these from Config.
-    let gas_cost = |_: &state_read_vm::asm::Op| 1;
+    let gas_cost = |_: &asm::Op| 1;
     let gas_limit = GasLimit::UNLIMITED;
 
     // Read the state into the VM's memory.

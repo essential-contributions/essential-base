@@ -32,13 +32,11 @@
 #![deny(unsafe_code)]
 
 #[doc(inline)]
-pub use essential_constraint_vm as constraint_vm;
-#[doc(inline)]
 pub use essential_sign as sign;
 #[doc(inline)]
-pub use essential_state_read_vm as state_read_vm;
-#[doc(inline)]
 pub use essential_types as types;
+#[doc(inline)]
+pub use essential_vm as vm;
 
 pub mod predicate;
 pub mod solution;
