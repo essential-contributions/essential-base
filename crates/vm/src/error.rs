@@ -5,6 +5,7 @@ use crate::{
     asm::{self, Word},
     Gas,
 };
+use core::fmt;
 use thiserror::Error;
 
 /// Shorthand for a `Result` where the error type is a `StateReadError`.
@@ -19,8 +20,30 @@ pub type OpSyncResult<T> = Result<T, OpSyncError>;
 /// Shorthand for a `Result` where the error type is an `OpAsyncError`.
 pub type OpAsyncResult<T, E> = Result<T, OpAsyncError<E>>;
 
+/// Shorthand for a `Result` where the error type is a `CheckError`.
+pub type CheckResult<T> = Result<T, CheckError>;
+
 /// Shorthand for a `Result` where the error type is an `OpError`.
 pub type ConstraintResult<T> = Result<T, ConstraintError>;
+
+/// Predicate checking error.
+#[derive(Debug, Error)]
+pub enum CheckError {
+    /// Errors occurred while executing one or more constraints.
+    #[error("errors occurred while executing one or more constraints: {0}")]
+    ConstraintErrors(#[from] ConstraintErrors),
+    /// One or more constraints were unsatisfied.
+    #[error("one or more constraints were unsatisfied: {0}")]
+    ConstraintsUnsatisfied(#[from] ConstraintsUnsatisfied),
+}
+
+/// The index of each failed constraint alongside the error it produced.
+#[derive(Debug, Error)]
+pub struct ConstraintErrors(pub Vec<(usize, ConstraintError)>);
+
+/// The index of each constraint that was not satisfied.
+#[derive(Debug, Error)]
+pub struct ConstraintsUnsatisfied(pub Vec<usize>);
 
 /// State read execution failure.
 #[derive(Debug, Error)]
@@ -390,6 +413,26 @@ pub enum EncodeError {
     /// Encoding item failed because it was too large.
     #[error("item length too large: {0}")]
     ItemLengthTooLarge(usize),
+}
+
+impl fmt::Display for ConstraintErrors {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("the constraints at the following indices failed: \n")?;
+        for (ix, err) in &self.0 {
+            f.write_str(&format!("  {ix}: {err}\n"))?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for ConstraintsUnsatisfied {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("the constraints at the following indices returned false: \n")?;
+        for ix in &self.0 {
+            f.write_str(&format!("  {ix}\n"))?;
+        }
+        Ok(())
+    }
 }
 
 impl From<core::convert::Infallible> for ConstraintError {
