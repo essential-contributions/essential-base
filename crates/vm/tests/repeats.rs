@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use essential_asm as asm;
-use essential_vm::{constraint::eval_ops, Access};
 use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
+use essential_vm::{constraint::eval_ops, Access};
 
 #[test]
 fn test_forall_in_asm() {

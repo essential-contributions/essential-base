@@ -105,7 +105,9 @@ pub(crate) fn decision_var(
     this_decision_vars: &[Value],
     stack: &mut Stack,
 ) -> ConstraintResult<()> {
-    let len = stack.pop().map_err(|_| AccessError::MissingArg(MissingAccessArgError::DecVarLen))?;
+    let len = stack
+        .pop()
+        .map_err(|_| AccessError::MissingArg(MissingAccessArgError::DecVarLen))?;
     let value_ix = stack
         .pop()
         .map_err(|_| AccessError::MissingArg(MissingAccessArgError::DecVarValueIx))?;

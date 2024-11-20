@@ -17,7 +17,10 @@ pub enum ProgramControlFlow {
     Halt,
 }
 
-pub fn jump_forward_if(stack: &mut Stack, pc: usize) -> ConstraintResult<Option<ProgramControlFlow>> {
+pub fn jump_forward_if(
+    stack: &mut Stack,
+    pc: usize,
+) -> ConstraintResult<Option<ProgramControlFlow>> {
     let [dist, cond] = stack.pop2()?;
     let cond = bool_from_word(cond).ok_or(TotalControlFlowError::InvalidJumpForwardIfCondition)?;
     if cond {

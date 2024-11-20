@@ -740,10 +740,7 @@ fn all_op_consts(tree: &Tree) -> Vec<syn::Item> {
 }
 
 /// Generate items for each op group and collect them into a `Vec`.
-fn collect_items(
-    tree: &Tree,
-    new_item: impl Fn(&[String], &Group) -> syn::Item,
-) -> Vec<syn::Item> {
+fn collect_items(tree: &Tree, new_item: impl Fn(&[String], &Group) -> syn::Item) -> Vec<syn::Item> {
     let mut items = vec![];
     visit::groups(tree, &mut |str, group| items.push(new_item(str, group)));
     items

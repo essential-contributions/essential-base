@@ -118,7 +118,9 @@ fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Ve
     s.extend(stack.to_vec()).unwrap();
 
     let dec_vars = dec_vars.iter().map(|v| v.to_vec()).collect::<Vec<_>>();
-    decision_var_len(&dec_vars, &mut s).map(|_| s.into()).map_err(From::from)
+    decision_var_len(&dec_vars, &mut s)
+        .map(|_| s.into())
+        .map_err(From::from)
 }
 
 #[test_case(
@@ -149,7 +151,10 @@ fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Ve
     &[&[3, 99], &[4, 61, 100]] => using assert_stack_ok(&[3])
     ; "sanity dec var len"
 )]
-fn test_dec_var_ops(ops: Vec<asm::Constraint>, dec_vars: &[&[Word]]) -> ConstraintResult<Vec<Word>> {
+fn test_dec_var_ops(
+    ops: Vec<asm::Constraint>,
+    dec_vars: &[&[Word]],
+) -> ConstraintResult<Vec<Word>> {
     let dec_vars = dec_vars.iter().map(|v| v.to_vec()).collect::<Vec<_>>();
     let data = [SolutionData {
         predicate_to_solve: PredicateAddress {
