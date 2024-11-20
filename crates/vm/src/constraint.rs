@@ -55,7 +55,7 @@ where
         let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat, &cache);
 
         #[cfg(feature = "tracing")]
-        trace_op_res(pc, &op, &stack, &memory, res.as_ref());
+        crate::trace_op_res(&mut op_access, pc, &stack, &memory, res.as_ref());
 
         let update = match res {
             Ok(update) => update,

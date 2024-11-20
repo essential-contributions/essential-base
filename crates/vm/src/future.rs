@@ -164,7 +164,13 @@ where
 
                 // Handle the op result.
                 #[cfg(feature = "tracing")]
-                trace_op_res(&mut self.op_access, &*vm, res.as_ref());
+                crate::trace_op_res(
+                    &mut self.op_access,
+                    vm.pc,
+                    &vm.stack,
+                    &vm.memory,
+                    res.as_ref(),
+                );
 
                 match res {
                     Ok(new_pc) => vm.pc = new_pc,
@@ -228,7 +234,13 @@ where
             };
 
             #[cfg(feature = "tracing")]
-            trace_op_res(&mut self.op_access, &*vm, res.as_ref());
+            crate::trace_op_res(
+                &mut self.op_access,
+                vm.pc,
+                &vm.stack,
+                &vm.memory,
+                res.as_ref(),
+            );
 
             // Handle any errors.
             let opt_new_pc = match res {
@@ -341,33 +353,5 @@ fn out_of_gas(exec: &GasExec, op_gas: Gas) -> OutOfGasError {
         spent: exec.spent,
         limit: exec.limit.total,
         op_gas,
-    }
-}
-
-/// Trace the operation at the given program counter.
-///
-/// In the success case, also emits the resulting stack.
-///
-/// In the error case, emits a debug log with the error.
-#[cfg(feature = "tracing")]
-fn trace_op_res<OA, T, E>(oa: &mut OA, vm: &Vm, op_res: Result<T, E>)
-where
-    OA: OpAccess,
-    OA::Op: core::fmt::Debug,
-    E: core::fmt::Display,
-{
-    let op = oa
-        .op_access(vm.pc)
-        .expect("must exist as retrieved previously")
-        .expect("must exist as retrieved previously");
-    let pc_op = format!("0x{:02X}: {op:?}", vm.pc);
-    match op_res {
-        Ok(_) => {
-            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", &vm.stack, &vm.memory)
-        }
-        Err(ref err) => {
-            tracing::trace!("{pc_op}");
-            tracing::debug!("{err}");
-        }
     }
 }

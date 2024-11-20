@@ -173,3 +173,37 @@ pub(crate) fn step_op_sync(
     let new_pc = vm.pc.checked_add(1).ok_or(OpSyncError::PcOverflow)?;
     Ok(Some(new_pc))
 }
+
+/// Trace the operation at the given program counter.
+///
+/// In the success case, also emits the resulting stack.
+///
+/// In the error case, emits a debug log with the error.
+#[cfg(feature = "tracing")]
+pub(crate) fn trace_op_res<OA, T, E>(
+    oa: &mut OA,
+    pc: usize,
+    stack: &Stack,
+    memory: &Memory,
+    op_res: Result<T, E>,
+)
+where
+    OA: OpAccess,
+    OA::Op: core::fmt::Debug,
+    E: core::fmt::Display,
+{
+    let op = oa
+        .op_access(pc)
+        .expect("must exist as retrieved previously")
+        .expect("must exist as retrieved previously");
+    let pc_op = format!("0x{:02X}: {op:?}", pc);
+    match op_res {
+        Ok(_) => {
+            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", stack, memory)
+        }
+        Err(ref err) => {
+            tracing::trace!("{pc_op}");
+            tracing::debug!("{err}");
+        }
+    }
+}
