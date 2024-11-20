@@ -2,16 +2,15 @@
 
 use crate::{
     cached::LazyCache,
-    error::{AccessError, MissingAccessArgError},
+    error::{AccessError, ConstraintResult, MissingAccessArgError},
     repeat::Repeat,
     sets::encode_set,
-    OpResult, Stack,
-};
-use essential_constraint_asm::Word;
-use essential_types::{
-    convert::{bytes_from_word, u8_32_from_word_4, word_4_from_u8_32},
-    solution::{Solution, SolutionData, SolutionDataIndex},
-    Key, Value,
+    types::{
+        convert::{bytes_from_word, u8_32_from_word_4, word_4_from_u8_32},
+        solution::{Solution, SolutionData, SolutionDataIndex},
+        Key, Value, Word,
+    },
+    Stack,
 };
 use std::collections::HashSet;
 
@@ -102,14 +101,17 @@ pub fn mut_keys_set(solution: &Solution, predicate_index: SolutionDataIndex) -> 
 }
 
 /// `Access::DecisionVar` implementation.
-pub(crate) fn decision_var(this_decision_vars: &[Value], stack: &mut Stack) -> OpResult<()> {
-    let len = stack.pop().map_err(|_| MissingAccessArgError::DecVarLen)?;
+pub(crate) fn decision_var(
+    this_decision_vars: &[Value],
+    stack: &mut Stack,
+) -> ConstraintResult<()> {
+    let len = stack.pop().map_err(|_| AccessError::MissingArg(MissingAccessArgError::DecVarLen))?;
     let value_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::DecVarValueIx)?;
+        .map_err(|_| AccessError::MissingArg(MissingAccessArgError::DecVarValueIx))?;
     let slot_ix = stack
         .pop()
-        .map_err(|_| MissingAccessArgError::DecVarSlotIx)?;
+        .map_err(|_| AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx))?;
     let slot_ix =
         usize::try_from(slot_ix).map_err(|_| AccessError::DecisionSlotIxOutOfBounds(slot_ix))?;
     let range = range_from_start_len(value_ix, len).ok_or(AccessError::InvalidAccessRange)?;
@@ -119,7 +121,10 @@ pub(crate) fn decision_var(this_decision_vars: &[Value], stack: &mut Stack) -> O
 }
 
 /// `Access::DecisionVarLen` implementation.
-pub(crate) fn decision_var_len(this_decision_vars: &[Value], stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn decision_var_len(
+    this_decision_vars: &[Value],
+    stack: &mut Stack,
+) -> Result<(), AccessError> {
     let slot_ix = stack
         .pop()
         .map_err(|_| MissingAccessArgError::DecVarSlotIx)?;
@@ -134,31 +139,37 @@ pub(crate) fn decision_var_len(this_decision_vars: &[Value], stack: &mut Stack) 
 }
 
 /// `Access::MutKeys` implementation.
-pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> ConstraintResult<()> {
     encode_set(access.mutable_keys.iter().map(|k| k.iter().copied()), stack)
 }
 
 /// `Access::ThisAddress` implementation.
-pub(crate) fn this_address(data: &SolutionData, stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn this_address(data: &SolutionData, stack: &mut Stack) -> ConstraintResult<()> {
     let words = word_4_from_u8_32(data.predicate_to_solve.predicate.0);
     stack.extend(words)?;
     Ok(())
 }
 
 /// `Access::ThisContractAddress` implementation.
-pub(crate) fn this_contract_address(data: &SolutionData, stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn this_contract_address(
+    data: &SolutionData,
+    stack: &mut Stack,
+) -> ConstraintResult<()> {
     let words = word_4_from_u8_32(data.predicate_to_solve.contract.0);
     stack.extend(words)?;
     Ok(())
 }
 
-pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()> {
+pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> ConstraintResult<()> {
     let counter = repeat.counter()?;
     Ok(stack.push(counter)?)
 }
 
 /// Implementation of the `Access::NumSlots` operation.
-pub(crate) fn decision_var_slots(stack: &mut Stack, decision_variables: &[Value]) -> OpResult<()> {
+pub(crate) fn decision_var_slots(
+    stack: &mut Stack,
+    decision_variables: &[Value],
+) -> ConstraintResult<()> {
     let num_slots = Word::try_from(decision_variables.len())
         .map_err(|_| AccessError::SlotsLengthTooLarge(decision_variables.len()))?;
     stack.push(num_slots)?;
@@ -200,7 +211,7 @@ pub(crate) fn predicate_exists(
     stack: &mut Stack,
     data: &[SolutionData],
     cache: &LazyCache,
-) -> OpResult<()> {
+) -> ConstraintResult<()> {
     let hash = u8_32_from_word_4(stack.pop4()?);
     let found = cache.get_dec_var_hashes(data).contains(&hash);
     stack.push(found as Word)?;

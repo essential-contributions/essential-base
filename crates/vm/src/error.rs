@@ -1,12 +1,10 @@
 //! The types of errors that might occur throughout state read execution.
 
-pub use crate::constraint::error::{StackError, StackResult};
 #[doc(inline)]
 use crate::{
     asm::{self, Word},
-    constraint, Gas,
+    Gas,
 };
-use essential_constraint_vm::error::MemoryError;
 use thiserror::Error;
 
 /// Shorthand for a `Result` where the error type is a `StateReadError`.
@@ -20,6 +18,9 @@ pub type OpSyncResult<T> = Result<T, OpSyncError>;
 
 /// Shorthand for a `Result` where the error type is an `OpAsyncError`.
 pub type OpAsyncResult<T, E> = Result<T, OpAsyncError<E>>;
+
+/// Shorthand for a `Result` where the error type is an `OpError`.
+pub type ConstraintResult<T> = Result<T, ConstraintError>;
 
 /// State read execution failure.
 #[derive(Debug, Error)]
@@ -71,7 +72,7 @@ pub struct OutOfGasError {
 pub enum OpSyncError {
     /// An error occurred during a `Constraint` operation.
     #[error("constraint operation error: {0}")]
-    Constraint(#[from] constraint::error::OpError),
+    Constraint(#[from] ConstraintError),
     /// An error occurred during a `TotalControlFlow` operation.
     #[error("control flow operation error: {0}")]
     TotalControlFlow(#[from] ControlFlowError),
@@ -107,9 +108,28 @@ pub enum ControlFlowError {
     InvalidJumpIfCondition(Word),
 }
 
+/// Shorthand for a `Result` where the error type is a `EvalError`.
+pub type ConstraintEvalResult<T> = Result<T, ConstraintEvalError>;
+
+/// Constraint checking error.
+#[derive(Debug, Error)]
+pub enum ConstraintEvalError {
+    /// Evaluation should have resulted with a `0` (false) or `1` (true) at the
+    /// top of the stack, but did not.
+    #[error(
+        "invalid constraint evaluation result\n  \
+        expected: [0] (false) or [1] (true)\n  \
+        found:    {0:?}"
+    )]
+    InvalidEvaluation(crate::Stack),
+    /// The operation at the specified index failed.
+    #[error("operation at index {0} failed: {1}")]
+    Op(usize, ConstraintError),
+}
+
 /// An individual operation failed during constraint checking error.
 #[derive(Debug, Error)]
-pub enum ConstraintOpError {
+pub enum ConstraintError {
     /// An error occurred during an `Access` operation.
     #[error("access operation error: {0}")]
     Access(#[from] AccessError),
@@ -372,6 +392,11 @@ pub enum EncodeError {
     ItemLengthTooLarge(usize),
 }
 
+impl From<core::convert::Infallible> for ConstraintError {
+    fn from(err: core::convert::Infallible) -> Self {
+        match err {}
+    }
+}
 
 impl<E> From<core::convert::Infallible> for OpError<E> {
     fn from(err: core::convert::Infallible) -> Self {

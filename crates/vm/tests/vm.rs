@@ -2,10 +2,9 @@
 
 mod util;
 
-use constraint::mut_keys_set;
-use essential_state_read_vm::{
+use essential_vm::{
     asm::{self, short::*, Op},
-    constraint,
+    mut_keys_set,
     types::solution::{Mutation, Solution, SolutionData},
     Access, BytecodeMapped, Gas, GasLimit, Vm,
 };

@@ -1,42 +1,45 @@
 //! ALU operation implementations.
 
-use crate::{asm::Word, error::AluError, OpResult};
+use crate::{
+    asm::Word,
+    error::{AluError, ConstraintResult},
+};
 
 #[cfg(test)]
 mod shifts;
 
-pub(crate) fn add(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn add(a: Word, b: Word) -> ConstraintResult<Word> {
     a.checked_add(b).ok_or(AluError::Overflow.into())
 }
 
-pub(crate) fn sub(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn sub(a: Word, b: Word) -> ConstraintResult<Word> {
     a.checked_sub(b).ok_or(AluError::Underflow.into())
 }
 
-pub(crate) fn mul(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn mul(a: Word, b: Word) -> ConstraintResult<Word> {
     a.checked_mul(b).ok_or(AluError::Overflow.into())
 }
 
-pub(crate) fn div(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn div(a: Word, b: Word) -> ConstraintResult<Word> {
     a.checked_div(b).ok_or(AluError::DivideByZero.into())
 }
 
-pub(crate) fn mod_(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn mod_(a: Word, b: Word) -> ConstraintResult<Word> {
     a.checked_rem(b).ok_or(AluError::DivideByZero.into())
 }
 
-pub(crate) fn shl(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn shl(a: Word, b: Word) -> ConstraintResult<Word> {
     check_shift_bounds(b)?;
     Ok(a << b)
 }
 
-pub(crate) fn shr(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn shr(a: Word, b: Word) -> ConstraintResult<Word> {
     check_shift_bounds(b)?;
     // casts are safe and turn this into a logical shift
     Ok(((a as u64) >> b) as Word)
 }
 
-pub(crate) fn arithmetic_shr(a: Word, b: Word) -> OpResult<Word> {
+pub(crate) fn arithmetic_shr(a: Word, b: Word) -> ConstraintResult<Word> {
     check_shift_bounds(b)?;
     Ok(a >> b)
 }
@@ -44,7 +47,7 @@ pub(crate) fn arithmetic_shr(a: Word, b: Word) -> OpResult<Word> {
 const BITS_IN_WORD: Word = core::mem::size_of::<Word>() as Word * 8;
 
 #[inline]
-fn check_shift_bounds(b: Word) -> OpResult<()> {
+fn check_shift_bounds(b: Word) -> ConstraintResult<()> {
     let bounds = 0..BITS_IN_WORD;
     if !bounds.contains(&b) {
         return Err(AluError::Overflow.into());
@@ -56,9 +59,8 @@ fn check_shift_bounds(b: Word) -> OpResult<()> {
 mod tests {
     use crate::{
         asm::{Alu, Pred, Stack, Word},
-        error::{AluError, ConstraintError, OpError},
-        eval_ops,
-        test_util::*,
+        constraint::{eval_ops, test_util::*},
+        error::{AluError, ConstraintError, ConstraintEvalError},
     };
 
     #[test]
@@ -93,7 +95,7 @@ mod tests {
             Alu::Div.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(_, OpError::Alu(AluError::DivideByZero))) => (),
+            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::DivideByZero))) => (),
             _ => panic!("expected ALU divide-by-zero error"),
         }
     }
@@ -106,7 +108,7 @@ mod tests {
             Alu::Add.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(_, OpError::Alu(AluError::Overflow))) => (),
+            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
     }
@@ -119,7 +121,7 @@ mod tests {
             Alu::Mul.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(_, OpError::Alu(AluError::Overflow))) => (),
+            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
     }
@@ -132,7 +134,7 @@ mod tests {
             Alu::Sub.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(_, OpError::Alu(AluError::Underflow))) => (),
+            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::Underflow))) => (),
             _ => panic!("expected ALU underflow error"),
         }
     }

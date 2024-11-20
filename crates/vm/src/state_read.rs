@@ -1,7 +1,7 @@
 //! State read operation implementations.
 
 use crate::{
-    error::{OpAsyncError, StackError},
+    error::{MemoryError, OpAsyncError, StackError},
     OpAsyncResult, Vm,
 };
 use core::{
@@ -9,7 +9,6 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use essential_constraint_vm::error::MemoryError;
 use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Word};
 
 /// Access to state required by the state read VM.

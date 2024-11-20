@@ -1,4 +1,4 @@
-use essential_state_read_vm::{
+use essential_vm::{
     asm::{self, Op},
     BytecodeMapped,
 };

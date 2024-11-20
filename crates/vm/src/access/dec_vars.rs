@@ -1,16 +1,12 @@
-use super::test_utils::ops;
-use super::*;
-use crate::error::OpError;
-use crate::error::StackError;
-use crate::exec_ops;
-use crate::test_util::test_empty_keys;
-use asm::Op;
-use essential_constraint_asm as asm;
-use essential_types::ContentAddress;
-use essential_types::PredicateAddress;
+use super::{test_utils::ops, *};
+use crate::{
+    asm,
+    constraint::{exec_ops, test_util::test_empty_keys},
+    error::{ConstraintError, ConstraintEvalError, ConstraintResult, StackError},
+    types::{ContentAddress, PredicateAddress},
+};
 use test_case::test_case;
-use test_utils::assert_err;
-use test_utils::assert_stack_ok;
+use test_utils::{assert_err, assert_stack_ok};
 
 #[test_case(
     &[0, 0, 2], &[&[3, 99], &[4, 61, 100]] => using assert_stack_ok(&[3, 99])
@@ -30,17 +26,17 @@ use test_utils::assert_stack_ok;
 )]
 #[test_case(
     &[], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(OpError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarLen)))
+    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarLen)))
     ; "missing len"
 )]
 #[test_case(
     &[1], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(OpError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarValueIx)))
+    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarValueIx)))
     ; "missing value_ix"
 )]
 #[test_case(
     &[0, 1], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(OpError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
+    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
     ; "missing slot_ix"
 )]
 #[test_case(
@@ -49,40 +45,40 @@ use test_utils::assert_stack_ok;
         *v.get_mut(Stack::SIZE_LIMIT - 1).unwrap() = 5;
         v
     },  &[&[], &[3; 6]] =>
-    using assert_err!(OpError::Stack(StackError::Overflow))
+    using assert_err!(ConstraintError::Stack(StackError::Overflow))
     ; "values over flow the stack"
 )]
 #[test_case(
     &[-1, 0, 1], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
+    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
     ; "negative slot_ix"
 )]
 #[test_case(
     &[1, -1, 1], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::InvalidAccessRange))
+    using assert_err!(ConstraintError::Access(AccessError::InvalidAccessRange))
     ; "negative value_ix"
 )]
 #[test_case(
     &[0, 0, -1], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::InvalidAccessRange))
+    using assert_err!(ConstraintError::Access(AccessError::InvalidAccessRange))
     ; "negative len"
 )]
 #[test_case(
     &[1, 0, 1], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
+    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
     ; "slot_ix out of bounds"
 )]
 #[test_case(
     &[0, 1, 1], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::DecisionValueRangeOutOfBounds(1, 2)))
+    using assert_err!(ConstraintError::Access(AccessError::DecisionValueRangeOutOfBounds(1, 2)))
     ; "value ix out of bounds"
 )]
 #[test_case(
     &[0, 0, 2], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::DecisionValueRangeOutOfBounds(0, 2)))
+    using assert_err!(ConstraintError::Access(AccessError::DecisionValueRangeOutOfBounds(0, 2)))
     ; "len out of bounds"
 )]
-fn test_dec_var(stack: &[Word], dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
+fn test_dec_var(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Vec<Word>> {
     let mut s = Stack::default();
     s.extend(stack.to_vec()).unwrap();
 
@@ -104,25 +100,25 @@ fn test_dec_var(stack: &[Word], dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
 )]
 #[test_case(
     &[], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(OpError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
+    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
     ; "missing slot_ix"
 )]
 #[test_case(
     &[-1], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
+    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
     ; "negative slot_ix"
 )]
 #[test_case(
     &[1], &[&[3]] =>
-    using assert_err!(OpError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
+    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
     ; "slot_ix out of bounds"
 )]
-fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
+fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Vec<Word>> {
     let mut s = Stack::default();
     s.extend(stack.to_vec()).unwrap();
 
     let dec_vars = dec_vars.iter().map(|v| v.to_vec()).collect::<Vec<_>>();
-    decision_var_len(&dec_vars, &mut s).map(|_| s.into())
+    decision_var_len(&dec_vars, &mut s).map(|_| s.into()).map_err(From::from)
 }
 
 #[test_case(
@@ -153,7 +149,7 @@ fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> OpResult<Vec<Word>>
     &[&[3, 99], &[4, 61, 100]] => using assert_stack_ok(&[3])
     ; "sanity dec var len"
 )]
-fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
+fn test_dec_var_ops(ops: Vec<asm::Constraint>, dec_vars: &[&[Word]]) -> ConstraintResult<Vec<Word>> {
     let dec_vars = dec_vars.iter().map(|v| v.to_vec()).collect::<Vec<_>>();
     let data = [SolutionData {
         predicate_to_solve: PredicateAddress {
@@ -170,8 +166,8 @@ fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>> {
     };
     exec_ops(&ops, access)
         .map_err(|e| match e {
-            crate::error::ConstraintError::InvalidEvaluation(_) => unreachable!(),
-            crate::error::ConstraintError::Op(_, e) => e,
+            ConstraintEvalError::InvalidEvaluation(_) => unreachable!(),
+            ConstraintEvalError::Op(_, e) => e,
         })
         .map(|stack| stack.into())
 }

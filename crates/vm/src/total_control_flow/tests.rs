@@ -1,8 +1,7 @@
 use crate::{
     asm,
-    error::{OpError, TotalControlFlowError},
-    exec_ops,
-    test_util::test_access,
+    constraint::{exec_ops, test_util::test_access},
+    error::{ConstraintError, TotalControlFlowError},
 };
 
 #[test]
@@ -77,7 +76,7 @@ fn test_panic_if() {
     let err = super::panic_if(&mut stack).unwrap_err();
     assert!(err.to_string().ends_with("[42, 43]"),);
     assert!(
-        matches!(err, OpError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s == vec![42, 43])
+        matches!(err, ConstraintError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s == vec![42, 43])
     );
 
     let mut stack = crate::Stack::default();
@@ -86,7 +85,7 @@ fn test_panic_if() {
     let err = super::panic_if(&mut stack).unwrap_err();
     assert!(err.to_string().ends_with("[]"),);
     assert!(
-        matches!(err, OpError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s.is_empty())
+        matches!(err, ConstraintError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s.is_empty())
     );
 
     let mut stack = crate::Stack::default();
@@ -105,6 +104,6 @@ fn test_panic_if() {
     let err = super::panic_if(&mut stack).unwrap_err();
     assert!(matches!(
         err,
-        OpError::TotalControlFlow(TotalControlFlowError::InvalidPanicIfCondition)
+        ConstraintError::TotalControlFlow(TotalControlFlowError::InvalidPanicIfCondition)
     ));
 }

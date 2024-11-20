@@ -2,8 +2,8 @@
 
 use crate::{
     asm::Word,
-    error::{CryptoError, StackError},
-    OpResult, Stack,
+    error::{ConstraintResult, CryptoError, StackError},
+    Stack,
 };
 use essential_types::convert::{
     bytes_from_word, u8_32_from_word_4, u8_64_from_word_8, word_4_from_u8_32, word_from_bytes,
@@ -13,7 +13,7 @@ use essential_types::convert::{
 mod tests;
 
 /// `Crypto::Sha256` implementation.
-pub(crate) fn sha256(stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn sha256(stack: &mut Stack) -> ConstraintResult<()> {
     use sha2::Digest;
 
     let data = pop_bytes(stack)?;
@@ -28,7 +28,7 @@ pub(crate) fn sha256(stack: &mut Stack) -> OpResult<()> {
 
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 /// `Crypto::VerifyEd25519` implementation.
-pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn verify_ed25519(stack: &mut Stack) -> ConstraintResult<()> {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
     let pubkey_words = stack.pop4()?;
     let signature_words = stack.pop8()?;
@@ -50,7 +50,7 @@ pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
 }
 
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
-pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn recover_secp256k1(stack: &mut Stack) -> ConstraintResult<()> {
     use secp256k1::{
         ecdsa::{RecoverableSignature, RecoveryId},
         Message, Secp256k1,

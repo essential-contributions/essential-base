@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::error::OpError;
+use crate::error::ConstraintError;
 
 use super::*;
 
@@ -54,5 +54,5 @@ fn test_decode_set() {
 
     let set = [0, 1, 2, 4, 3, 4, 5, 3, 6, 1];
     let res = decode_set(&set).collect::<Result<Vec<_>, _>>();
-    assert!(matches!(res.unwrap_err(), OpError::Decode(DecodeError::Set(s)) if s == set));
+    assert!(matches!(res.unwrap_err(), ConstraintError::Decode(DecodeError::Set(s)) if s == set));
 }

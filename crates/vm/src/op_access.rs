@@ -2,7 +2,7 @@
 
 use crate::{
     asm::{ToBytes, TryFromBytes},
-    BytecodeMapped, BytecodeMappedLazy,
+    bytecode::{BytecodeMapped, BytecodeMappedLazy},
 };
 
 /// Types that provide access to operations.

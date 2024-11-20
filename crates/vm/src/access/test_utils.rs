@@ -1,23 +1,25 @@
 use essential_types::Word;
 
-use crate::{error::OpError, OpResult};
+use crate::error::{ConstraintError, ConstraintResult};
 
-/// Helper macro for creating a vector of `Op`s.
+/// Helper macro for creating a vector of `Constraint`s.
 macro_rules! ops {
     ($($op:expr),* $(,)?) => {
-        vec![$(Op::from($op)),*]
+        vec![$(crate::asm::Constraint::from($op)),*]
     };
 }
 
 pub(super) use ops;
 
 /// Assert that the result is ok and that the stack equals the expected value.
-pub(super) fn assert_stack_ok(expected: &[Word]) -> impl Fn(OpResult<Vec<Word>>) {
+pub(super) fn assert_stack_ok(expected: &[Word]) -> impl Fn(ConstraintResult<Vec<Word>>) {
     let expected = expected.to_vec();
     move |r| assert_eq!(*r.as_ref().unwrap(), expected, "{:?}", r)
 }
 
-pub(super) fn assert_err_inner(f: impl Fn(&OpError) -> bool) -> impl Fn(OpResult<Vec<Word>>) {
+pub(super) fn assert_err_inner(
+    f: impl Fn(&ConstraintError) -> bool,
+) -> impl Fn(ConstraintResult<Vec<Word>>) {
     move |r| assert!(f(r.as_ref().unwrap_err()), "{:?}", r)
 }
 

@@ -1,12 +1,12 @@
-mod util;
-
-use essential_state_read_vm::{
+use essential_types::Word;
+use essential_vm::{
     asm::{self, Op},
     types::{convert::word_4_from_u8_32, ContentAddress},
     GasLimit, Vm,
 };
-use essential_types::Word;
 use util::*;
+
+mod util;
 
 #[tokio::test]
 async fn state_read_3_42s() {

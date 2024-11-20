@@ -1,15 +1,15 @@
 use essential_types::Word;
 
 use crate::{
-    error::{DecodeError, EncodeError, StackError},
-    OpResult, Stack,
+    error::{ConstraintResult, DecodeError, EncodeError, StackError},
+    Stack,
 };
 
 #[cfg(test)]
 mod tests;
 
 /// Encode a set into the stack.
-pub(crate) fn encode_set<S, I>(set: S, stack: &mut Stack) -> OpResult<()>
+pub(crate) fn encode_set<S, I>(set: S, stack: &mut Stack) -> ConstraintResult<()>
 where
     I: ExactSizeIterator<Item = Word>,
     S: ExactSizeIterator<Item = I>,
@@ -35,7 +35,7 @@ where
 }
 
 /// Decode a set, starting from the top of slice.
-pub(crate) fn decode_set(words: &[Word]) -> impl '_ + Iterator<Item = OpResult<&[Word]>> {
+pub(crate) fn decode_set(words: &[Word]) -> impl '_ + Iterator<Item = ConstraintResult<&[Word]>> {
     let mut ws = words;
     std::iter::from_fn(move || {
         let (len, rest) = ws.split_last()?;

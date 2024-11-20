@@ -26,7 +26,3 @@ tracing-subscriber.workspace = true
 
 [features]
 tracing = ["dep:tracing"]
-
-[[bench]]
-name = "eval"
-harness = false

@@ -3,16 +3,16 @@ use std::collections::HashSet;
 use essential_types::Word;
 
 use crate::{
-    error::{OpError, StackError},
+    error::{ConstraintError, ConstraintResult, StackError},
     sets::decode_set,
-    OpResult, Stack,
+    Stack,
 };
 
 #[cfg(test)]
 mod tests;
 
 /// `Pred::EqRange` implementation.
-pub(crate) fn eq_range(stack: &mut Stack) -> OpResult<()> {
+pub(crate) fn eq_range(stack: &mut Stack) -> ConstraintResult<()> {
     // Pop the length off the stack.
     let len = stack.pop()?;
 
@@ -27,7 +27,7 @@ pub(crate) fn eq_range(stack: &mut Stack) -> OpResult<()> {
 
     stack.push(double)?;
 
-    let eq = stack.pop_len_words::<_, _, OpError>(|words| {
+    let eq = stack.pop_len_words::<_, _, ConstraintError>(|words| {
         let (a, b) = words.split_at(len);
         Ok(a == b)
     })?;
@@ -39,8 +39,8 @@ pub(crate) fn eq_range(stack: &mut Stack) -> OpResult<()> {
 }
 
 /// `Pred::EqSet` implementation.
-pub(crate) fn eq_set(stack: &mut Stack) -> OpResult<()> {
-    let eq = stack.pop_len_words2::<_, _, OpError>(|lhs, rhs| {
+pub(crate) fn eq_set(stack: &mut Stack) -> ConstraintResult<()> {
+    let eq = stack.pop_len_words2::<_, _, ConstraintError>(|lhs, rhs| {
         let lhs = decode_set(lhs).collect::<Result<HashSet<&[Word]>, _>>()?;
         let rhs = decode_set(rhs).collect::<Result<HashSet<&[Word]>, _>>()?;
         Ok(lhs == rhs)

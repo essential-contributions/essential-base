@@ -2,7 +2,7 @@
 // are considered dead code.
 #![allow(dead_code)]
 
-use essential_state_read_vm::{
+use essential_vm::{
     types::{solution::SolutionData, ContentAddress, Key, PredicateAddress, Word},
     Access, StateRead,
 };

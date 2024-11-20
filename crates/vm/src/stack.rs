@@ -2,8 +2,7 @@
 
 use crate::{
     asm::Word,
-    error::{LenWordsError, StackError},
-    StackResult,
+    error::{LenWordsError, StackError, StackResult},
 };
 use essential_types::convert::bool_from_word;
 
@@ -364,9 +363,8 @@ impl core::ops::Deref for Stack {
 mod tests {
     use crate::{
         asm::Stack,
-        error::{ConstraintError, OpError, StackError},
-        eval_ops, exec_ops,
-        test_util::*,
+        constraint::{eval_ops, exec_ops, test_util::*},
+        error::{ConstraintError, ConstraintEvalError, StackError},
     };
 
     #[test]
@@ -420,7 +418,7 @@ mod tests {
     fn pop_empty() {
         let ops = &[Stack::Pop.into()];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(0, OpError::Stack(StackError::Empty))) => (),
+            Err(ConstraintEvalError::Op(0, ConstraintError::Stack(StackError::Empty))) => (),
             _ => panic!("expected empty stack error"),
         }
     }
@@ -429,7 +427,10 @@ mod tests {
     fn index_oob() {
         let ops = &[Stack::Push(0).into(), Stack::DupFrom.into()];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(1, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            Err(ConstraintEvalError::Op(
+                1,
+                ConstraintError::Stack(StackError::IndexOutOfBounds),
+            )) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
     }
@@ -457,7 +458,10 @@ mod tests {
             Stack::SwapIndex.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            Err(ConstraintEvalError::Op(
+                3,
+                ConstraintError::Stack(StackError::IndexOutOfBounds),
+            )) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
     }
@@ -518,7 +522,10 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(4, OpError::Stack(StackError::InvalidCondition(42)))) => (),
+            Err(ConstraintEvalError::Op(
+                4,
+                ConstraintError::Stack(StackError::InvalidCondition(42)),
+            )) => (),
             _ => panic!("expected invalid condition stack error"),
         }
     }
@@ -544,7 +551,10 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(2, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            Err(ConstraintEvalError::Op(
+                2,
+                ConstraintError::Stack(StackError::IndexOutOfBounds),
+            )) => (),
             _ => panic!("expected index out of bounds stack error"),
         }
     }
@@ -560,7 +570,10 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         match eval_ops(ops, *test_access()) {
-            Err(ConstraintError::Op(5, OpError::Stack(StackError::IndexOutOfBounds))) => (),
+            Err(ConstraintEvalError::Op(
+                5,
+                ConstraintError::Stack(StackError::IndexOutOfBounds),
+            )) => (),
             _ => panic!("expected index out of bounds stack error"),
         }
     }

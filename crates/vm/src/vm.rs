@@ -1,3 +1,5 @@
+//! The VM state machine, used to drive forward execution.
+
 use crate::{
     error::OpError, future, Access, BytecodeMapped, BytecodeMappedLazy, Gas, GasLimit, LazyCache,
     Memory, Op, OpAccess, OpGasCost, Repeat, Stack, StateRead, StateReadError,
