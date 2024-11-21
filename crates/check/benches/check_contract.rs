@@ -6,13 +6,13 @@ use std::{
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use essential_hash::content_addr;
-use essential_state_read_vm::StateRead;
 use essential_types::{
     contract::{Contract, SignedContract},
     predicate::{Edge, Node, Predicate, Program, Reads},
     solution::{Mutation, Solution, SolutionData},
     ContentAddress, Key, PredicateAddress, Word,
 };
+use essential_vm::StateRead;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 pub fn bench(c: &mut Criterion) {
@@ -181,7 +181,7 @@ impl StateRead for State {
 }
 
 fn test_predicate_42(entropy: Word) -> (HashMap<ContentAddress, Arc<Program>>, Predicate) {
-    use essential_state_read_vm::asm::{self, short::*};
+    use essential_vm::asm::{self, short::*};
 
     // Program to read key [0, 0, 0, 0].
     let a = Program(

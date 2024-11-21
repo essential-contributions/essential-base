@@ -1,7 +1,7 @@
 //! The VM state machine, used to drive forward execution.
 
 use crate::{
-    error::{ExecutionError, OpError},
+    error::{ExecError, OpError},
     future, Access, BytecodeMapped, BytecodeMappedLazy, Gas, GasLimit, LazyCache, Memory, Op,
     OpAccess, OpGasCost, Repeat, Stack, StateRead,
 };
@@ -41,7 +41,7 @@ impl Vm {
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, ExecutionError<S::Error>>
+    ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateRead,
     {
@@ -68,7 +68,7 @@ impl Vm {
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, ExecutionError<S::Error>>
+    ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateRead,
         B: core::ops::Deref<Target = [u8]>,
@@ -97,7 +97,7 @@ impl Vm {
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, ExecutionError<S::Error>>
+    ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateRead,
         I: IntoIterator<Item = u8>,
@@ -127,7 +127,7 @@ impl Vm {
         op_access: OA,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
-    ) -> Result<Gas, ExecutionError<S::Error>>
+    ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateRead,
         OA: OpAccess<Op = Op> + Unpin,

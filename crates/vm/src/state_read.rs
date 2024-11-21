@@ -1,8 +1,8 @@
 //! State read operation implementations.
 
 use crate::{
-    error::{MemoryError, OpAsyncError, StackError},
-    OpAsyncResult, Vm,
+    error::{MemoryError, OpAsyncError, OpAsyncResult, StackError},
+    Vm,
 };
 use core::{
     future::Future,

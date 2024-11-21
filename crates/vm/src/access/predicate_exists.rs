@@ -1,6 +1,5 @@
-use essential_types::{ContentAddress, PredicateAddress};
-
 use super::*;
+use essential_types::{ContentAddress, PredicateAddress};
 
 #[test]
 fn test_predicate_exists() {
@@ -103,7 +102,7 @@ fn test_predicate_exists() {
     check(&mut stack, &data, &cache).unwrap_err();
 }
 
-fn check(stack: &mut Stack, data: &[SolutionData], cache: &LazyCache) -> ConstraintResult<bool> {
+fn check(stack: &mut Stack, data: &[SolutionData], cache: &LazyCache) -> OpSyncResult<bool> {
     predicate_exists(stack, data, cache)?;
     let s = stack.iter().cloned().collect::<Vec<_>>();
     assert_eq!(s.len(), 1);

@@ -1,9 +1,10 @@
-use super::{test_utils::ops, *};
+use super::*;
 use crate::{
     asm,
-    constraint::{exec_ops, test_util::test_empty_keys},
-    error::{ConstraintError, ConstraintEvalError, ConstraintResult, StackError},
+    error::{ExecSyncError, OpSyncError, OpSyncResult, StackError},
+    sync::{exec_ops, test_util::test_empty_keys},
     types::{ContentAddress, PredicateAddress},
+    OpSync,
 };
 use test_case::test_case;
 use test_utils::{assert_err, assert_stack_ok};
@@ -26,17 +27,17 @@ use test_utils::{assert_err, assert_stack_ok};
 )]
 #[test_case(
     &[], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarLen)))
+    using assert_err!(OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarLen)))
     ; "missing len"
 )]
 #[test_case(
     &[1], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarValueIx)))
+    using assert_err!(OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarValueIx)))
     ; "missing value_ix"
 )]
 #[test_case(
     &[0, 1], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
+    using assert_err!(OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
     ; "missing slot_ix"
 )]
 #[test_case(
@@ -45,40 +46,40 @@ use test_utils::{assert_err, assert_stack_ok};
         *v.get_mut(Stack::SIZE_LIMIT - 1).unwrap() = 5;
         v
     },  &[&[], &[3; 6]] =>
-    using assert_err!(ConstraintError::Stack(StackError::Overflow))
+    using assert_err!(OpSyncError::Stack(StackError::Overflow))
     ; "values over flow the stack"
 )]
 #[test_case(
     &[-1, 0, 1], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
+    using assert_err!(OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
     ; "negative slot_ix"
 )]
 #[test_case(
     &[1, -1, 1], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::InvalidAccessRange))
+    using assert_err!(OpSyncError::Access(AccessError::InvalidAccessRange))
     ; "negative value_ix"
 )]
 #[test_case(
     &[0, 0, -1], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::InvalidAccessRange))
+    using assert_err!(OpSyncError::Access(AccessError::InvalidAccessRange))
     ; "negative len"
 )]
 #[test_case(
     &[1, 0, 1], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
+    using assert_err!(OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
     ; "slot_ix out of bounds"
 )]
 #[test_case(
     &[0, 1, 1], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::DecisionValueRangeOutOfBounds(1, 2)))
+    using assert_err!(OpSyncError::Access(AccessError::DecisionValueRangeOutOfBounds(1, 2)))
     ; "value ix out of bounds"
 )]
 #[test_case(
     &[0, 0, 2], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::DecisionValueRangeOutOfBounds(0, 2)))
+    using assert_err!(OpSyncError::Access(AccessError::DecisionValueRangeOutOfBounds(0, 2)))
     ; "len out of bounds"
 )]
-fn test_dec_var(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Vec<Word>> {
+fn test_dec_var(stack: &[Word], dec_vars: &[&[Word]]) -> OpSyncResult<Vec<Word>> {
     let mut s = Stack::default();
     s.extend(stack.to_vec()).unwrap();
 
@@ -100,20 +101,20 @@ fn test_dec_var(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Vec<Wo
 )]
 #[test_case(
     &[], &[&[3, 99], &[4, 61, 100]] =>
-    using assert_err!(ConstraintError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
+    using assert_err!(OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::DecVarSlotIx)))
     ; "missing slot_ix"
 )]
 #[test_case(
     &[-1], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
+    using assert_err!(OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(-1)))
     ; "negative slot_ix"
 )]
 #[test_case(
     &[1], &[&[3]] =>
-    using assert_err!(ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
+    using assert_err!(OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(1)))
     ; "slot_ix out of bounds"
 )]
-fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Vec<Word>> {
+fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> OpSyncResult<Vec<Word>> {
     let mut s = Stack::default();
     s.extend(stack.to_vec()).unwrap();
 
@@ -124,37 +125,34 @@ fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> ConstraintResult<Ve
 }
 
 #[test_case(
-    ops![
-        asm::Stack::Push(0),
-        asm::Stack::Push(0),
-        asm::Stack::Push(2),
-        asm::Access::DecisionVar,
+    vec![
+        OpSync::from(asm::Stack::Push(0)),
+        OpSync::from(asm::Stack::Push(0)),
+        OpSync::from(asm::Stack::Push(2)),
+        OpSync::from(asm::Access::DecisionVar),
     ],
     &[&[3, 99], &[4, 61, 100]] => using assert_stack_ok(&[3, 99])
     ; "sanity dec var"
 )]
 #[test_case(
-    ops![
-        asm::Stack::Push(1),
-        asm::Stack::Push(1),
-        asm::Stack::Push(1),
-        asm::Access::DecisionVar,
+    vec![
+        OpSync::from(asm::Stack::Push(1)),
+        OpSync::from(asm::Stack::Push(1)),
+        OpSync::from(asm::Stack::Push(1)),
+        OpSync::from(asm::Access::DecisionVar),
     ],
     &[&[3, 99], &[4, 61, 100]] => using assert_stack_ok(&[61])
     ; "slot_ix 1, value_ix 1, len 1"
 )]
 #[test_case(
-    ops![
-        asm::Stack::Push(1),
-        asm::Access::DecisionVarLen,
+    vec![
+        OpSync::from(asm::Stack::Push(1)),
+        OpSync::from(asm::Access::DecisionVarLen),
     ],
     &[&[3, 99], &[4, 61, 100]] => using assert_stack_ok(&[3])
     ; "sanity dec var len"
 )]
-fn test_dec_var_ops(
-    ops: Vec<asm::Constraint>,
-    dec_vars: &[&[Word]],
-) -> ConstraintResult<Vec<Word>> {
+fn test_dec_var_ops(ops: Vec<OpSync>, dec_vars: &[&[Word]]) -> OpSyncResult<Vec<Word>> {
     let dec_vars = dec_vars.iter().map(|v| v.to_vec()).collect::<Vec<_>>();
     let data = [SolutionData {
         predicate_to_solve: PredicateAddress {
@@ -170,10 +168,7 @@ fn test_dec_var_ops(
         mutable_keys: test_empty_keys(),
     };
     exec_ops(&ops, access)
-        .map_err(|e| match e {
-            ConstraintEvalError::InvalidEvaluation(_) => unreachable!(),
-            ConstraintEvalError::Op(_, e) => e,
-        })
+        .map_err(|ExecSyncError(_, e)| e)
         .map(|stack| stack.into())
 }
 

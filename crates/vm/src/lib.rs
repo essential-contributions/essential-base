@@ -30,9 +30,6 @@
 
 pub use access::{mut_keys, mut_keys_set, mut_keys_slices, Access};
 pub use cached::LazyCache;
-use error::OpSyncError;
-#[doc(inline)]
-pub use error::{ConstraintResult, ExecutionResult, OpAsyncResult, OpResult, OpSyncResult};
 #[doc(inline)]
 pub use essential_asm::{self as asm, Op};
 pub use essential_types as types;
@@ -58,7 +55,6 @@ mod access;
 mod alu;
 pub mod bytecode;
 mod cached;
-pub mod constraint;
 mod crypto;
 pub mod error;
 mod future;
@@ -69,11 +65,9 @@ mod repeat;
 mod sets;
 mod stack;
 mod state_read;
+pub mod sync;
 mod total_control_flow;
 mod vm;
-
-/// Unit used to measure gas.
-pub type Gas = u64;
 
 /// Shorthand for the `BytecodeMapped` type representing a mapping to/from [`Op`]s.
 pub type BytecodeMapped<Bytes = Vec<u8>> = bytecode::BytecodeMapped<Op, Bytes>;
@@ -81,6 +75,9 @@ pub type BytecodeMapped<Bytes = Vec<u8>> = bytecode::BytecodeMapped<Op, Bytes>;
 pub type BytecodeMappedSlice<'a> = bytecode::BytecodeMappedSlice<'a, Op>;
 /// Shorthand for the `BytecodeMappedLazy` type for mapping [`Op`]s.
 pub type BytecodeMappedLazy<I> = bytecode::BytecodeMappedLazy<Op, I>;
+
+/// Unit used to measure gas.
+pub type Gas = u64;
 
 /// Gas limits.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -95,18 +92,32 @@ pub struct GasLimit {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub(crate) enum OpKind {
     /// Operations that yield immediately.
-    Sync(asm::Constraint),
+    Sync(OpSync),
     /// Operations returning a future.
     Async(OpAsync),
 }
 
-/// The contract of operations that are performed asynchronously.
+/// The set of operations that are performed asynchronously.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub(crate) enum OpAsync {
-    /// Read a range of values from state starting at the key.
-    StateReadKeyRange,
-    /// Read a range of values from external state starting at the key.
-    StateReadKeyRangeExt,
+pub struct OpAsync(asm::StateRead);
+
+/// The set of operations that are performed synchronously.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub enum OpSync {
+    /// `[asm::Access]` operations.
+    Access(asm::Access),
+    /// `[asm::Alu]` operations.
+    Alu(asm::Alu),
+    /// `[asm::TotalControlFlow]` operations.
+    ControlFlow(asm::TotalControlFlow),
+    /// `[asm::Crypto]` operations.
+    Crypto(asm::Crypto),
+    /// `[asm::Memory]` operations.
+    Memory(asm::Memory),
+    /// `[asm::Pred]` operations.
+    Pred(asm::Pred),
+    /// `[asm::Stack]` operations.
+    Stack(asm::Stack),
 }
 
 /// A mapping from an operation to its gas cost.
@@ -131,9 +142,14 @@ impl GasLimit {
 impl From<Op> for OpKind {
     fn from(op: Op) -> Self {
         match op {
-            Op::Constraint(op) => OpKind::Sync(op),
-            Op::KeyRange => OpKind::Async(OpAsync::StateReadKeyRange),
-            Op::KeyRangeExtern => OpKind::Async(OpAsync::StateReadKeyRangeExt),
+            Op::Access(op) => OpKind::Sync(OpSync::Access(op)),
+            Op::Alu(op) => OpKind::Sync(OpSync::Alu(op)),
+            Op::Crypto(op) => OpKind::Sync(OpSync::Crypto(op)),
+            Op::Memory(op) => OpKind::Sync(OpSync::Memory(op)),
+            Op::Pred(op) => OpKind::Sync(OpSync::Pred(op)),
+            Op::Stack(op) => OpKind::Sync(OpSync::Stack(op)),
+            Op::StateRead(op) => OpKind::Async(OpAsync(op)),
+            Op::TotalControlFlow(op) => OpKind::Sync(OpSync::ControlFlow(op)),
         }
     }
 }
@@ -145,33 +161,6 @@ where
     fn op_gas_cost(&self, op: &Op) -> Gas {
         (*self)(op)
     }
-}
-
-/// Step forward the VM by a single synchronous operation.
-///
-/// Returns a `Some(usize)` representing the new program counter resulting from
-/// this step, or `None` in the case that execution has halted.
-pub(crate) fn step_op_sync(
-    op: asm::Constraint,
-    access: Access,
-    vm: &mut Vm,
-) -> OpSyncResult<Option<usize>> {
-    let Vm {
-        stack,
-        repeat,
-        pc,
-        memory,
-        cache,
-        ..
-    } = vm;
-    match constraint::step_op(access, op, stack, memory, *pc, repeat, cache)? {
-        Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
-        Some(ProgramControlFlow::Halt) => return Ok(None),
-        None => (),
-    }
-    // Every operation besides control flow steps forward program counter by 1.
-    let new_pc = vm.pc.checked_add(1).ok_or(OpSyncError::PcOverflow)?;
-    Ok(Some(new_pc))
 }
 
 /// Trace the operation at the given program counter.

@@ -1,8 +1,8 @@
 use essential_types::{convert::bool_from_word, Word};
 
 use crate::{
-    error::{RepeatError, RepeatResult, StackError},
-    ConstraintResult, Stack,
+    error::{OpSyncResult, RepeatError, RepeatResult, StackError},
+    Stack,
 };
 
 #[cfg(test)]
@@ -28,7 +28,7 @@ enum Direction {
 }
 
 /// `Stack::Repeat` implementation.
-pub(crate) fn repeat(pc: usize, stack: &mut Stack, repeat: &mut Repeat) -> ConstraintResult<()> {
+pub(crate) fn repeat(pc: usize, stack: &mut Stack, repeat: &mut Repeat) -> OpSyncResult<()> {
     let [num_repeats, count_up] = stack.pop2()?;
     let count_up = bool_from_word(count_up).ok_or(RepeatError::InvalidCountDirection)?;
     let pc = pc.checked_add(1).ok_or(StackError::IndexOutOfBounds)?;

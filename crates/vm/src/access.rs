@@ -2,7 +2,7 @@
 
 use crate::{
     cached::LazyCache,
-    error::{AccessError, ConstraintResult, MissingAccessArgError},
+    error::{AccessError, MissingAccessArgError, OpSyncResult},
     repeat::Repeat,
     sets::encode_set,
     types::{
@@ -101,10 +101,7 @@ pub fn mut_keys_set(solution: &Solution, predicate_index: SolutionDataIndex) -> 
 }
 
 /// `Access::DecisionVar` implementation.
-pub(crate) fn decision_var(
-    this_decision_vars: &[Value],
-    stack: &mut Stack,
-) -> ConstraintResult<()> {
+pub(crate) fn decision_var(this_decision_vars: &[Value], stack: &mut Stack) -> OpSyncResult<()> {
     let len = stack
         .pop()
         .map_err(|_| AccessError::MissingArg(MissingAccessArgError::DecVarLen))?;
@@ -141,28 +138,25 @@ pub(crate) fn decision_var_len(
 }
 
 /// `Access::MutKeys` implementation.
-pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> ConstraintResult<()> {
+pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> OpSyncResult<()> {
     encode_set(access.mutable_keys.iter().map(|k| k.iter().copied()), stack)
 }
 
 /// `Access::ThisAddress` implementation.
-pub(crate) fn this_address(data: &SolutionData, stack: &mut Stack) -> ConstraintResult<()> {
+pub(crate) fn this_address(data: &SolutionData, stack: &mut Stack) -> OpSyncResult<()> {
     let words = word_4_from_u8_32(data.predicate_to_solve.predicate.0);
     stack.extend(words)?;
     Ok(())
 }
 
 /// `Access::ThisContractAddress` implementation.
-pub(crate) fn this_contract_address(
-    data: &SolutionData,
-    stack: &mut Stack,
-) -> ConstraintResult<()> {
+pub(crate) fn this_contract_address(data: &SolutionData, stack: &mut Stack) -> OpSyncResult<()> {
     let words = word_4_from_u8_32(data.predicate_to_solve.contract.0);
     stack.extend(words)?;
     Ok(())
 }
 
-pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> ConstraintResult<()> {
+pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpSyncResult<()> {
     let counter = repeat.counter()?;
     Ok(stack.push(counter)?)
 }
@@ -171,7 +165,7 @@ pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> ConstraintRe
 pub(crate) fn decision_var_slots(
     stack: &mut Stack,
     decision_variables: &[Value],
-) -> ConstraintResult<()> {
+) -> OpSyncResult<()> {
     let num_slots = Word::try_from(decision_variables.len())
         .map_err(|_| AccessError::SlotsLengthTooLarge(decision_variables.len()))?;
     stack.push(num_slots)?;
@@ -213,7 +207,7 @@ pub(crate) fn predicate_exists(
     stack: &mut Stack,
     data: &[SolutionData],
     cache: &LazyCache,
-) -> ConstraintResult<()> {
+) -> OpSyncResult<()> {
     let hash = u8_32_from_word_4(stack.pop4()?);
     let found = cache.get_dec_var_hashes(data).contains(&hash);
     stack.push(found as Word)?;

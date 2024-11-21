@@ -1,48 +1,90 @@
-//! Items related to the evaluation of the `Constraint` op group.
+//! Items related to stepping forward VM execution by synchronous operations.
 
 use crate::{
-    access, alu,
-    asm::{self, Constraint as Op},
-    crypto,
-    error::{ConstraintError, ConstraintEvalError, ConstraintEvalResult, ConstraintResult},
+    access, alu, asm, crypto,
+    error::{
+        EvalSyncError, EvalSyncResult, ExecSyncError, ExecSyncResult, OpSyncError, OpSyncResult,
+    },
     pred, repeat, total_control_flow,
     types::convert::bool_from_word,
-    Access, LazyCache, Memory, OpAccess, ProgramControlFlow, Repeat, Stack,
+    Access, LazyCache, Memory, OpAccess, OpSync, ProgramControlFlow, Repeat, Stack, Vm,
 };
 
-/// Evaluate a slice of constraint-only operations and return its boolean result.
+impl From<asm::Access> for OpSync {
+    fn from(op: asm::Access) -> Self {
+        Self::Access(op)
+    }
+}
+
+impl From<asm::Alu> for OpSync {
+    fn from(op: asm::Alu) -> Self {
+        Self::Alu(op)
+    }
+}
+
+impl From<asm::TotalControlFlow> for OpSync {
+    fn from(op: asm::TotalControlFlow) -> Self {
+        Self::ControlFlow(op)
+    }
+}
+
+impl From<asm::Crypto> for OpSync {
+    fn from(op: asm::Crypto) -> Self {
+        Self::Crypto(op)
+    }
+}
+
+impl From<asm::Memory> for OpSync {
+    fn from(op: asm::Memory) -> Self {
+        Self::Memory(op)
+    }
+}
+
+impl From<asm::Pred> for OpSync {
+    fn from(op: asm::Pred) -> Self {
+        Self::Pred(op)
+    }
+}
+
+impl From<asm::Stack> for OpSync {
+    fn from(op: asm::Stack) -> Self {
+        Self::Stack(op)
+    }
+}
+
+/// Evaluate a slice of synchronous operations and return their boolean result.
 ///
 /// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
-pub fn eval_ops(ops: &[Op], access: Access) -> ConstraintEvalResult<bool> {
+pub fn eval_ops(ops: &[OpSync], access: Access) -> EvalSyncResult<bool> {
     eval(ops, access)
 }
 
-/// Evaluate the operations of a single constraint and return its boolean result.
+/// Evaluate the operations of a single synchronous program and return its boolean result.
 ///
 /// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
-pub fn eval<OA>(op_access: OA, access: Access) -> ConstraintEvalResult<bool>
+pub fn eval<OA>(op_access: OA, access: Access) -> EvalSyncResult<bool>
 where
-    OA: OpAccess<Op = Op>,
-    OA::Error: Into<ConstraintError>,
+    OA: OpAccess<Op = OpSync>,
+    OA::Error: Into<OpSyncError>,
 {
     let stack = exec(op_access, access)?;
     let word = match stack.last() {
         Some(&w) => w,
-        None => return Err(ConstraintEvalError::InvalidEvaluation(stack)),
+        None => return Err(EvalSyncError::InvalidEvaluation(stack)),
     };
-    bool_from_word(word).ok_or_else(|| ConstraintEvalError::InvalidEvaluation(stack))
+    bool_from_word(word).ok_or_else(|| EvalSyncError::InvalidEvaluation(stack))
 }
 
-/// Execute the operations of a constraint and return the resulting stack.
-pub fn exec_ops(ops: &[Op], access: Access) -> ConstraintEvalResult<Stack> {
+/// Execute a slice of synchronous operations and return the resulting stack.
+pub fn exec_ops(ops: &[OpSync], access: Access) -> ExecSyncResult<Stack> {
     exec(ops, access)
 }
 
-/// Synchronously execute the operations of a constraint and return the resulting stack.
-pub fn exec<OA>(mut op_access: OA, access: Access) -> ConstraintEvalResult<Stack>
+/// Execute the given synchronous operations and return the resulting stack.
+pub fn exec<OA>(mut op_access: OA, access: Access) -> ExecSyncResult<Stack>
 where
-    OA: OpAccess<Op = Op>,
-    OA::Error: Into<ConstraintError>,
+    OA: OpAccess<Op = OpSync>,
+    OA::Error: Into<OpSyncError>,
 {
     let mut pc = 0;
     let mut stack = Stack::default();
@@ -50,7 +92,7 @@ where
     let mut repeat = Repeat::new();
     let cache = LazyCache::new();
     while let Some(res) = op_access.op_access(pc) {
-        let op = res.map_err(|err| ConstraintEvalError::Op(pc, err.into()))?;
+        let op = res.map_err(|err| ExecSyncError(pc, err.into()))?;
 
         let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat, &cache);
 
@@ -59,7 +101,7 @@ where
 
         let update = match res {
             Ok(update) => update,
-            Err(err) => return Err(ConstraintEvalError::Op(pc, err)),
+            Err(err) => return Err(ExecSyncError(pc, err)),
         };
 
         match update {
@@ -71,35 +113,58 @@ where
     Ok(stack)
 }
 
-/// Step forward constraint checking by the given operation.
+/// Step forward the VM by a single synchronous operation.
+///
+/// Returns a `Some(usize)` representing the new program counter resulting from
+/// this step, or `None` in the case that execution has halted.
+pub fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncResult<Option<usize>> {
+    let Vm {
+        stack,
+        repeat,
+        pc,
+        memory,
+        cache,
+        ..
+    } = vm;
+    match step_op(access, op, stack, memory, *pc, repeat, cache)? {
+        Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
+        Some(ProgramControlFlow::Halt) => return Ok(None),
+        None => (),
+    }
+    // Every operation besides control flow steps forward program counter by 1.
+    let new_pc = vm.pc.checked_add(1).ok_or(OpSyncError::PcOverflow)?;
+    Ok(Some(new_pc))
+}
+
+/// Step forward execution by the given synchronous operation.
 pub fn step_op(
     access: Access,
-    op: Op,
+    op: OpSync,
     stack: &mut Stack,
     memory: &mut Memory,
     pc: usize,
     repeat: &mut Repeat,
     cache: &LazyCache,
-) -> ConstraintResult<Option<ProgramControlFlow>> {
+) -> OpSyncResult<Option<ProgramControlFlow>> {
     match op {
-        Op::Access(op) => step_op_access(access, op, stack, repeat, cache).map(|_| None),
-        Op::Alu(op) => step_op_alu(op, stack).map(|_| None),
-        Op::Crypto(op) => step_op_crypto(op, stack).map(|_| None),
-        Op::Pred(op) => step_op_pred(op, stack).map(|_| None),
-        Op::Stack(op) => step_op_stack(op, pc, stack, repeat),
-        Op::TotalControlFlow(op) => step_op_total_control_flow(op, stack, pc),
-        Op::Memory(op) => step_op_temporary(op, stack, memory).map(|_| None),
+        OpSync::Access(op) => step_op_access(access, op, stack, repeat, cache).map(|_| None),
+        OpSync::Alu(op) => step_op_alu(op, stack).map(|_| None),
+        OpSync::Crypto(op) => step_op_crypto(op, stack).map(|_| None),
+        OpSync::Pred(op) => step_op_pred(op, stack).map(|_| None),
+        OpSync::Stack(op) => step_op_stack(op, pc, stack, repeat),
+        OpSync::ControlFlow(op) => step_op_total_control_flow(op, stack, pc),
+        OpSync::Memory(op) => step_op_memory(op, stack, memory).map(|_| None),
     }
 }
 
-/// Step forward constraint checking by the given access operation.
+/// Step forward execution by the given access operation.
 pub fn step_op_access(
     access: Access,
     op: asm::Access,
     stack: &mut Stack,
     repeat: &mut Repeat,
     cache: &LazyCache,
-) -> ConstraintResult<()> {
+) -> OpSyncResult<()> {
     match op {
         asm::Access::DecisionVar => {
             access::decision_var(&access.this_data().decision_variables, stack)
@@ -121,8 +186,8 @@ pub fn step_op_access(
     }
 }
 
-/// Step forward constraint checking by the given ALU operation.
-pub fn step_op_alu(op: asm::Alu, stack: &mut Stack) -> ConstraintResult<()> {
+/// Step forward execution by the given ALU operation.
+pub fn step_op_alu(op: asm::Alu, stack: &mut Stack) -> OpSyncResult<()> {
     match op {
         asm::Alu::Add => stack.pop2_push1(alu::add),
         asm::Alu::Sub => stack.pop2_push1(alu::sub),
@@ -135,8 +200,8 @@ pub fn step_op_alu(op: asm::Alu, stack: &mut Stack) -> ConstraintResult<()> {
     }
 }
 
-/// Step forward constraint checking by the given crypto operation.
-pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> ConstraintResult<()> {
+/// Step forward execution by the given crypto operation.
+pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> OpSyncResult<()> {
     match op {
         asm::Crypto::Sha256 => crypto::sha256(stack),
         asm::Crypto::VerifyEd25519 => crypto::verify_ed25519(stack),
@@ -144,8 +209,8 @@ pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> ConstraintResult<()
     }
 }
 
-/// Step forward constraint checking by the given predicate operation.
-pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> ConstraintResult<()> {
+/// Step forward execution by the given predicate operation.
+pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpSyncResult<()> {
     match op {
         asm::Pred::Eq => stack.pop2_push1(|a, b| Ok((a == b).into())),
         asm::Pred::EqRange => pred::eq_range(stack),
@@ -162,13 +227,13 @@ pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> ConstraintResult<()> {
     }
 }
 
-/// Step forward constraint checking by the given stack operation.
+/// Step forward execution by the given stack operation.
 pub fn step_op_stack(
     op: asm::Stack,
     pc: usize,
     stack: &mut Stack,
     repeat: &mut Repeat,
-) -> ConstraintResult<Option<ProgramControlFlow>> {
+) -> OpSyncResult<Option<ProgramControlFlow>> {
     if let asm::Stack::RepeatEnd = op {
         return Ok(repeat.repeat()?.map(ProgramControlFlow::Pc));
     }
@@ -190,12 +255,12 @@ pub fn step_op_stack(
     r.map(|_| None)
 }
 
-/// Step forward constraint checking by the given total control flow operation.
+/// Step forward execution by the given total control flow operation.
 pub fn step_op_total_control_flow(
     op: asm::TotalControlFlow,
     stack: &mut Stack,
     pc: usize,
-) -> ConstraintResult<Option<ProgramControlFlow>> {
+) -> OpSyncResult<Option<ProgramControlFlow>> {
     match op {
         asm::TotalControlFlow::JumpForwardIf => total_control_flow::jump_forward_if(stack, pc),
         asm::TotalControlFlow::HaltIf => total_control_flow::halt_if(stack),
@@ -204,12 +269,8 @@ pub fn step_op_total_control_flow(
     }
 }
 
-/// Step forward constraint checking by the given temporary operation.
-pub fn step_op_temporary(
-    op: asm::Memory,
-    stack: &mut Stack,
-    memory: &mut Memory,
-) -> ConstraintResult<()> {
+/// Step forward execution by the given memory operation.
+pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -> OpSyncResult<()> {
     match op {
         asm::Memory::Alloc => {
             let w = stack.pop()?;
@@ -240,7 +301,7 @@ pub fn step_op_temporary(
             let addr = stack.pop()?;
             stack.pop_len_words(|words| {
                 memory.store_range(addr, words)?;
-                Ok::<_, ConstraintError>(())
+                Ok::<_, OpSyncError>(())
             })?;
             Ok(())
         }
@@ -289,195 +350,5 @@ pub(crate) mod test_util {
             mutable_keys: test_empty_keys(),
         });
         &INSTANCE
-    }
-}
-
-#[cfg(test)]
-mod pred_tests {
-    use crate::{
-        asm::{Pred, Stack},
-        constraint::{eval_ops, test_util::*},
-    };
-
-    #[test]
-    fn pred_eq_false() {
-        let ops = &[
-            Stack::Push(6).into(),
-            Stack::Push(7).into(),
-            Pred::Eq.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_eq_true() {
-        let ops = &[
-            Stack::Push(42).into(),
-            Stack::Push(42).into(),
-            Pred::Eq.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_gt_false() {
-        let ops = &[
-            Stack::Push(7).into(),
-            Stack::Push(7).into(),
-            Pred::Gt.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_gt_true() {
-        let ops = &[
-            Stack::Push(7).into(),
-            Stack::Push(6).into(),
-            Pred::Gt.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_lt_false() {
-        let ops = &[
-            Stack::Push(7).into(),
-            Stack::Push(7).into(),
-            Pred::Lt.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_lt_true() {
-        let ops = &[
-            Stack::Push(6).into(),
-            Stack::Push(7).into(),
-            Pred::Lt.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_gte_false() {
-        let ops = &[
-            Stack::Push(6).into(),
-            Stack::Push(7).into(),
-            Pred::Gte.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_gte_true() {
-        let ops = &[
-            Stack::Push(7).into(),
-            Stack::Push(7).into(),
-            Pred::Gte.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-        let ops = &[
-            Stack::Push(8).into(),
-            Stack::Push(7).into(),
-            Pred::Gte.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_lte_false() {
-        let ops = &[
-            Stack::Push(7).into(),
-            Stack::Push(6).into(),
-            Pred::Lte.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_lte_true() {
-        let ops = &[
-            Stack::Push(7).into(),
-            Stack::Push(7).into(),
-            Pred::Lte.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-        let ops = &[
-            Stack::Push(7).into(),
-            Stack::Push(8).into(),
-            Pred::Lte.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_and_true() {
-        let ops = &[
-            Stack::Push(42).into(),
-            Stack::Push(42).into(),
-            Pred::And.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_and_false() {
-        let ops = &[
-            Stack::Push(42).into(),
-            Stack::Push(0).into(),
-            Pred::And.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-        let ops = &[
-            Stack::Push(0).into(),
-            Stack::Push(0).into(),
-            Pred::And.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_or_true() {
-        let ops = &[
-            Stack::Push(42).into(),
-            Stack::Push(42).into(),
-            Pred::Or.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-        let ops = &[
-            Stack::Push(0).into(),
-            Stack::Push(42).into(),
-            Pred::Or.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-        let ops = &[
-            Stack::Push(42).into(),
-            Stack::Push(0).into(),
-            Pred::Or.into(),
-        ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_or_false() {
-        let ops = &[
-            Stack::Push(0).into(),
-            Stack::Push(0).into(),
-            Pred::Or.into(),
-        ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_not_true() {
-        let ops = &[Stack::Push(0).into(), Pred::Not.into()];
-        assert!(eval_ops(ops, *test_access()).unwrap());
-    }
-
-    #[test]
-    fn pred_not_false() {
-        let ops = &[Stack::Push(42).into(), Pred::Not.into()];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
     }
 }

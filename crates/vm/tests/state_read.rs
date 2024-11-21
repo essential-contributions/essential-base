@@ -33,7 +33,7 @@ async fn state_read_3_42s() {
         asm::Stack::Push(4).into(), // key length
         asm::Stack::Push(num_keys).into(),
         asm::Stack::Push(0).into(), // mem addr
-        asm::StateRead::KeyRange,
+        asm::Op::StateRead(asm::StateRead::KeyRange),
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
@@ -64,7 +64,7 @@ async fn state_read_some_none_some() {
         asm::Stack::Push(4).into(), // key length
         asm::Stack::Push(num_keys).into(),
         asm::Stack::Push(0).into(), // mem addr
-        asm::StateRead::KeyRange,
+        asm::Op::StateRead(asm::StateRead::KeyRange),
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
@@ -104,7 +104,7 @@ async fn state_read_ext() {
         asm::Stack::Push(4).into(), // key length
         asm::Stack::Push(num_keys).into(),
         asm::Stack::Push(0).into(), // mem addr
-        asm::StateRead::KeyRangeExtern,
+        asm::Op::StateRead(asm::StateRead::KeyRangeExtern),
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
@@ -143,7 +143,7 @@ async fn state_read_ext_nones() {
         asm::Stack::Push(4).into(), // key length
         asm::Stack::Push(num_keys).into(),
         asm::Stack::Push(0).into(), // mem addr
-        asm::StateRead::KeyRangeExtern,
+        asm::Op::StateRead(asm::StateRead::KeyRangeExtern),
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(
@@ -185,7 +185,7 @@ async fn state_read_various_size_values() {
         asm::Stack::Push(4).into(), // key length
         asm::Stack::Push(num_keys).into(),
         asm::Stack::Push(0).into(), // mem addr
-        asm::StateRead::KeyRange,
+        asm::Op::StateRead(asm::StateRead::KeyRange),
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
@@ -232,7 +232,7 @@ async fn state_read_various_key_sizes() {
         asm::Stack::Push(1).into(), // key length
         asm::Stack::Push(3).into(), // num keys
         asm::Stack::Push(0).into(), // mem addr
-        asm::StateRead::KeyRange,
+        asm::Op::StateRead(asm::StateRead::KeyRange),
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
@@ -242,7 +242,7 @@ async fn state_read_various_key_sizes() {
         asm::Stack::Push(6).into(),              // key length
         asm::Stack::Push(2).into(),              // num keys
         asm::Stack::Push(krng2_mem_addr).into(), // mem addr
-        asm::StateRead::KeyRange,
+        asm::StateRead::KeyRange.into(),
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)

@@ -2,44 +2,44 @@
 
 use crate::{
     asm::Word,
-    error::{AluError, ConstraintResult},
+    error::{AluError, OpSyncResult},
 };
 
 #[cfg(test)]
 mod shifts;
 
-pub(crate) fn add(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn add(a: Word, b: Word) -> OpSyncResult<Word> {
     a.checked_add(b).ok_or(AluError::Overflow.into())
 }
 
-pub(crate) fn sub(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn sub(a: Word, b: Word) -> OpSyncResult<Word> {
     a.checked_sub(b).ok_or(AluError::Underflow.into())
 }
 
-pub(crate) fn mul(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn mul(a: Word, b: Word) -> OpSyncResult<Word> {
     a.checked_mul(b).ok_or(AluError::Overflow.into())
 }
 
-pub(crate) fn div(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn div(a: Word, b: Word) -> OpSyncResult<Word> {
     a.checked_div(b).ok_or(AluError::DivideByZero.into())
 }
 
-pub(crate) fn mod_(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn mod_(a: Word, b: Word) -> OpSyncResult<Word> {
     a.checked_rem(b).ok_or(AluError::DivideByZero.into())
 }
 
-pub(crate) fn shl(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn shl(a: Word, b: Word) -> OpSyncResult<Word> {
     check_shift_bounds(b)?;
     Ok(a << b)
 }
 
-pub(crate) fn shr(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn shr(a: Word, b: Word) -> OpSyncResult<Word> {
     check_shift_bounds(b)?;
     // casts are safe and turn this into a logical shift
     Ok(((a as u64) >> b) as Word)
 }
 
-pub(crate) fn arithmetic_shr(a: Word, b: Word) -> ConstraintResult<Word> {
+pub(crate) fn arithmetic_shr(a: Word, b: Word) -> OpSyncResult<Word> {
     check_shift_bounds(b)?;
     Ok(a >> b)
 }
@@ -47,7 +47,7 @@ pub(crate) fn arithmetic_shr(a: Word, b: Word) -> ConstraintResult<Word> {
 const BITS_IN_WORD: Word = core::mem::size_of::<Word>() as Word * 8;
 
 #[inline]
-fn check_shift_bounds(b: Word) -> ConstraintResult<()> {
+fn check_shift_bounds(b: Word) -> OpSyncResult<()> {
     let bounds = 0..BITS_IN_WORD;
     if !bounds.contains(&b) {
         return Err(AluError::Overflow.into());
@@ -59,8 +59,8 @@ fn check_shift_bounds(b: Word) -> ConstraintResult<()> {
 mod tests {
     use crate::{
         asm::{Alu, Pred, Stack, Word},
-        constraint::{eval_ops, test_util::*},
-        error::{AluError, ConstraintError, ConstraintEvalError},
+        error::{AluError, ExecSyncError, OpSyncError},
+        sync::{eval_ops, exec_ops, test_util::*},
     };
 
     #[test]
@@ -94,8 +94,8 @@ mod tests {
             Stack::Push(0).into(),
             Alu::Div.into(),
         ];
-        match eval_ops(ops, *test_access()) {
-            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::DivideByZero))) => (),
+        match exec_ops(ops, *test_access()) {
+            Err(ExecSyncError(_, OpSyncError::Alu(AluError::DivideByZero))) => (),
             _ => panic!("expected ALU divide-by-zero error"),
         }
     }
@@ -107,8 +107,8 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Add.into(),
         ];
-        match eval_ops(ops, *test_access()) {
-            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::Overflow))) => (),
+        match exec_ops(ops, *test_access()) {
+            Err(ExecSyncError(_, OpSyncError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
     }
@@ -120,8 +120,8 @@ mod tests {
             Stack::Push(2).into(),
             Alu::Mul.into(),
         ];
-        match eval_ops(ops, *test_access()) {
-            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::Overflow))) => (),
+        match exec_ops(ops, *test_access()) {
+            Err(ExecSyncError(_, OpSyncError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
     }
@@ -133,8 +133,8 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Sub.into(),
         ];
-        match eval_ops(ops, *test_access()) {
-            Err(ConstraintEvalError::Op(_, ConstraintError::Alu(AluError::Underflow))) => (),
+        match exec_ops(ops, *test_access()) {
+            Err(ExecSyncError(_, OpSyncError::Alu(AluError::Underflow))) => (),
             _ => panic!("expected ALU underflow error"),
         }
     }

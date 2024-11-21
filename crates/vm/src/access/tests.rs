@@ -2,8 +2,8 @@ use super::*;
 use crate::error::StackError;
 use crate::{
     asm,
-    constraint::{exec_ops, test_util::*},
-    error::{AccessError, ConstraintError, ConstraintEvalError},
+    error::{AccessError, ExecSyncError, OpSyncError},
+    sync::{exec_ops, test_util::*},
     types::{
         solution::{Mutation, Solution},
         ContentAddress, PredicateAddress,
@@ -24,7 +24,7 @@ fn test_decision_var() {
     let mut stack = Stack::default();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Stack(StackError::Empty)
+        OpSyncError::Stack(StackError::Empty)
     );
 
     // Slot out-of-bounds.
@@ -32,7 +32,7 @@ fn test_decision_var() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
+        OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
     );
 
     // Slot index in-bounds but value is empty
@@ -43,7 +43,7 @@ fn test_decision_var() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionIndexOutOfBounds)
+        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
     // Slot index in-bounds and value is not empty
@@ -82,7 +82,7 @@ fn test_decision_var_at() {
     let mut stack = Stack::default();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Stack(StackError::Empty)
+        OpSyncError::Stack(StackError::Empty)
     );
 
     // Missing value index
@@ -90,7 +90,7 @@ fn test_decision_var_at() {
     stack.push(0).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Stack(StackError::Empty)
+        OpSyncError::Stack(StackError::Empty)
     );
 
     // Missing length
@@ -99,7 +99,7 @@ fn test_decision_var_at() {
     stack.push(0).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Stack(StackError::Empty)
+        OpSyncError::Stack(StackError::Empty)
     );
 
     // Slot out-of-bounds.
@@ -109,7 +109,7 @@ fn test_decision_var_at() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
+        OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
     );
 
     // Index out-of-bounds.
@@ -119,7 +119,7 @@ fn test_decision_var_at() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionIndexOutOfBounds)
+        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
     // Slot index in-bounds but value is empty
@@ -130,7 +130,7 @@ fn test_decision_var_at() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionIndexOutOfBounds)
+        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
     // Slot index in-bounds, value is empty and length is 0
@@ -178,7 +178,7 @@ fn test_decision_var_range() {
     let mut stack = Stack::default();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Stack(StackError::Empty)
+        OpSyncError::Stack(StackError::Empty)
     );
 
     // Slot out-of-bounds.
@@ -188,7 +188,7 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
+        OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
     );
 
     // Index out-of-bounds.
@@ -198,7 +198,7 @@ fn test_decision_var_range() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionIndexOutOfBounds)
+        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
     // Length out-of-bounds.
@@ -208,7 +208,7 @@ fn test_decision_var_range() {
     stack.push(3).unwrap();
     matches!(
         check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionIndexOutOfBounds)
+        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
     // Slot index in-bounds but value is empty
@@ -219,7 +219,7 @@ fn test_decision_var_range() {
     stack.push(1).unwrap();
     matches!(
         check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        ConstraintError::Access(AccessError::DecisionIndexOutOfBounds)
+        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
     );
 
     // Slot index in-bounds and value is not empty
@@ -353,10 +353,7 @@ fn decision_var_slot_oob_ops() {
     ];
     let res = exec_ops(ops, access);
     match res {
-        Err(ConstraintEvalError::Op(
-            _,
-            ConstraintError::Access(AccessError::DecisionSlotIxOutOfBounds(_)),
-        )) => {}
+        Err(ExecSyncError(_, OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_)))) => {}
         _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
     }
 }

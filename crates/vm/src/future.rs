@@ -1,9 +1,9 @@
 use crate::{
-    asm::Op,
-    error::{ExecutionError, OpAsyncError, OpError, OutOfGasError},
+    asm::{self, Op},
+    error::{ExecError, OpAsyncError, OpAsyncResult, OpError, OutOfGasError},
     state_read::{self, StateReadFuture},
-    step_op_sync, Access, ContentAddress, Gas, GasLimit, OpAccess, OpAsync, OpAsyncResult,
-    OpGasCost, OpKind, StateRead, Vm,
+    sync::step_op_sync,
+    Access, ContentAddress, Gas, GasLimit, OpAccess, OpAsync, OpGasCost, OpKind, StateRead, Vm,
 };
 use core::{
     future::Future,
@@ -48,7 +48,7 @@ use core::{
 ///
 /// Errors encountered during operation execution result in an immediate
 /// return of `Poll::Ready(Err(...))`, encapsulating the error within a
-/// `ExecutionError`. This includes errors from:
+/// `ExecError`. This includes errors from:
 ///
 /// - Synchronous operations that fail during their execution.
 /// - Asynchronous operations, where errors are handled once the future
@@ -145,7 +145,7 @@ where
     OA::Error: Into<OpError<S::Error>>,
 {
     /// Returns a result with the total gas spent.
-    type Output = Result<Gas, ExecutionError<S::Error>>;
+    type Output = Result<Gas, ExecError<S::Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         // Poll the async operation future if there is one pending.
@@ -175,7 +175,7 @@ where
                 match res {
                     Ok(new_pc) => vm.pc = new_pc,
                     Err(err) => {
-                        let err = ExecutionError::Op(vm.pc, err.into());
+                        let err = ExecError(vm.pc, err.into());
                         return Poll::Ready(Err(err));
                     }
                 };
@@ -194,7 +194,7 @@ where
             let op = match res {
                 Ok(op) => op,
                 Err(err) => {
-                    let err = ExecutionError::Op(vm.pc, err.into());
+                    let err = ExecError(vm.pc, err.into());
                     return Poll::Ready(Err(err));
                 }
             };
@@ -208,7 +208,7 @@ where
                 .checked_add(op_gas)
                 .filter(|&spent| spent <= self.gas.limit.total)
                 .ok_or_else(|| out_of_gas(&self.gas, op_gas))
-                .map_err(|err| ExecutionError::Op(vm.pc, err.into()))
+                .map_err(|err| ExecError(vm.pc, err.into()))
             {
                 Err(err) => return Poll::Ready(Err(err)),
                 Ok(next_spent) => next_spent,
@@ -222,7 +222,7 @@ where
                     let pc = vm.pc;
                     let future = match step_op_async(op, contract_addr, self.state_read, vm) {
                         Err(err) => {
-                            let err = ExecutionError::Op(pc, err.into());
+                            let err = ExecError(pc, err.into());
                             return Poll::Ready(Err(err));
                         }
                         Ok(fut) => fut,
@@ -246,7 +246,7 @@ where
             let opt_new_pc = match res {
                 Ok(opt) => opt,
                 Err(err) => {
-                    return Poll::Ready(Err(ExecutionError::Op(vm.pc, err.into())));
+                    return Poll::Ready(Err(ExecError(vm.pc, err.into())));
                 }
             };
 
@@ -336,11 +336,11 @@ where
     S: StateRead,
 {
     match op {
-        OpAsync::StateReadKeyRange => {
+        OpAsync(asm::StateRead::KeyRange) => {
             let future = state_read::key_range(state_read, &contract_addr, &mut *vm)?;
             Ok(StepOpAsyncFuture::StateRead(future))
         }
-        OpAsync::StateReadKeyRangeExt => {
+        OpAsync(asm::StateRead::KeyRangeExtern) => {
             let future = state_read::key_range_ext(state_read, &mut *vm)?;
             Ok(StepOpAsyncFuture::StateRead(future))
         }

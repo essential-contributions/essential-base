@@ -1,19 +1,20 @@
 use crate::{
-    asm::{Constraint, Crypto, Stack, Word},
-    constraint::{eval_ops, exec_ops, test_util::*},
+    asm::{Crypto, Stack, Word},
     crypto::{bytes_from_words, recover_secp256k1},
-    error::{ConstraintError, ConstraintEvalError, CryptoError},
+    error::{CryptoError, ExecSyncError, OpSyncError},
+    sync::{eval_ops, exec_ops, test_util::*},
     types::{
         convert::{bytes_from_word, word_4_from_u8_32, word_8_from_u8_64},
         Hash,
     },
+    OpSync,
 };
 use essential_types::convert::{u8_32_from_word_4, word_from_bytes_slice};
 use sha2::Digest;
 
 use super::pop_bytes;
 
-fn exec_ops_sha256(ops: &[Constraint]) -> Hash {
+fn exec_ops_sha256(ops: &[OpSync]) -> Hash {
     let stack = exec_ops(ops, *test_access()).unwrap();
     assert_eq!(stack.len(), 4);
     let bytes: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
@@ -115,7 +116,7 @@ fn test_sha256_bytes() {
 }
 
 // Generate some test operations for a successful ed25519 verification.
-fn test_ed25519_ops(num_bytes: usize) -> Vec<Constraint> {
+fn test_ed25519_ops(num_bytes: usize) -> Vec<OpSync> {
     use ed25519_dalek::{Signer, SigningKey};
     use rand::{Rng, SeedableRng};
 
@@ -144,7 +145,7 @@ fn test_ed25519_ops(num_bytes: usize) -> Vec<Constraint> {
         .chain(word_8_from_u8_64(signature_bytes))
         .chain(word_4_from_u8_32(pubkey_bytes))
         .map(Stack::Push)
-        .map(Constraint::from)
+        .map(OpSync::from)
         .chain(Some(Crypto::VerifyEd25519.into()))
         .collect()
 }
@@ -177,9 +178,9 @@ fn ed25519_error() {
     ops[key_ix + 1] = Stack::Push(1).into();
     ops[key_ix + 2] = Stack::Push(1).into();
     ops[key_ix + 3] = Stack::Push(1).into();
-    let res = eval_ops(&ops, *test_access());
+    let res = exec_ops(&ops, *test_access());
     match res {
-        Err(ConstraintEvalError::Op(_, ConstraintError::Crypto(CryptoError::Ed25519(_err)))) => (),
+        Err(ExecSyncError(_, OpSyncError::Crypto(CryptoError::Ed25519(_err)))) => (),
         _ => panic!("expected ed25519 error, got {res:?}"),
     }
 }
