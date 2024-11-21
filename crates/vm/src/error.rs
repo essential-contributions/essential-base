@@ -138,9 +138,6 @@ pub enum OpSyncError {
     /// An error occurred while encoding some data.
     #[error("encoding error: {0}")]
     Encode(#[from] EncodeError),
-    /// The next program counter would overflow.
-    #[error("the next program counter would overflow")]
-    NextPcOverflow,
 }
 
 /// Errors occuring during `TotalControlFlow` operation.
