@@ -26,7 +26,6 @@ postcard = { version = "1.0.10", features = ["alloc"] }
 proc-macro2 = "1"
 quote = "1"
 rand = { version = "0.8", features = ["small_rng"] } # For `vm` tests.
-rayon = "1" # For `vm` parallelisation.
 schemars = "0.8.21"
 secp256k1 = { version = "0.30", features = ["recovery"] }
 serde = { version = "1.0.210", features = ["derive"] }

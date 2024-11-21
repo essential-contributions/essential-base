@@ -13,7 +13,6 @@ essential-hash = { workspace = true, optional = true }
 essential-sign = { workspace = true }
 essential-types = { workspace = true }
 essential-vm = { workspace = true }
-rayon = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true, optional = true }
