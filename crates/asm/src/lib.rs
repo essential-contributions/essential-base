@@ -206,6 +206,8 @@ mod tests {
             StateRead::KeyRange.into(),
             StateRead::KeyRangeExtern.into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+            Stack::Dup.into(),
+            Stack::Push(0x1234567812345678).into(),
         ];
         roundtrip(ops);
     }
