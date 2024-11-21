@@ -1,7 +1,7 @@
 //! Generate essential ASM declarations from the official specification.
 //!
 //! Provides proc macros for generating declarations and implementations for
-//! both the `essential-asm` crate.
+//! the `essential-asm` crate.
 
 use essential_asm_spec::{visit, Group, Node, Op, StackOut, Tree};
 use proc_macro::TokenStream;
