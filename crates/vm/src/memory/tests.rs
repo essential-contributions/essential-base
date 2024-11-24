@@ -1,5 +1,11 @@
 use super::*;
 
+use crate::asm;
+use crate::error::{ExecSyncError, OpSyncError};
+use crate::memory::MemoryError;
+use crate::sync::exec_ops;
+use crate::sync::test_util::test_access;
+
 #[test]
 fn test_memory_store_load() {
     let mut memory = Memory::new();
@@ -577,4 +583,204 @@ fn test_load_range_consecutive_loads() {
     assert_eq!(first, vec![1, 2]);
     assert_eq!(second, vec![3, 4]);
     assert_eq!(third, vec![5]);
+}
+
+#[test]
+fn test_memory_alloc_store_load_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(0).into(),
+        asm::Stack::Push(42).into(),
+        asm::Memory::Store.into(),
+        asm::Stack::Push(0).into(),
+        asm::Memory::Load.into(),
+    ];
+    let stack = exec_ops(ops, *test_access()).unwrap();
+    assert_eq!(&stack[..], &[42]);
+}
+
+#[test]
+fn test_memory_store_load_range_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(0).into(), // addr
+        asm::Stack::Push(1).into(), // values (pushed in order)
+        asm::Stack::Push(2).into(),
+        asm::Stack::Push(3).into(),
+        asm::Stack::Push(3).into(), // len
+        asm::Memory::StoreRange.into(),
+        asm::Stack::Push(0).into(), // addr
+        asm::Stack::Push(3).into(), // len
+        asm::Memory::LoadRange.into(),
+    ];
+    let stack = exec_ops(ops, *test_access()).unwrap();
+    assert_eq!(&stack[..], &[1, 2, 3]);
+}
+
+#[test]
+fn test_memory_free_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(3).into(),
+        asm::Memory::Free.into(),
+        asm::Stack::Push(4).into(),
+        asm::Memory::Load.into(),
+    ];
+    let result = exec_ops(ops, *test_access());
+    match result {
+        Err(ExecSyncError(_, OpSyncError::Memory(MemoryError::IndexOutOfBounds))) => {}
+        _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_memory_store_range_bug_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(2).into(),  // addr
+        asm::Stack::Push(99).into(), // value
+        asm::Stack::Push(1).into(),  // len
+        asm::Memory::StoreRange.into(),
+        asm::Stack::Push(2).into(), // addr
+        asm::Memory::Load.into(),
+    ];
+    let stack = exec_ops(ops, *test_access()).unwrap();
+    assert_eq!(&stack[..], &[99]);
+}
+
+#[test]
+fn test_memory_load_range_zero_size_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(2).into(), // addr
+        asm::Stack::Push(0).into(), // len
+        asm::Memory::LoadRange.into(),
+    ];
+    let stack = exec_ops(ops, *test_access()).unwrap();
+    assert_eq!(&stack[..], &[]);
+}
+
+#[test]
+fn test_memory_store_range_invalid_address_ops() {
+    let ops = &[
+        asm::Stack::Push(3).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(2).into(), // addr (only one slot left)
+        asm::Stack::Push(2).into(), // len
+        asm::Stack::Push(1).into(), // values
+        asm::Stack::Push(2).into(),
+        asm::Memory::StoreRange.into(),
+    ];
+    let result = exec_ops(ops, *test_access());
+    match result {
+        Err(ExecSyncError(_, OpSyncError::Memory(MemoryError::IndexOutOfBounds))) => {}
+        _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_memory_load_range_overflow_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(6).into(), // len (exceeds allocated size)
+        asm::Stack::Push(0).into(), // addr
+        asm::Memory::LoadRange.into(),
+    ];
+    let result = exec_ops(ops, *test_access());
+    match result {
+        Err(ExecSyncError(_, OpSyncError::Memory(MemoryError::IndexOutOfBounds))) => {}
+        _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_memory_alloc_free_with_ops() {
+    let ops = &[
+        asm::Stack::Push(10).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(5).into(),
+        asm::Memory::Free.into(),
+        asm::Stack::Push(7).into(),
+        asm::Memory::Load.into(),
+    ];
+    let result = exec_ops(ops, *test_access());
+    match result {
+        Err(ExecSyncError(_, OpSyncError::Memory(MemoryError::IndexOutOfBounds))) => {}
+        _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_memory_store_range_after_free_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(3).into(),
+        asm::Memory::Free.into(),
+        asm::Stack::Push(2).into(), // len
+        asm::Stack::Push(2).into(), // addr (within remaining memory)
+        asm::Stack::Push(1).into(), // values
+        asm::Stack::Push(2).into(),
+        asm::Memory::StoreRange.into(),
+        asm::Stack::Push(2).into(), // addr
+        asm::Memory::Load.into(),
+        asm::Stack::Push(3).into(), // addr (should fail)
+        asm::Memory::Load.into(),
+    ];
+    let result = exec_ops(ops, *test_access());
+    match result {
+        Err(ExecSyncError(_, OpSyncError::Memory(MemoryError::IndexOutOfBounds))) => {}
+        _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_memory_store_range_empty_values_ops() {
+    let ops = &[
+        asm::Stack::Push(5).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(0).into(), // len
+        asm::Stack::Push(0).into(), // addr
+        asm::Memory::StoreRange.into(),
+    ];
+    let stack = exec_ops(ops, *test_access()).unwrap();
+    assert!(stack.is_empty());
+}
+
+#[test]
+fn test_memory_load_store_range_with_ops() {
+    let ops = &[
+        asm::Stack::Push(10).into(),
+        asm::Memory::Alloc.into(),
+        asm::Stack::Pop.into(),
+        asm::Stack::Push(5).into(), // addr
+        asm::Stack::Push(1).into(), // values
+        asm::Stack::Push(2).into(),
+        asm::Stack::Push(3).into(),
+        asm::Stack::Push(4).into(),
+        asm::Stack::Push(5).into(),
+        asm::Stack::Push(5).into(), // len
+        asm::Memory::StoreRange.into(),
+        asm::Stack::Push(5).into(), // addr
+        asm::Stack::Push(5).into(), // len
+        asm::Memory::LoadRange.into(),
+    ];
+    let stack = exec_ops(ops, *test_access()).unwrap();
+    assert_eq!(&stack[..], &[1, 2, 3, 4, 5]);
 }
