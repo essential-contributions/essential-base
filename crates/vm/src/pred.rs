@@ -1,12 +1,10 @@
-use std::collections::HashSet;
-
-use essential_types::Word;
-
 use crate::{
     error::{OpSyncError, OpSyncResult, StackError},
     sets::decode_set,
     Stack,
 };
+use essential_types::Word;
+use std::collections::HashSet;
 
 #[cfg(test)]
 mod tests;
