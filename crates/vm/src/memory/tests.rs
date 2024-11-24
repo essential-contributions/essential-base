@@ -667,7 +667,8 @@ fn test_memory_load_range_zero_size_ops() {
         asm::Memory::LoadRange.into(),
     ];
     let stack = exec_ops(ops, *test_access()).unwrap();
-    assert_eq!(&stack[..], &[]);
+    let expected: &[i64] = &[];
+    assert_eq!(&stack[..], expected);
 }
 
 #[test]
