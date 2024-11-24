@@ -298,9 +298,11 @@ pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -
             Ok(stack.extend(words)?)
         }
         asm::Memory::StoreRange => {
-            let addr = stack.pop()?;
-            stack.pop_len_words(|words| {
-                memory.store_range(addr, words)?;
+            let value_len = stack.pop_len()?;
+            let addr_and_value_len = value_len.saturating_add(1); // Pop the addr too.
+            stack.pop_words(addr_and_value_len, |words| {
+                let (addr, value) = words.split_at(1);
+                memory.store_range(addr[0], value)?;
                 Ok::<_, OpSyncError>(())
             })?;
             Ok(())
