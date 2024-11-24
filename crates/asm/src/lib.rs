@@ -200,11 +200,20 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::useless_conversion)]
     fn roundtrip_args_end() {
         let ops: Vec<Op> = vec![
-            StateRead::KeyRange.into(),
-            StateRead::KeyRangeExtern.into(),
+            Stack::Swap.into(),
+            Stack::Dup.into(),
+            Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
+        ];
+        roundtrip(ops);
+    }
+
+    #[test]
+    fn roundtrip_args_interspersed() {
+        let ops: Vec<Op> = vec![
+            Stack::Push(0x1234567812345678).into(),
+            Stack::Swap.into(),
             Stack::Push(0x0F0F0F0F0F0F0F0F).into(),
             Stack::Dup.into(),
             Stack::Push(0x1234567812345678).into(),
