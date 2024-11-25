@@ -30,6 +30,13 @@ const NODE_SIZE_BYTES: usize = 35;
 const EDGE_SIZE_BYTES: usize = core::mem::size_of::<u16>();
 const LEN_SIZE_BYTES: usize = core::mem::size_of::<u16>();
 
+/// Errors that can occur when decoding a predicate.
+#[derive(Debug, PartialEq)]
+pub enum PredicateDecodeError {
+    /// The bytes are too short to contain the number of nodes.
+    BytesTooShort,
+}
+
 /// Errors that can occur when encoding a predicate.
 #[derive(Debug, PartialEq)]
 pub enum PredicateEncodeError {
@@ -39,12 +46,9 @@ pub enum PredicateEncodeError {
     TooManyEdges,
 }
 
-/// Errors that can occur when decoding a predicate.
-#[derive(Debug, PartialEq)]
-pub enum PredicateDecodeError {
-    /// The bytes are too short to contain the number of nodes.
-    BytesTooShort,
-}
+impl std::error::Error for PredicateDecodeError {}
+
+impl std::error::Error for PredicateEncodeError {}
 
 /// Encode a predicate into bytes.
 pub fn encode_predicate(
