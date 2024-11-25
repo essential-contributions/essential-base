@@ -72,6 +72,10 @@ pub struct Block {
     pub number: Word,
     /// The timestamp of the block.
     pub timestamp: Duration,
+    /// The parent hash.
+    pub parent_hash: Hash,
+    /// The merkle root of the state as of this block.
+    pub state_root: Hash,
     /// The solutions in the the block.
     pub solutions: Vec<Solution>,
 }
