@@ -1,6 +1,5 @@
-use essential_check::solution;
+use essential_check::{solution, vm::asm};
 use essential_hash::content_addr;
-use essential_state_read_vm::asm;
 use essential_types::{
     contract::Contract,
     predicate::{Edge, Node, Predicate, Program, Reads},
@@ -124,7 +123,7 @@ fn multiple_mutations_for_slot() {
 // ```
 #[tokio::test]
 async fn predicate_graph_stack_passing() {
-    use essential_state_read_vm::asm::short::*;
+    use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
     let a = Program(asm::to_bytes([PUSH(1), PUSH(2), PUSH(3), HLT]).collect());
     let b = Program(asm::to_bytes([PUSH(4), PUSH(5), PUSH(6), HLT]).collect());
@@ -221,7 +220,7 @@ async fn predicate_graph_stack_passing() {
 // ```
 #[tokio::test]
 async fn predicate_graph_memory_passing() {
-    use essential_state_read_vm::asm::short::*;
+    use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
     // Store `[1, 2, 3]` at the start of memory.
     let a = Program(
@@ -380,7 +379,7 @@ async fn predicate_graph_memory_passing() {
 // ```
 #[tokio::test]
 async fn predicate_graph_state_read() {
-    use essential_state_read_vm::asm::short::*;
+    use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
 
     let key = vec![9, 9, 9, 9];

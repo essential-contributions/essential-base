@@ -1,20 +1,52 @@
-use essential_check::{
-    sign::secp256k1::{PublicKey, Secp256k1, SecretKey},
-    types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
-    vm::StateRead,
-};
-use essential_types::{
-    contract::{self, Contract},
-    predicate::Predicate,
+// Cargo treats each test in `tests` as a crate, so for some tests some items
+// are considered dead code.
+#![allow(dead_code)]
+
+use essential_vm::{
+    types::{solution::SolutionData, ContentAddress, Key, PredicateAddress, Word},
+    Access, StateRead,
 };
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     future::{self, Ready},
 };
 use thiserror::Error;
 
+pub const TEST_SET_CA: ContentAddress = ContentAddress([0xFF; 32]);
+pub const TEST_PREDICATE_CA: ContentAddress = ContentAddress([0xAA; 32]);
+pub const TEST_PREDICATE_ADDR: PredicateAddress = PredicateAddress {
+    contract: TEST_SET_CA,
+    predicate: TEST_PREDICATE_CA,
+};
+pub const TEST_SOLUTION_DATA: SolutionData = SolutionData {
+    predicate_to_solve: TEST_PREDICATE_ADDR,
+    decision_variables: vec![],
+    state_mutations: vec![],
+};
+
+pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
+    static INSTANCE: std::sync::LazyLock<HashSet<&[Word]>> =
+        std::sync::LazyLock::new(|| HashSet::with_capacity(0));
+    &INSTANCE
+}
+
+pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
+    static INSTANCE: std::sync::LazyLock<[SolutionData; 1]> =
+        std::sync::LazyLock::new(|| [TEST_SOLUTION_DATA]);
+    &*INSTANCE
+}
+
+pub(crate) fn test_access() -> &'static Access<'static> {
+    static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
+        data: test_solution_data_arr(),
+        index: 0,
+        mutable_keys: test_empty_keys(),
+    });
+    &INSTANCE
+}
+
 // A test `StateRead` implementation represented using a map.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct State(BTreeMap<ContentAddress, BTreeMap<Key, Vec<Word>>>);
 
 #[derive(Debug, Error)]
@@ -50,11 +82,7 @@ impl State {
         }
     }
 
-    pub fn deploy_namespace(&mut self, contract_addr: ContentAddress) {
-        self.0.entry(contract_addr).or_default();
-    }
-
-    /// Retrieve a word range.
+    /// Retrieve a key range.
     pub fn key_range(
         &self,
         contract_addr: ContentAddress,
@@ -75,32 +103,19 @@ impl State {
             None
         }
 
-        let contract = match self.get(&contract_addr) {
-            None => return Err(InvalidStateRead),
-            Some(contract) => contract,
-        };
-
         // Collect the words.
         let mut words = vec![];
         for _ in 0..num_words {
-            let opt = contract.get(&key).cloned().unwrap_or_default();
+            let opt = self
+                .get(&contract_addr)
+                .ok_or(InvalidStateRead)?
+                .get(&key)
+                .cloned()
+                .unwrap_or_default();
             words.push(opt);
             key = next_key(key).ok_or(InvalidStateRead)?;
         }
         Ok(words)
-    }
-
-    /// Apply all mutations proposed by the given solution.
-    pub fn apply_mutations(&mut self, solution: &Solution) {
-        for data in &solution.data {
-            for mutation in data.state_mutations.iter() {
-                self.set(
-                    data.predicate_to_solve.contract.clone(),
-                    &mutation.key,
-                    mutation.value.clone(),
-                );
-            }
-        }
     }
 }
 
@@ -116,37 +131,5 @@ impl StateRead for State {
     type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
     fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
         future::ready(self.key_range(contract_addr, key, num_words))
-    }
-}
-
-pub fn empty_solution() -> Solution {
-    Solution {
-        data: Default::default(),
-    }
-}
-
-pub fn empty_predicate() -> Predicate {
-    Predicate::default()
-}
-
-pub fn empty_contract() -> Contract {
-    Contract::without_salt(vec![empty_predicate()])
-}
-
-pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
-    use rand::SeedableRng;
-    let mut rng = rand::rngs::SmallRng::from_seed(seed);
-    let secp = Secp256k1::new();
-    secp.generate_keypair(&mut rng)
-}
-
-pub fn contract_addr(predicates: &contract::SignedContract) -> ContentAddress {
-    essential_hash::content_addr(&predicates.contract)
-}
-
-pub fn predicate_addr(predicates: &contract::SignedContract, ix: usize) -> PredicateAddress {
-    PredicateAddress {
-        contract: contract_addr(predicates),
-        predicate: essential_hash::content_addr(&predicates.contract[ix]),
     }
 }

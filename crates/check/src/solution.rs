@@ -1,20 +1,16 @@
 //! Items related to validating `Solution`s.
 
 use crate::{
-    constraint_vm::{self, error::ConstraintsUnsatisfied},
-    state_read_vm::{
-        self, asm::FromBytesError, error::StateReadError, Access, BytecodeMapped, Gas, GasLimit,
-        StateRead,
-    },
     types::{
         predicate::Predicate,
         solution::{Solution, SolutionData, SolutionDataIndex},
         Key, PredicateAddress, Word,
     },
-};
-use essential_constraint_vm::{
-    error::{MemoryError, StackError},
-    Memory, Stack,
+    vm::{
+        self,
+        asm::{self, FromBytesError},
+        Access, BytecodeMapped, Gas, GasLimit, Memory, Stack, StateRead,
+    },
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
@@ -181,13 +177,13 @@ pub enum ProgramError<E> {
     ParentChannelDropped(#[from] oneshot::error::RecvError),
     /// Concatenating the parent program [`Stack`]s caused an overflow.
     #[error("concatenating parent program `Stack`s caused an overflow: {0}")]
-    ParentStackConcatOverflow(#[from] StackError),
+    ParentStackConcatOverflow(#[from] vm::error::StackError),
     /// Concatenating the parent program [`Memory`] slices caused an overflow.
     #[error("concatenating parent program `Memory` slices caused an overflow: {0}")]
-    ParentMemoryConcatOverflow(#[from] MemoryError),
+    ParentMemoryConcatOverflow(#[from] vm::error::MemoryError),
     /// VM execution resulted in an error.
     #[error("VM execution error: {0}")]
-    Vm(#[from] StateReadError<E>),
+    Vm(#[from] vm::error::ExecError<E>),
 }
 
 /// The number of decision variables provided by the solution data differs to
@@ -201,16 +197,9 @@ pub struct InvalidDecisionVariablesLength {
     pub predicate: u32,
 }
 
-/// [`check_predicate_constraints`] error.
+/// The index of each constraint that was not satisfied.
 #[derive(Debug, Error)]
-pub enum PredicateConstraintsError {
-    /// Constraint checking failed.
-    #[error("check failed: {0}")]
-    Check(#[from] constraint_vm::error::CheckError),
-    /// Failed to receive result from spawned task.
-    #[error("failed to recv: {0}")]
-    Recv(#[from] oneshot::error::RecvError),
-}
+pub struct ConstraintsUnsatisfied(pub Vec<usize>);
 
 /// Maximum number of decision variables of a solution.
 pub const MAX_DECISION_VARIABLES: u32 = 100;
@@ -238,6 +227,16 @@ impl<E: fmt::Display> fmt::Display for ProgramErrors<E> {
         f.write_str("the programs at the following node indices failed: \n")?;
         for (node_ix, err) in &self.0 {
             f.write_str(&format!("  {node_ix}: {err}\n"))?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for ConstraintsUnsatisfied {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("the constraints at the following indices returned false: \n")?;
+        for ix in &self.0 {
+            f.write_str(&format!("  {ix}\n"))?;
         }
         Ok(())
     }
@@ -371,10 +370,10 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
 
 /// Checks all of a solution's `SolutionData` against its associated predicates.
 ///
-/// For each of the solution's `data` elements, a single task is spawned that
-/// reads the pre and post state slots for the associated predicate with access to
-/// the given `pre_state` and `post_state`, then checks all constraints over the
-/// resulting pre and post state slots.
+/// For each of the solution's `data` elements, we load the associated predicate and
+/// its programs and execute each asynchronously in topological order. The leaf nodes
+/// are treated as constraints and if any constraint returns `false`, the solution is
+/// considered to be invalid.
 ///
 /// **NOTE:** This assumes that the given `Solution` and all `Predicate`s
 /// have already been independently validated using
@@ -631,8 +630,8 @@ where
 {
     let program_mapped = BytecodeMapped::try_from(&program.0[..])?;
 
-    // Create a new state read VM.
-    let mut vm = state_read_vm::Vm::default();
+    // Create a new VM.
+    let mut vm = vm::Vm::default();
 
     #[cfg(feature = "tracing")]
     tracing::trace!(
@@ -675,11 +674,11 @@ where
     );
 
     // Setup solution data access for execution.
-    let mut_keys = constraint_vm::mut_keys_set(&solution, solution_data_index);
+    let mut_keys = vm::mut_keys_set(&solution, solution_data_index);
     let access = Access::new(&solution, solution_data_index, &mut_keys);
 
     // FIXME: Provide these from Config.
-    let gas_cost = |_: &state_read_vm::asm::Op| 1;
+    let gas_cost = |_: &asm::Op| 1;
     let gas_limit = GasLimit::UNLIMITED;
 
     // Read the state into the VM's memory.

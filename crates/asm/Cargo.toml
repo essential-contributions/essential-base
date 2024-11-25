@@ -1,0 +1,22 @@
+[package]
+name = "essential-asm"
+version = "0.6.0"
+description = "Assembly operations for the Essential VM"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bitflags.workspace = true
+essential-asm-gen.workspace = true
+essential-types.workspace = true
+serde.workspace = true
+
+[features]
+default = ["std"]
+std = []
+
+[package.metadata.docs.rs]
+all-features = true

@@ -4,7 +4,7 @@ use crate::{Group, Node, Op, Tree};
 
 /// Recursively visit all group nodes within the op tree that pass the given
 /// predicate in depth-first visit order. The first argument is the stack of
-/// nested names (e.g. `[Constraint, Alu]`) and is guaranteed to be non-empty.
+/// nested names (e.g. `[Op, Alu]`) and is guaranteed to be non-empty.
 pub fn groups_filtered(
     tree: &Tree,
     pred: &impl Fn(&str) -> bool,
@@ -67,47 +67,4 @@ pub fn ops_filtered_recurse(
 /// the given function provides the fully nested name.
 pub fn ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
     ops_filtered(tree, |_| true, f)
-}
-
-/// Recursively visit only the subset of op groups related to constraint execution.
-pub fn constraint_groups(tree: &Tree, f: &mut impl FnMut(&[String], &Group)) {
-    // Find the constraint group and only apply `f` to it and its children.
-    groups(tree, &mut |name, group| {
-        if name.last().unwrap() == crate::CONSTRAINT_GROUP_NAME {
-            f(name, group);
-            groups(&group.tree, f);
-        }
-    });
-}
-
-/// Recursively visit only the subset of operations related to constraint execution.
-pub fn constraint_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
-    // Find the constraint group and only apply `f` to it and its children.
-    groups(tree, &mut |names, group| {
-        let name = names.last().unwrap();
-        if name == crate::CONSTRAINT_GROUP_NAME {
-            let mut names = vec![name.to_string()];
-            ops_filtered_recurse(&group.tree, &|_| true, &mut names, f);
-        }
-    });
-}
-
-/// The predicate used to ensure only state-read-execution-specific groups and
-/// ops are visited.
-fn state_read_pred(name: &str) -> bool {
-    name != crate::CONSTRAINT_GROUP_NAME
-}
-
-/// Recursively visit all op groups related solely to state read execution,
-/// ignoring those that also appear in constraint execution. This is useful for
-/// creating items specific to state read execution.
-pub fn state_read_groups(tree: &Tree, f: &mut impl FnMut(&[String], &Group)) {
-    groups_filtered(tree, &state_read_pred, f)
-}
-
-/// Recursively visit all ops related solely to state read execution, ignoring
-/// those that also appear in constraint execution. This is useful for creating
-/// items specific to state read execution.
-pub fn state_read_ops(tree: &Tree, f: &mut impl FnMut(&[String], &Op)) {
-    ops_filtered(tree, state_read_pred, f)
 }

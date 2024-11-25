@@ -10,8 +10,6 @@
 //! - [`predicate::check_signed_contract`] validates a signed contract.
 //! - [`predicate::check_contract`] validates a contract.
 //! - [`predicate::check`] validate an individual predicate.
-//! - [`predicate::check_state_reads`] validate a predicate's state read bytecode.
-//! - [`predicate::check_constraints`] validate a predicate's constraint bytecode.
 //!
 //! ## Solution Validation
 //!
@@ -23,22 +21,16 @@
 //!
 //! - [`solution::check_predicates`] validates a solution's data against their associated predicates.
 //! - [`solution::check_predicate`] validates a single solution data against an associated predicate.
-//! - [`solution::check_predicate_constraints`] the predicate constraint checking part of solution
-//!   data validation.
-//! - [`solution::check_decision_variable_lengths`] checks the expected number of
-//!   decision variables.
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
 #[doc(inline)]
-pub use essential_constraint_vm as constraint_vm;
-#[doc(inline)]
 pub use essential_sign as sign;
 #[doc(inline)]
-pub use essential_state_read_vm as state_read_vm;
-#[doc(inline)]
 pub use essential_types as types;
+#[doc(inline)]
+pub use essential_vm as vm;
 
 pub mod predicate;
 pub mod solution;
