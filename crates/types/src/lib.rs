@@ -3,10 +3,15 @@
 //! # Common types for Essential Chain.
 
 use ::serde::{Deserialize, Serialize};
+#[doc(inline)]
+pub use contract::Contract;
 use core::time::Duration;
+#[doc(inline)]
+pub use predicate::{Predicate, Program};
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
-use solution::Solution;
+#[doc(inline)]
+pub use solution::{Solution, SolutionIndex, SolutionSet};
 
 pub mod contract;
 pub mod convert;
@@ -69,6 +74,6 @@ pub struct Block {
     pub number: Word,
     /// The timestamp of the block.
     pub timestamp: Duration,
-    /// The solutions in the the block.
-    pub solutions: Vec<Solution>,
+    /// The list of solution sets that make up a block.
+    pub solution_sets: Vec<SolutionSet>,
 }
