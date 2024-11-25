@@ -1,6 +1,25 @@
-//! Helper functions for converting between byte and word representations.
+//! Helper functions for converting between byte, word and hex string representations.
 
 use crate::{ContentAddress, Signature, Word};
+pub use hex::FromHexError;
+
+/// Convert a hex string slice to a `Vec<Word>`.
+pub fn words_from_hex_str(str: &str) -> Result<Vec<Word>, FromHexError> {
+    Ok(hex::decode(str)?
+        .chunks_exact(8)
+        .map(|chunk| word_from_bytes(chunk.try_into().expect("Word is always 8 bytes")))
+        .collect())
+}
+
+/// Convert a slice of `Word`s to a hex string.
+pub fn hex_str_from_words(words: &[Word]) -> String {
+    hex::encode(
+        words
+            .iter()
+            .flat_map(|word| bytes_from_word(*word))
+            .collect::<Vec<u8>>(),
+    )
+}
 
 /// Convert a `Word` to its bytes.
 pub fn bytes_from_word(w: Word) -> [u8; 8] {
