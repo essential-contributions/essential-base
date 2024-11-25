@@ -1,6 +1,9 @@
 //! `core::fmt` implementations and related items.
 
-use crate::{ContentAddress, PredicateAddress, Signature};
+use crate::{
+    predicate::{PredicateDecodeError, PredicateEncodeError},
+    ContentAddress, PredicateAddress, Signature,
+};
 use core::{fmt, str};
 
 impl fmt::LowerHex for ContentAddress {
@@ -63,6 +66,31 @@ impl fmt::Display for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let bytes: [u8; 65] = self.clone().into();
         hex::encode_upper(bytes).fmt(f)
+    }
+}
+
+impl fmt::Display for PredicateDecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                PredicateDecodeError::BytesTooShort => "bytes too short",
+            }
+        )
+    }
+}
+
+impl fmt::Display for PredicateEncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                PredicateEncodeError::TooManyNodes => "too many nodes",
+                PredicateEncodeError::TooManyEdges => "too many edges",
+            }
+        )
     }
 }
 
