@@ -71,13 +71,26 @@ impl fmt::Display for Signature {
 
 impl fmt::Display for PredicateDecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(
+            f,
+            "{}",
+            match self {
+                PredicateDecodeError::BytesTooShort => "bytes too short",
+            }
+        )
     }
 }
 
 impl fmt::Display for PredicateEncodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(
+            f,
+            "{}",
+            match self {
+                PredicateEncodeError::TooManyNodes => "too many nodes",
+                PredicateEncodeError::TooManyEdges => "too many edges",
+            }
+        )
     }
 }
 
