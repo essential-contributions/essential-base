@@ -4,11 +4,10 @@
 //!
 //! The primary entrypoint for this crate is the [`Vm` type][Vm].
 //!
-//! The `Vm` allows for executing operations that read state and apply any
-//! necessary operations in order to form the final, expected state slot layout
-//! within the VM's [`Memory`]. The `Vm`'s memory can be accessed directly
-//! from the `Vm`, or the `Vm` can be consumed and state slots returned with
-//! [`Vm::into_state_slots`].
+//! The `Vm` allows for executing arbitrary [essential ASM][asm] ops.
+//! The primary use-case is executing [`Program`][essential_types::predicate::Program]s
+//! that make up a [`Predicate`][essential_types::predicate::Predicate]'s program graph
+//! during [`Solution`][essential_types::solution::Solution] validation.
 //!
 //! ## Executing Ops
 //!

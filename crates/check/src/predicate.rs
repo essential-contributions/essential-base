@@ -28,7 +28,7 @@ pub enum InvalidContract {
     Predicate(usize, InvalidPredicate),
 }
 
-/// [`check_predicate`] error.
+/// [`check`] error.
 #[derive(Debug, Error)]
 pub enum InvalidPredicate {
     /// The number of nodes in the predicate exceeds the limit.

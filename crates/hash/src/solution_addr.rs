@@ -4,7 +4,7 @@
 use essential_types::{solution::Solution, ContentAddress};
 
 /// Shorthand for the common case of producing a solution address from an
-/// iterator yielding references to [`SolutionData`]s.
+/// iterator yielding references to [`SolutionData`][essential_types::solution::SolutionData]s.
 ///
 /// If you have already calculated the content address for each `SolutionData` consider
 /// using [`from_data_addrs`] or [`from_data_addrs_slice`].

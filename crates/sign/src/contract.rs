@@ -19,7 +19,7 @@ use secp256k1::{PublicKey, SecretKey};
 ///
 /// If the content address of the contract is already known, consider signing
 /// the content address directly with [`sign_hash`][crate::sign_hash] and then
-/// constructing the [`predicate::SignedContract`] from its fields.
+/// constructing the [`contract::SignedContract`] from its fields.
 pub fn sign(contract: Contract, sk: &SecretKey) -> contract::SignedContract {
     let ca = essential_hash::content_addr(&contract);
     let signature = crate::sign_hash(ca.0, sk);

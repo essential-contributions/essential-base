@@ -1,14 +1,12 @@
-use std::{collections::HashSet, sync::OnceLock};
-
-use essential_types::{solution::SolutionData, Hash};
-
 use crate::access::init_predicate_exists;
+use essential_types::{solution::SolutionData, Hash};
+use std::{collections::HashSet, sync::OnceLock};
 
 #[derive(Default, Debug, PartialEq)]
 /// Lazily cache expensive to compute values.
 pub struct LazyCache {
     /// Decision variables and addresses set of hashes.
-    /// See [`PredicateExists`][essential_constraint_asm::Op] for more details.
+    /// See [`PredicateExists`][essential_asm] for more details.
     pub dec_var_hashes: OnceLock<HashSet<Hash>>,
 }
 
