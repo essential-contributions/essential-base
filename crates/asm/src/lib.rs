@@ -228,7 +228,7 @@ mod tests {
             Access::ThisAddress.into(),
             Memory::Load.into(),
             Access::ThisContractAddress.into(),
-            Access::DecisionVarLen.into(),
+            Access::PredicateDataLen.into(),
         ];
         roundtrip(ops);
     }

@@ -166,23 +166,23 @@ pub fn step_op_access(
     cache: &LazyCache,
 ) -> OpSyncResult<()> {
     match op {
-        asm::Access::DecisionVar => {
-            access::decision_var(&access.this_data().decision_variables, stack)
+        asm::Access::PredicateData => {
+            access::predicate_data(&access.this_solution().predicate_data, stack)
         }
-        asm::Access::DecisionVarLen => {
-            access::decision_var_len(&access.this_data().decision_variables, stack)
+        asm::Access::PredicateDataLen => {
+            access::predicate_data_len(&access.this_solution().predicate_data, stack)
                 .map_err(From::from)
         }
-        asm::Access::DecisionVarSlots => {
-            access::decision_var_slots(stack, &access.this_data().decision_variables)
+        asm::Access::PredicateDataSlots => {
+            access::predicate_data_slots(stack, &access.this_solution().predicate_data)
         }
         asm::Access::MutKeys => access::push_mut_keys(access, stack),
-        asm::Access::ThisAddress => access::this_address(access.this_data(), stack),
+        asm::Access::ThisAddress => access::this_address(access.this_solution(), stack),
         asm::Access::ThisContractAddress => {
-            access::this_contract_address(access.this_data(), stack)
+            access::this_contract_address(access.this_solution(), stack)
         }
         asm::Access::RepeatCounter => access::repeat_counter(stack, repeat),
-        asm::Access::PredicateExists => access::predicate_exists(stack, access.data, cache),
+        asm::Access::PredicateExists => access::predicate_exists(stack, access.solutions, cache),
     }
 }
 
@@ -312,14 +312,12 @@ pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -
 
 #[cfg(test)]
 pub(crate) mod test_util {
-    use std::collections::HashSet;
-
-    use asm::Word;
-
     use crate::{
-        types::{solution::SolutionData, ContentAddress, PredicateAddress},
+        types::{solution::Solution, ContentAddress, PredicateAddress},
         *,
     };
+    use asm::Word;
+    use std::collections::HashSet;
 
     pub(crate) const TEST_SET_CA: ContentAddress = ContentAddress([0xFF; 32]);
     pub(crate) const TEST_PREDICATE_CA: ContentAddress = ContentAddress([0xAA; 32]);
@@ -327,9 +325,9 @@ pub(crate) mod test_util {
         contract: TEST_SET_CA,
         predicate: TEST_PREDICATE_CA,
     };
-    pub(crate) const TEST_SOLUTION_DATA: SolutionData = SolutionData {
+    pub(crate) const TEST_SOLUTION: Solution = Solution {
         predicate_to_solve: TEST_PREDICATE_ADDR,
-        decision_variables: vec![],
+        predicate_data: vec![],
         state_mutations: vec![],
     };
 
@@ -339,15 +337,15 @@ pub(crate) mod test_util {
         &INSTANCE
     }
 
-    pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
-        static INSTANCE: std::sync::LazyLock<[SolutionData; 1]> =
-            std::sync::LazyLock::new(|| [TEST_SOLUTION_DATA]);
+    pub(crate) fn test_solutions() -> &'static [Solution] {
+        static INSTANCE: std::sync::LazyLock<[Solution; 1]> =
+            std::sync::LazyLock::new(|| [TEST_SOLUTION]);
         &*INSTANCE
     }
 
     pub(crate) fn test_access() -> &'static Access<'static> {
         static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
-            data: test_solution_data_arr(),
+            solutions: test_solutions(),
             index: 0,
             mutable_keys: test_empty_keys(),
         });

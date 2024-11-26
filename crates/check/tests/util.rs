@@ -1,6 +1,6 @@
 use essential_check::{
     sign::secp256k1::{PublicKey, Secp256k1, SecretKey},
-    types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
+    types::{solution::SolutionSet, ContentAddress, Key, PredicateAddress, Word},
     vm::StateRead,
 };
 use essential_types::{
@@ -90,12 +90,12 @@ impl State {
         Ok(words)
     }
 
-    /// Apply all mutations proposed by the given solution.
-    pub fn apply_mutations(&mut self, solution: &Solution) {
-        for data in &solution.data {
-            for mutation in data.state_mutations.iter() {
+    /// Apply all mutations proposed by the given solution set.
+    pub fn apply_mutations(&mut self, set: &SolutionSet) {
+        for solution in &set.solutions {
+            for mutation in solution.state_mutations.iter() {
                 self.set(
-                    data.predicate_to_solve.contract.clone(),
+                    solution.predicate_to_solve.contract.clone(),
                     &mutation.key,
                     mutation.value.clone(),
                 );
@@ -119,9 +119,9 @@ impl StateRead for State {
     }
 }
 
-pub fn empty_solution() -> Solution {
-    Solution {
-        data: Default::default(),
+pub fn empty_solution_set() -> SolutionSet {
+    SolutionSet {
+        solutions: Default::default(),
     }
 }
 

@@ -324,13 +324,15 @@ Op:
 
         # 0x39 reserved for repeat or related op
 
-        DecisionVar:
+        PredicateData:
           opcode: 0x3A
-          short: VAR
+          short: DATA
           description: |
-            Access a range of `len` words starting from `value_ix` within the decision variable located at `slot_ix`.
+            Access a range of `len` words starting from `value_ix` within the
+            predicate data located at `slot_ix`.
 
-            Returns a list of decision words with length equal to the specified len.
+            Returns a list of predicate data words with length equal to the
+            specified len.
           panics:
             - slot_ix is out of range.
             - The range `value_ix..(value_ix + len)` is out of range.
@@ -339,19 +341,19 @@ Op:
             elem: word
             len: len
 
-        DecisionVarLen:
-          opcode: 0x3B
-          short: VLEN
-          description: Get the length of a the decision variable value located at `slot_ix`.
+        PredicateDataLen:
+          opcode: 0x38
+          short: DLEN
+          description: Get the length of a the predicate data value located at `slot_ix`.
           panics:
             - slot_ix is out of range.
           stack_in: [slot_ix]
           stack_out: [len]
 
-        DecisionVarSlots:
-          opcode: 0x3C
-          short: NSLT
-          description: Get the number of decision var slots.
+        PredicateDataSlots:
+          opcode: 0x39
+          short: DSLT
+          description: Get the number of predicate data slots.
           stack_out: [len]
 
         PredicateExists:

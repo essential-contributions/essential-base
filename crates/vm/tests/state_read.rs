@@ -12,7 +12,7 @@ mod util;
 async fn state_read_3_42s() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.this_data().predicate_to_solve.contract.clone(),
+        access.this_solution().predicate_to_solve.contract.clone(),
         vec![
             (vec![0, 0, 0, 0], vec![42]),
             (vec![0, 0, 0, 1], vec![42]),
@@ -47,7 +47,7 @@ async fn state_read_3_42s() {
 async fn state_read_some_none_some() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.this_data().predicate_to_solve.contract.clone(),
+        access.this_solution().predicate_to_solve.contract.clone(),
         vec![(vec![0, 0, 0, 0], vec![42]), (vec![0, 0, 0, 2], vec![42])],
     )]);
     let mut vm = Vm::default();
@@ -163,7 +163,7 @@ async fn state_read_ext_nones() {
 async fn state_read_various_size_values() {
     let access = *test_access();
     let state = State::new(vec![(
-        access.this_data().predicate_to_solve.contract.clone(),
+        access.this_solution().predicate_to_solve.contract.clone(),
         vec![
             (vec![0, 0, 0, 0], vec![0; 2]),
             (vec![0, 0, 0, 1], vec![1; 22]),
@@ -211,7 +211,7 @@ async fn state_read_various_key_sizes() {
         (vec![4; 1000], vec![4; 12]),
     ];
     let state = State::new(vec![(
-        access.this_data().predicate_to_solve.contract.clone(),
+        access.this_solution().predicate_to_solve.contract.clone(),
         kv_pairs.clone(),
     )]);
     let mut vm = Vm::default();

@@ -102,7 +102,7 @@ fn test_predicate_exists() {
     check(&mut stack, &data, &cache).unwrap_err();
 }
 
-fn check(stack: &mut Stack, data: &[SolutionData], cache: &LazyCache) -> OpSyncResult<bool> {
+fn check(stack: &mut Stack, data: &[Solution], cache: &LazyCache) -> OpSyncResult<bool> {
     predicate_exists(stack, data, cache)?;
     let s = stack.iter().cloned().collect::<Vec<_>>();
     assert_eq!(s.len(), 1);
@@ -116,24 +116,24 @@ struct Setup {
     args: Vec<Vec<Word>>,
 }
 
-fn setup(input: &[Setup], i: usize) -> (Stack, Vec<SolutionData>, LazyCache) {
+fn setup(input: &[Setup], i: usize) -> (Stack, Vec<Solution>, LazyCache) {
     let mut stack = Stack::default();
     let cache = LazyCache::default();
     let data: Vec<_> = input
         .iter()
-        .map(|s| SolutionData {
+        .map(|s| Solution {
             predicate_to_solve: PredicateAddress {
                 contract: ContentAddress(s.contract_addr),
                 predicate: ContentAddress(s.predicate_addr),
             },
-            decision_variables: s.args.clone(),
+            predicate_data: s.args.clone(),
             state_mutations: Default::default(),
         })
         .collect();
     let words: Vec<_> = data
         .iter()
         .map(|d| {
-            let words = d.decision_variables.iter().flat_map(|slot| {
+            let words = d.predicate_data.iter().flat_map(|slot| {
                 Some(slot.len() as Word)
                     .into_iter()
                     .chain(slot.iter().cloned())
