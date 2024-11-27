@@ -218,7 +218,12 @@ where
                 OpKind::Sync(op) => step_op_sync(op, self.access, vm),
                 OpKind::Async(op) => {
                     // Async op takes ownership of the VM and returns it upon future completion.
-                    let contract_addr = self.access.this_solution().predicate_to_solve.contract.clone();
+                    let contract_addr = self
+                        .access
+                        .this_solution()
+                        .predicate_to_solve
+                        .contract
+                        .clone();
                     let pc = vm.pc;
                     let future = match step_op_async(op, contract_addr, self.state_read, vm) {
                         Err(err) => {

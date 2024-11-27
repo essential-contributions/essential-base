@@ -75,6 +75,7 @@ fn test_content_addr() {
     assert_eq!(content_addr, addr);
 
     let solution_addrs = solution_sets.iter().rev().map(essential_hash::content_addr);
-    let addr = essential_hash::block_addr::from_block_and_solution_set_addrs(&block, solution_addrs);
+    let addr =
+        essential_hash::block_addr::from_block_and_solution_set_addrs(&block, solution_addrs);
     assert_ne!(content_addr, addr);
 }
