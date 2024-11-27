@@ -301,6 +301,8 @@ Op:
             This operation returns a list of words with a length of 4, representing the contract's hash.
           stack_out: [key]
 
+        # 0x32, 0x33 reserved for potential new Address or related ops
+
         MutKeys:
           opcode: 0x34
           short: MKEYS
@@ -312,14 +314,18 @@ Op:
             Returns only total length 0 if there are no mutations.
           stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
 
+        # 0x35, 0x36, 0x37 reserved for potential keys and/or state-mutations ops
+
         RepeatCounter:
-          opcode: 0x36
+          opcode: 0x38
           short: REPC
           description: Access the top repeat counters current value.
           stack_out: [counter_value]
 
+        # 0x39 reserved for repeat or related op
+
         DecisionVar:
-          opcode: 0x37
+          opcode: 0x3A
           short: VAR
           description: |
             Access a range of `len` words starting from `value_ix` within the decision variable located at `slot_ix`.
@@ -334,7 +340,7 @@ Op:
             len: len
 
         DecisionVarLen:
-          opcode: 0x38
+          opcode: 0x3B
           short: VLEN
           description: Get the length of a the decision variable value located at `slot_ix`.
           panics:
@@ -343,23 +349,25 @@ Op:
           stack_out: [len]
 
         DecisionVarSlots:
-          opcode: 0x39
+          opcode: 0x3C
           short: NSLT
           description: Get the number of decision var slots.
           stack_out: [len]
 
         PredicateExists:
-          opcode: 0x3A
+          opcode: 0x3D
           short: PEX
           description: |
             Check if a solution to a predicate exists within the same solution
             with the hash of the arguments and address.
 
             Returns `true` if the predicate exists.
-          stack_in: [sha256(arg0len, arg0, argNlen, argN, contract_addr, predicate_addr)]
+          stack_in: ["sha256(arg0len, arg0, argNlen, argN, contract_addr, predicate_addr)"]
           stack_out: [bool]
 
-    # Byte 4 reserved for Access ops
+        # 0x3E reserved for PredicateExists alternative with partial input (#222)
+
+    # 0x4* reserved for more Access ops
 
     Crypto:
       description: Operations providing cryptographic functionality.
@@ -442,7 +450,7 @@ Op:
           stack_in: [value]
 
         JumpForwardIf:
-          opcode: 0x63
+          opcode: 0x62
           short: JMPIF
           description: Jump forward the given number of instructions if the value is true.
           panics:
@@ -451,7 +459,7 @@ Op:
           stack_in: [n_instruction, condition]
 
         PanicIf:
-          opcode: 0x64
+          opcode: 0x63
           short: PNCIF
           description: |
             Panic if the `condition` is true.
