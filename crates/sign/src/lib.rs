@@ -2,15 +2,6 @@
 //! and public key recovery functions implemented using [`secp256k1`] and the
 //! [`essential_hash`] crate.
 //!
-//! ## Signing Arbitrary Data
-//!
-//! For signing arbitrary data, the following take care of hashing the data in a
-//! consistent manner internally.
-//!
-//! - [`sign`]
-//! - [`verify`]
-//! - [`recover`]
-//!
 //! ## Signing Hashes
 //!
 //! In cases where the `Hash` (or `ContentAddress`) is already known, the following
@@ -36,11 +27,6 @@ pub mod encode;
 /// Sign directly over a hash with the given secret key using `secp256k1`.
 ///
 /// This treats the hash as a digest from which a [`Message`] is produced and then signed.
-///
-/// If you plan to use the resulting `Signature` with [`verify`] or [`recover`]
-/// to verify a signature or recover a public key over some arbitrary data, the
-/// given `hash` must be produced by [`essential_hash::hash`] (i.e. be a sha256
-/// hash).
 pub fn sign_hash(hash: Hash, sk: &SecretKey) -> Signature {
     let message = Message::from_digest(hash);
     sign_message(&message, sk)
@@ -56,7 +42,7 @@ fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
 /// Verify a signature over the given hash.
 ///
 /// This treats the given hash as a digest for a [`Message`] that is verified
-/// with [`verify_message`].
+/// with `verify_message`.
 pub fn verify_hash(hash: Hash, signature: &Signature) -> Result<(), secp256k1::Error> {
     let msg = Message::from_digest(hash);
     verify_message(&msg, signature)
