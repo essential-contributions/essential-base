@@ -23,7 +23,7 @@ mod test_utils;
 #[cfg(test)]
 mod tests;
 
-/// All necessary solution data access required to check an individual predicate.
+/// All necessary solution access required to check an individual predicate.
 #[derive(Clone, Copy, Debug)]
 pub struct Access<'a> {
     /// The set of input data for each predicate being solved within the solution set.
@@ -188,7 +188,7 @@ pub(crate) fn resolve_predicate_data_range(
 
 /// Resolve the length of predicate data slot.
 ///
-/// Errors if the solution or decision var indices are out of bounds.
+/// Errors if the solution or predicate data indices are out of bounds.
 pub(crate) fn resolve_predicate_data_len(
     predicate_data: &[Value],
     slot_ix: usize,

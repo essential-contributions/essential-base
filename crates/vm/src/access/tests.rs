@@ -357,7 +357,7 @@ fn predicate_data_slot_oob_ops() {
             _,
             OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_)),
         )) => {}
-        _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
+        _ => panic!("expected predicate data slot out-of-bounds error, got {res:?}"),
     }
 }
 
@@ -370,7 +370,7 @@ fn mut_keys_push_eq() {
     // at index `1`.
     let solution = SolutionSet {
         solutions: vec![
-            // Solution data for some other predicate.
+            // Solution for some other predicate.
             Solution {
                 predicate_to_solve: PredicateAddress {
                     contract: ContentAddress([0x13; 32]),
@@ -382,7 +382,7 @@ fn mut_keys_push_eq() {
                     value: vec![1],
                 }],
             },
-            // Solution data for the predicate we're checking.
+            // Solution for the predicate we're checking.
             Solution {
                 predicate_to_solve: predicate_addr.clone(),
                 predicate_data: vec![],

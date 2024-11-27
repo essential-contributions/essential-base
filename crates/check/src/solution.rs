@@ -129,18 +129,18 @@ pub enum InvalidSetStateMutations {
 /// [`check_predicates`] error.
 #[derive(Debug, Error)]
 pub enum PredicatesError<E> {
-    /// One or more solution data failed their associated predicate checks.
+    /// One or more solution failed their associated predicate checks.
     #[error("{0}")]
     Failed(#[from] PredicateErrors<E>),
     /// One or more tasks failed to join.
     #[error("one or more spawned tasks failed to join: {0}")]
     Join(#[from] tokio::task::JoinError),
-    /// Summing solution data gas resulted in overflow.
-    #[error("summing solution data gas overflowed")]
+    /// Summing solution gas resulted in overflow.
+    #[error("summing solution gas overflowed")]
     GasOverflowed,
 }
 
-/// Predicate checking failed for the solution data at the given indices.
+/// Predicate checking failed for the solution at the given indices.
 #[derive(Debug, Error)]
 pub struct PredicateErrors<E>(pub Vec<(SolutionIndex, PredicateError<E>)>);
 
@@ -183,17 +183,6 @@ pub enum ProgramError<E> {
     /// VM execution resulted in an error.
     #[error("VM execution error: {0}")]
     Vm(#[from] vm::error::ExecError<E>),
-}
-
-/// The number of predicate data provided by the solution data differs to
-/// the number expected by the predicate.
-#[derive(Debug, Error)]
-#[error("number of solution data predicate data ({data}) differs from predicate ({predicate})")]
-pub struct InvalidDecisionVariablesLength {
-    /// Number of predicate data provided by solution data.
-    pub data: usize,
-    /// Number of predicate data expected by the solution data's associated predicate.
-    pub predicate: u32,
 }
 
 /// The index of each constraint that was not satisfied.
@@ -287,7 +276,7 @@ impl<T: GetProgram> GetProgram for Arc<T> {
 /// its associated predicates.
 ///
 /// This includes solutions and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(solution)), err))]
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(set)), err))]
 pub fn check_set(set: &SolutionSet) -> Result<(), InvalidSolutionSet> {
     check_solutions(&set.solutions)?;
     check_set_state_mutations(set)?;
@@ -310,7 +299,7 @@ fn check_key_size(value: &[Word]) -> Result<(), KvError> {
     }
 }
 
-/// Validate the solution set's slice of [`Solution`].
+/// Validate the solution set's slice of [`Solution`]s.
 pub fn check_solutions(solutions: &[Solution]) -> Result<(), InvalidSolution> {
     // Validate solution.
     // Ensure that at solution has at least one solution.
@@ -322,7 +311,7 @@ pub fn check_solutions(solutions: &[Solution]) -> Result<(), InvalidSolution> {
         return Err(InvalidSolution::TooMany(solutions.len()));
     }
 
-    // Check whether we have too many decision vars
+    // Check whether the predicate data length has been exceeded.
     for (solution_ix, solution) in solutions.iter().enumerate() {
         // Ensure the length limit is not exceeded.
         if solution.predicate_data.len() > MAX_PREDICATE_DATA as usize {
@@ -339,7 +328,6 @@ pub fn check_solutions(solutions: &[Solution]) -> Result<(), InvalidSolution> {
 }
 
 /// Validate the solution set's state mutations.
-// TODO: This should be per `Solutions`?
 pub fn check_set_state_mutations(set: &SolutionSet) -> Result<(), InvalidSolutionSet> {
     // Validate state mutations.
     // Ensure that the solution set's state mutations length is below limit length.
