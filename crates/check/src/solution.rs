@@ -356,7 +356,7 @@ pub fn check_set_state_mutations(set: &SolutionSet) -> Result<(), InvalidSolutio
     Ok(())
 }
 
-/// Checks all of a [`SolutionSet`]'s [`Solution`] against their associated [`Predicate`]s.
+/// Checks all of a [`SolutionSet`]'s [`Solution`]s against their associated [`Predicate`]s.
 ///
 /// For each solution, we load the associated predicate and its programs and execute each
 /// asynchronously in topological order. The leaf nodes are treated as constraints and if
