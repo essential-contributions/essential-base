@@ -342,7 +342,7 @@ Op:
             len: len
 
         PredicateDataLen:
-          opcode: 0x38
+          opcode: 0x3B
           short: DLEN
           description: Get the length of a the predicate data value located at `slot_ix`.
           panics:
@@ -351,7 +351,7 @@ Op:
           stack_out: [len]
 
         PredicateDataSlots:
-          opcode: 0x39
+          opcode: 0x3C
           short: DSLT
           description: Get the number of predicate data slots.
           stack_out: [len]
