@@ -165,9 +165,6 @@ pub enum AccessError {
     /// A predicate data index was out of bounds.
     #[error("predicate data value_ix out of bounds: {0}..{1}")]
     PredicateDataSlotRangeOutOfBounds(Word, Word),
-    /// A solution data index was out of bounds.
-    #[error("solution data index out of bounds")]
-    SolutionDataOutOfBounds,
     /// A state slot index was out of bounds.
     #[error("state slot_ix out of bounds: {0}")]
     StateSlotIxOutOfBounds(Word),
