@@ -70,13 +70,13 @@ impl Memory {
         Ok(self.0[address..end].to_vec())
     }
 
-    /// Free some memory from an index to the end of this memory.
-    pub fn free(&mut self, address: Word) -> Result<(), MemoryError> {
-        let index = usize::try_from(address).map_err(|_| MemoryError::IndexOutOfBounds)?;
-        if index >= self.0.len() {
+    /// Truncate memory to the given `new_len`, freeing all memory that follows.
+    pub fn free(&mut self, new_len: Word) -> Result<(), MemoryError> {
+        let new_len = usize::try_from(new_len).map_err(|_| MemoryError::IndexOutOfBounds)?;
+        if new_len > self.0.len() {
             return Err(MemoryError::IndexOutOfBounds);
         }
-        self.0.truncate(index);
+        self.0.truncate(new_len);
         self.0.shrink_to_fit();
         Ok(())
     }

@@ -491,10 +491,11 @@ Op:
 
         Free:
           opcode: 0x71
-          description: Free memory down to the specified index.
+          description: Truncate memory to the specified new length, freeing all that follows.
           panics:
-            - The index is negative.
-          stack_in: [index]
+            - The new length is negative.
+            - The new length is greater than the existing length.
+          stack_in: [new_length]
 
         Load:
           opcode: 0x72
