@@ -28,12 +28,12 @@ fn test_free_empty_memory() {
     let mut memory = Memory::new();
     assert!(memory.is_empty());
 
-    // Trying to free address 0 from empty memory should fail
-    assert!(matches!(memory.free(0), Err(MemoryError::IndexOutOfBounds)));
+    // Trying to free when `new_len` is equal to `memory.len()` is a no-op.
+    memory.free(0).unwrap();
 }
 
 #[test]
-fn test_free_valid_address() {
+fn test_free_valid_new_len() {
     let mut memory = Memory::new();
 
     // Allocate 10 words
@@ -45,7 +45,7 @@ fn test_free_valid_address() {
         memory.store(i, i as Word).unwrap();
     }
 
-    // Free from index 5
+    // Free all beyond len 5.
     memory.free(5).unwrap();
 
     // Verify new length
@@ -89,14 +89,14 @@ fn test_free_at_start() {
 }
 
 #[test]
-fn test_free_invalid_address() {
+fn test_free_invalid_new_len() {
     let mut memory = Memory::new();
     memory.alloc(5).unwrap();
 
-    // Test with out of bounds index
-    assert!(matches!(memory.free(5), Err(MemoryError::IndexOutOfBounds)));
+    // Test with out of bounds new length
+    assert!(matches!(memory.free(6), Err(MemoryError::IndexOutOfBounds)));
 
-    // Test with very large index
+    // Test with very large new length
     assert!(matches!(
         memory.free(Word::MAX),
         Err(MemoryError::IndexOutOfBounds)
@@ -107,7 +107,7 @@ fn test_free_invalid_address() {
 }
 
 #[test]
-fn test_free_negative_address() {
+fn test_free_negative_new_len() {
     let mut memory = Memory::new();
     memory.alloc(5).unwrap();
 
