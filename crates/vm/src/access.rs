@@ -180,7 +180,7 @@ pub(crate) fn resolve_predicate_data_range(
         .get(slot_ix)
         .ok_or(AccessError::PredicateDataSlotIxOutOfBounds(slot_ix as Word))?
         .get(value_range_ix.clone())
-        .ok_or(AccessError::PredicateDataSlotRangeOutOfBounds(
+        .ok_or(AccessError::PredicateDataValueRangeOutOfBounds(
             value_range_ix.start as Word,
             value_range_ix.end as Word,
         ))

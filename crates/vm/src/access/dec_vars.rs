@@ -71,12 +71,12 @@ use test_utils::{assert_err, assert_stack_ok};
 )]
 #[test_case(
     &[0, 1, 1], &[&[3]] =>
-    using assert_err!(OpSyncError::Access(AccessError::PredicateDataSlotRangeOutOfBounds(1, 2)))
+    using assert_err!(OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(1, 2)))
     ; "value ix out of bounds"
 )]
 #[test_case(
     &[0, 0, 2], &[&[3]] =>
-    using assert_err!(OpSyncError::Access(AccessError::PredicateDataSlotRangeOutOfBounds(0, 2)))
+    using assert_err!(OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(0, 2)))
     ; "len out of bounds"
 )]
 fn test_dec_var(stack: &[Word], dec_vars: &[&[Word]]) -> OpSyncResult<Vec<Word>> {

@@ -1,5 +1,4 @@
 use super::*;
-use crate::error::StackError;
 use crate::{
     asm,
     error::{AccessError, ExecSyncError, OpSyncError},
@@ -22,18 +21,20 @@ fn test_predicate_data() {
 
     // Empty stack.
     let mut stack = Stack::default();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(1).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
-    );
+        OpSyncError::Access(AccessError::MissingArg(
+            MissingAccessArgError::PredDataValueIx
+        ))
+    ));
 
     // Slot index in-bounds but value is empty
     let d = vec![vec![]];
@@ -41,10 +42,10 @@ fn test_predicate_data() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataIndexOutOfBounds)
-    );
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(0, 1))
+    ));
 
     // Slot index in-bounds and value is not empty
     let d = vec![vec![42]];
@@ -78,60 +79,64 @@ fn test_predicate_data() {
 fn test_predicate_data_at() {
     let d = vec![vec![42], vec![9, 20]];
 
-    // Empty stack.
+    // Missing pred data len.
     let mut stack = Stack::default();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+    ));
 
     // Missing value index
     let mut stack = Stack::default();
     stack.push(0).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+        OpSyncError::Access(AccessError::MissingArg(
+            MissingAccessArgError::PredDataValueIx
+        ))
+    ));
 
-    // Missing length
+    // Missing slot ix
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+        OpSyncError::Access(AccessError::MissingArg(
+            MissingAccessArgError::PredDataSlotIx
+        ))
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(2).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
         OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
-    );
+    ));
 
     // Index out-of-bounds.
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
     stack.push(1).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataIndexOutOfBounds)
-    );
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
-    // Slot index in-bounds but value is empty
+    // Value range out of bounds.
     let d = vec![vec![]];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Slot index in-bounds, value is empty and length is 0
     let d = vec![vec![]];
@@ -174,42 +179,42 @@ fn test_predicate_data_at() {
 fn test_predicate_data_range() {
     let d = vec![vec![42, 43], vec![44, 45, 46]];
 
-    // Empty stack.
+    // Missing len.
     let mut stack = Stack::default();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(2).unwrap();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
         OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
-    );
+    ));
 
-    // Index out-of-bounds.
+    // Value range out-of-bounds.
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(2).unwrap();
     stack.push(1).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataIndexOutOfBounds)
-    );
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Length out-of-bounds.
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(3).unwrap();
-    matches!(
-        check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Slot index in-bounds but value is empty
     let d = vec![vec![]];
@@ -217,10 +222,10 @@ fn test_predicate_data_range() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
+    assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataIndexOutOfBounds)
-    );
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Slot index in-bounds and value is not empty
     let d = vec![vec![42, 43]];
@@ -257,18 +262,18 @@ fn test_predicate_data_len() {
 
     // Empty stack.
     let mut stack = Stack::default();
-    matches!(
+    assert!(matches!(
         predicate_data_len(&d.clone(), &mut stack).unwrap_err(),
-        AccessError::MissingArg(MissingAccessArgError::PredDataLen),
-    );
+        AccessError::MissingArg(MissingAccessArgError::PredDataSlotIx),
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(1).unwrap();
-    matches!(
+    assert!(matches!(
         predicate_data_len(&d.clone(), &mut stack).unwrap_err(),
         AccessError::PredicateDataSlotIxOutOfBounds(_)
-    );
+    ));
 
     // Slot index in-bounds but value is empty
     let d = vec![vec![]];

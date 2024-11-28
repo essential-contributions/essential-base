@@ -156,15 +156,12 @@ pub enum AccessError {
     /// A predicate data slot was out of bounds.
     #[error("predicate data slot out of bounds: {0}")]
     PredicateDataSlotIxOutOfBounds(Word),
-    /// A predicate data slot index was out of bounds.
-    #[error("predicate data slot index out of bounds")]
-    PredicateDataIndexOutOfBounds,
     /// A predicate data value length was too large.
     #[error("the length of a predicate data value is too large: {0}")]
     PredicateDataValueTooLarge(usize),
     /// A predicate data index was out of bounds.
     #[error("predicate data value_ix out of bounds: {0}..{1}")]
-    PredicateDataSlotRangeOutOfBounds(Word, Word),
+    PredicateDataValueRangeOutOfBounds(Word, Word),
     /// A state slot index was out of bounds.
     #[error("state slot_ix out of bounds: {0}")]
     StateSlotIxOutOfBounds(Word),
