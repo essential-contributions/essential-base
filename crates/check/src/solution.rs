@@ -44,7 +44,7 @@ pub struct CheckPredicateConfig {
 pub trait GetPredicate {
     /// Provides immediate access to the predicate with the given content address.
     ///
-    /// This is called by [`check_predicates`] for each predicate in each solution being checked.
+    /// This is called by [`check_set_predicates`] for each predicate in each solution being checked.
     ///
     /// All necessary programs are assumed to have been read from storage and
     /// validated ahead of time.
@@ -55,7 +55,7 @@ pub trait GetPredicate {
 pub trait GetProgram {
     /// Provides immediate access to the program with the given content address.
     ///
-    /// This is called by [`check_predicates`] for each node within each predicate for
+    /// This is called by [`check_set_predicates`] for each node within each predicate for
     /// each solution being checked.
     ///
     /// All necessary programs are assumed to have been read from storage and
@@ -126,7 +126,7 @@ pub enum InvalidSetStateMutations {
     MultipleMutationsForSlot(PredicateAddress, Key),
 }
 
-/// [`check_predicates`] error.
+/// [`check_set_predicates`] error.
 #[derive(Debug, Error)]
 pub enum PredicatesError<E> {
     /// One or more solution failed their associated predicate checks.
