@@ -1,5 +1,4 @@
 use super::*;
-use crate::error::StackError;
 use crate::{
     asm,
     error::{AccessError, ExecSyncError, OpSyncError},
@@ -17,23 +16,25 @@ macro_rules! check_dec_var {
 }
 
 #[test]
-fn test_decision_var() {
+fn test_predicate_data() {
     let d = vec![vec![42]];
 
     // Empty stack.
     let mut stack = Stack::default();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
-    );
+    assert!(matches!(
+        check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::MissingArg(
+            MissingAccessArgError::PredDataValueIx
+        ))
+    ));
 
     // Slot index in-bounds but value is empty
     let d = vec![vec![]];
@@ -41,10 +42,10 @@ fn test_decision_var() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(0, 1))
+    ));
 
     // Slot index in-bounds and value is not empty
     let d = vec![vec![42]];
@@ -52,7 +53,7 @@ fn test_decision_var() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(stack.pop().unwrap(), 42);
 
     // Get's first word,
@@ -61,7 +62,7 @@ fn test_decision_var() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(stack.pop().unwrap(), 0);
 
     // Get's first word with multiple slots,
@@ -70,68 +71,72 @@ fn test_decision_var() {
     stack.push(1).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(stack.pop().unwrap(), 10);
 }
 
 #[test]
-fn test_decision_var_at() {
+fn test_predicate_data_at() {
     let d = vec![vec![42], vec![9, 20]];
 
-    // Empty stack.
+    // Missing pred data len.
     let mut stack = Stack::default();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+    ));
 
     // Missing value index
     let mut stack = Stack::default();
     stack.push(0).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::MissingArg(
+            MissingAccessArgError::PredDataValueIx
+        ))
+    ));
 
-    // Missing length
+    // Missing slot ix
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::MissingArg(
+            MissingAccessArgError::PredDataSlotIx
+        ))
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(2).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
+    ));
 
     // Index out-of-bounds.
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
-    // Slot index in-bounds but value is empty
+    // Value range out of bounds.
     let d = vec![vec![]];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Slot index in-bounds, value is empty and length is 0
     let d = vec![vec![]];
@@ -139,7 +144,7 @@ fn test_decision_var_at() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert!(stack.is_empty());
 
     // Slot index in-bounds and value is not empty
@@ -148,7 +153,7 @@ fn test_decision_var_at() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(stack.pop().unwrap(), 42);
 
     // Get's word,
@@ -157,7 +162,7 @@ fn test_decision_var_at() {
     stack.push(0).unwrap();
     stack.push(5).unwrap();
     stack.push(1).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(stack.pop().unwrap(), 5);
 
     // Get's word with multiple slots,
@@ -166,50 +171,50 @@ fn test_decision_var_at() {
     stack.push(1).unwrap();
     stack.push(5).unwrap();
     stack.push(1).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(stack.pop().unwrap(), 15);
 }
 
 #[test]
-fn test_decision_var_range() {
+fn test_predicate_data_range() {
     let d = vec![vec![42, 43], vec![44, 45, 46]];
 
-    // Empty stack.
+    // Missing len.
     let mut stack = Stack::default();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Stack(StackError::Empty)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(2).unwrap();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_))
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
+    ));
 
-    // Index out-of-bounds.
+    // Value range out-of-bounds.
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(2).unwrap();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Length out-of-bounds.
     let mut stack = Stack::default();
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(3).unwrap();
-    matches!(
-        check_dec_var!(d, &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Slot index in-bounds but value is empty
     let d = vec![vec![]];
@@ -217,10 +222,10 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(1).unwrap();
-    matches!(
-        check_dec_var!(d.clone(), &mut stack, decision_var).unwrap_err(),
-        OpSyncError::Access(AccessError::DecisionIndexOutOfBounds)
-    );
+    assert!(matches!(
+        check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
+        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+    ));
 
     // Slot index in-bounds and value is not empty
     let d = vec![vec![42, 43]];
@@ -228,7 +233,7 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     stack.push(0).unwrap();
     stack.push(2).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(stack.pop().unwrap(), 43);
     assert_eq!(stack.pop().unwrap(), 42);
 
@@ -238,7 +243,7 @@ fn test_decision_var_range() {
     stack.push(0).unwrap();
     stack.push(5).unwrap();
     stack.push(3).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(*stack, vec![5, 6, 7]);
 
     // Get's word with multiple slots,
@@ -247,57 +252,57 @@ fn test_decision_var_range() {
     stack.push(1).unwrap();
     stack.push(5).unwrap();
     stack.push(3).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap();
     assert_eq!(*stack, vec![15, 16, 17]);
 }
 
 #[test]
-fn test_decision_var_len() {
+fn test_predicate_data_len() {
     let d = vec![vec![42, 43]];
 
     // Empty stack.
     let mut stack = Stack::default();
-    matches!(
-        decision_var_len(&d.clone(), &mut stack).unwrap_err(),
-        AccessError::MissingArg(MissingAccessArgError::DecVarLen),
-    );
+    assert!(matches!(
+        predicate_data_len(&d.clone(), &mut stack).unwrap_err(),
+        AccessError::MissingArg(MissingAccessArgError::PredDataSlotIx),
+    ));
 
     // Slot out-of-bounds.
     let mut stack = Stack::default();
     stack.push(1).unwrap();
-    matches!(
-        decision_var_len(&d.clone(), &mut stack).unwrap_err(),
-        AccessError::DecisionSlotIxOutOfBounds(_)
-    );
+    assert!(matches!(
+        predicate_data_len(&d.clone(), &mut stack).unwrap_err(),
+        AccessError::PredicateDataSlotIxOutOfBounds(_)
+    ));
 
     // Slot index in-bounds but value is empty
     let d = vec![vec![]];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data_len).unwrap();
     assert_eq!(stack.pop().unwrap(), 0);
 
     // Slot index in-bounds and value is not empty
     let d = vec![vec![42, 43]];
     let mut stack = Stack::default();
     stack.push(0).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data_len).unwrap();
     assert_eq!(stack.pop().unwrap(), 2);
 
     // Get's length with multiple slots,
     let d = vec![(0..10).collect(), (10..20).collect()];
     let mut stack = Stack::default();
     stack.push(1).unwrap();
-    check_dec_var!(d.clone(), &mut stack, decision_var_len).unwrap();
+    check_dec_var!(d.clone(), &mut stack, predicate_data_len).unwrap();
     assert_eq!(stack.pop().unwrap(), 10);
 }
 
 #[test]
-fn decision_var_single_word_ops() {
+fn predicate_data_single_word_ops() {
     let access = Access {
-        data: &[SolutionData {
+        solutions: &[Solution {
             predicate_to_solve: TEST_PREDICATE_ADDR,
-            decision_variables: vec![vec![42]],
+            predicate_data: vec![vec![42]],
             state_mutations: Default::default(),
         }],
         index: 0,
@@ -307,18 +312,18 @@ fn decision_var_single_word_ops() {
         asm::Stack::Push(0).into(), // Slot index.
         asm::Stack::Push(0).into(), // Value index.
         asm::Stack::Push(1).into(), // Length.
-        asm::Access::DecisionVar.into(),
+        asm::Access::PredicateData.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     assert_eq!(&stack[..], &[42]);
 }
 
 #[test]
-fn decision_var_ops() {
+fn predicate_data_ops() {
     let access = Access {
-        data: &[SolutionData {
+        solutions: &[Solution {
             predicate_to_solve: TEST_PREDICATE_ADDR,
-            decision_variables: vec![vec![7, 8, 9], vec![10, 11, 12]],
+            predicate_data: vec![vec![7, 8, 9], vec![10, 11, 12]],
             state_mutations: Default::default(),
         }],
         index: 0,
@@ -328,18 +333,18 @@ fn decision_var_ops() {
         asm::Stack::Push(0).into(), // Slot.
         asm::Stack::Push(0).into(), // Index.
         asm::Stack::Push(3).into(), // Range length.
-        asm::Access::DecisionVar.into(),
+        asm::Access::PredicateData.into(),
     ];
     let stack = exec_ops(ops, access).unwrap();
     assert_eq!(&stack[..], &[7, 8, 9]);
 }
 
 #[test]
-fn decision_var_slot_oob_ops() {
+fn predicate_data_slot_oob_ops() {
     let access = Access {
-        data: &[SolutionData {
+        solutions: &[Solution {
             predicate_to_solve: TEST_PREDICATE_ADDR,
-            decision_variables: vec![vec![42]],
+            predicate_data: vec![vec![42]],
             state_mutations: Default::default(),
         }],
         index: 0,
@@ -349,12 +354,15 @@ fn decision_var_slot_oob_ops() {
         asm::Stack::Push(1).into(), // Slot index.
         asm::Stack::Push(0).into(),
         asm::Stack::Push(1).into(),
-        asm::Access::DecisionVar.into(),
+        asm::Access::PredicateData.into(),
     ];
     let res = exec_ops(ops, access);
     match res {
-        Err(ExecSyncError(_, OpSyncError::Access(AccessError::DecisionSlotIxOutOfBounds(_)))) => {}
-        _ => panic!("expected decision variable slot out-of-bounds error, got {res:?}"),
+        Err(ExecSyncError(
+            _,
+            OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_)),
+        )) => {}
+        _ => panic!("expected predicate data slot out-of-bounds error, got {res:?}"),
     }
 }
 
@@ -365,24 +373,24 @@ fn mut_keys_push_eq() {
 
     // An example solution with some state mutations proposed for the predicate
     // at index `1`.
-    let solution = Solution {
-        data: vec![
-            // Solution data for some other predicate.
-            SolutionData {
+    let solution = SolutionSet {
+        solutions: vec![
+            // Solution for some other predicate.
+            Solution {
                 predicate_to_solve: PredicateAddress {
                     contract: ContentAddress([0x13; 32]),
                     predicate: ContentAddress([0x31; 32]),
                 },
-                decision_variables: vec![],
+                predicate_data: vec![],
                 state_mutations: vec![Mutation {
                     key: vec![0, 0, 0, 1],
                     value: vec![1],
                 }],
             },
-            // Solution data for the predicate we're checking.
-            SolutionData {
+            // Solution for the predicate we're checking.
+            Solution {
                 predicate_to_solve: predicate_addr.clone(),
-                decision_variables: vec![],
+                predicate_data: vec![],
                 state_mutations: vec![
                     Mutation {
                         key: vec![1, 1, 1, 1],
@@ -412,7 +420,7 @@ fn mut_keys_push_eq() {
 
     // We're only going to execute the `MutKeysLen` op to check the expected value.
     let mut expected_set = vec![];
-    for key in solution.data[predicate_index as usize]
+    for key in solution.solutions[predicate_index as usize]
         .state_mutations
         .iter()
         .map(|m| &m.key)

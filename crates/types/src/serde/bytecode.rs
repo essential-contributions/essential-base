@@ -5,7 +5,7 @@ use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer}
 /// A type providing custom serialization implementations for a slice of bytecode.
 struct Bytecode<T>(T);
 
-impl<'a> Serialize for Bytecode<&'a [u8]> {
+impl Serialize for Bytecode<&[u8]> {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

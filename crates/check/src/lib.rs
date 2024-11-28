@@ -1,9 +1,9 @@
 //! Core logic for validating [`Predicate`][crate::types::predicate::Predicate]s,
-//! [`Solution`][crate::types::solution::Solution]s and
-//! [`SolutionData`][crate::types::solution::SolutionData] against associated predicates.
+//! [`SolutionSet`][crate::types::solution::SolutionSet]s and
+//! [`Solution`][crate::types::solution::Solution]s against their associated predicates.
 //!
 //! Typical usage is to first validate predicates and solutions independently in
-//! full prior to validating against one another with `solution::check_predicates`.
+//! full prior to validating against one another with `solution::check_set_predicates`.
 //!
 //! ## Predicate Validation
 //!
@@ -13,14 +13,14 @@
 //!
 //! ## Solution Validation
 //!
-//! - [`solution::check`] validates an unsigned solution.
-//! - [`solution::check_data`] validates a solution's data slice.
-//! - [`solution::check_state_mutations`] validates a solution's state mutation slice.
+//! - [`solution::check_set`] validates a solution set.
+//! - [`solution::check_solutions`] validates a solution set's `solutions` slice.
+//! - [`solution::check_set_state_mutations`] validates a solution's state mutation slice.
 //!
 //! ## Solution + Predicate Validation
 //!
-//! - [`solution::check_predicates`] validates a solution's data against their associated predicates.
-//! - [`solution::check_predicate`] validates a single solution data against an associated predicate.
+//! - [`solution::check_set_predicates`] validates a set of solutions against their associated predicates.
+//! - [`solution::check_predicate`] validates a single solution against its associated predicate.
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

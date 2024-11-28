@@ -3,11 +3,11 @@ use essential_hash::content_addr;
 use essential_types::{
     contract::Contract,
     predicate::{Edge, Node, Predicate, Program, Reads},
-    solution::{Mutation, Solution, SolutionData},
+    solution::{Mutation, Solution, SolutionSet},
     ContentAddress, PredicateAddress, Word,
 };
 use std::{collections::HashMap, sync::Arc};
-use util::{empty_solution, State};
+use util::{empty_solution_set, State};
 
 pub mod util;
 
@@ -18,10 +18,10 @@ fn test_predicate_addr() -> PredicateAddress {
     }
 }
 
-fn test_solution_data() -> SolutionData {
-    SolutionData {
+fn test_solution() -> Solution {
+    Solution {
         predicate_to_solve: test_predicate_addr(),
-        decision_variables: vec![],
+        predicate_data: vec![],
         state_mutations: vec![],
     }
 }
@@ -35,67 +35,67 @@ fn test_mutation(salt: usize) -> Mutation {
 
 #[test]
 fn solution_data_mut_not_be_empty() {
-    let solution = empty_solution();
+    let set = empty_solution_set();
     assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::Data(solution::InvalidSolutionData::Empty),
+        solution::check_set(&set).unwrap_err(),
+        solution::InvalidSolutionSet::Solution(solution::InvalidSolution::Empty),
     ));
 }
 
 #[test]
 fn too_many_solution_data() {
-    let solution = Solution {
-        data: (0..solution::MAX_SOLUTION_DATA + 1)
-            .map(|_| test_solution_data())
+    let set = SolutionSet {
+        solutions: (0..solution::MAX_SOLUTIONS + 1)
+            .map(|_| test_solution())
             .collect(),
     };
     assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::Data(solution::InvalidSolutionData::TooMany(n))
-            if n == solution::MAX_SOLUTION_DATA + 1
+        solution::check_set(&set).unwrap_err(),
+        solution::InvalidSolutionSet::Solution(solution::InvalidSolution::TooMany(n))
+            if n == solution::MAX_SOLUTIONS + 1
     ));
 }
 
 #[test]
-fn too_many_decision_variables() {
-    let solution = Solution {
-        data: vec![SolutionData {
+fn too_many_predicate_data() {
+    let set = SolutionSet {
+        solutions: vec![Solution {
             predicate_to_solve: test_predicate_addr(),
-            decision_variables: vec![vec![0]; (solution::MAX_DECISION_VARIABLES + 1) as usize],
+            predicate_data: vec![vec![0]; (solution::MAX_PREDICATE_DATA + 1) as usize],
             state_mutations: vec![],
         }],
     };
     assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::Data(solution::InvalidSolutionData::TooManyDecisionVariables(0, n))
-            if n == solution::MAX_DECISION_VARIABLES as usize + 1
+        solution::check_set(&set).unwrap_err(),
+        solution::InvalidSolutionSet::Solution(solution::InvalidSolution::PredicateDataLenExceeded(0, n))
+            if n == solution::MAX_PREDICATE_DATA as usize + 1
     ));
 }
 
 #[test]
 fn too_many_state_mutations() {
-    let solution = Solution {
-        data: vec![SolutionData {
+    let set = SolutionSet {
+        solutions: vec![Solution {
             predicate_to_solve: test_predicate_addr(),
-            decision_variables: vec![],
+            predicate_data: vec![],
             state_mutations: (0..(solution::MAX_STATE_MUTATIONS + 1))
                 .map(test_mutation)
                 .collect(),
         }],
     };
     assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::TooMany(n))
+        solution::check_set(&set).unwrap_err(),
+        solution::InvalidSolutionSet::StateMutations(solution::InvalidSetStateMutations::TooMany(n))
             if n == solution::MAX_STATE_MUTATIONS + 1
     ));
 }
 
 #[test]
 fn multiple_mutations_for_slot() {
-    let solution = Solution {
-        data: vec![SolutionData {
+    let set = SolutionSet {
+        solutions: vec![Solution {
             predicate_to_solve: test_predicate_addr(),
-            decision_variables: vec![],
+            predicate_data: vec![],
             state_mutations: vec![
                 Mutation {
                     key: vec![0; 4],
@@ -106,8 +106,8 @@ fn multiple_mutations_for_slot() {
         }],
     };
     assert!(matches!(
-        solution::check(&solution).unwrap_err(),
-        solution::InvalidSolution::StateMutations(solution::InvalidStateMutations::MultipleMutationsForSlot(addr, key))
+        solution::check_set(&set).unwrap_err(),
+        solution::InvalidSolutionSet::StateMutations(solution::InvalidSetStateMutations::MultipleMutationsForSlot(addr, key))
             if addr == test_predicate_addr() && key == [0; 4]
     ));
 }
@@ -167,17 +167,17 @@ async fn predicate_graph_stack_passing() {
     };
 
     // Create a solution that "solves" our predicate.
-    let solution = Solution {
-        data: vec![SolutionData {
+    let set = SolutionSet {
+        solutions: vec![Solution {
             predicate_to_solve: pred_addr.clone(),
-            decision_variables: Default::default(),
+            predicate_data: Default::default(),
             state_mutations: vec![],
         }],
     };
 
     // First, validate both predicates and solution.
     essential_check::predicate::check(&contract.predicates[0]).unwrap();
-    essential_check::solution::check(&solution).unwrap();
+    essential_check::solution::check_set(&set).unwrap();
 
     // There's only one predicate to solve.
     let predicate = Arc::new(contract.predicates[0].clone());
@@ -195,10 +195,10 @@ async fn predicate_graph_stack_passing() {
     let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     // Run the check, and ensure ok and gas aren't 0.
-    let gas = solution::check_predicates(
+    let gas = solution::check_set_predicates(
         &State::EMPTY,
         &State::EMPTY,
-        Arc::new(solution),
+        Arc::new(set),
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
@@ -309,17 +309,17 @@ async fn predicate_graph_memory_passing() {
     };
 
     // Create a solution that "solves" our predicate.
-    let solution = Solution {
-        data: vec![SolutionData {
+    let set = SolutionSet {
+        solutions: vec![Solution {
             predicate_to_solve: pred_addr.clone(),
-            decision_variables: Default::default(),
+            predicate_data: Default::default(),
             state_mutations: vec![],
         }],
     };
 
     // First, validate both predicates and solution.
     essential_check::predicate::check(&contract.predicates[0]).unwrap();
-    essential_check::solution::check(&solution).unwrap();
+    essential_check::solution::check_set(&set).unwrap();
 
     // There's only one predicate to solve.
     let predicate = Arc::new(contract.predicates[0].clone());
@@ -337,10 +337,10 @@ async fn predicate_graph_memory_passing() {
     let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     // Run the check, and ensure ok and gas aren't 0.
-    let gas = solution::check_predicates(
+    let gas = solution::check_set_predicates(
         &State::EMPTY,
         &State::EMPTY,
-        Arc::new(solution),
+        Arc::new(set),
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
@@ -449,10 +449,10 @@ async fn predicate_graph_state_read() {
     pre_state.set(pred_addr.contract.clone(), &key, vec![6]);
 
     // Create a solution that "solves" our predicate.
-    let solution = Solution {
-        data: vec![SolutionData {
+    let set = SolutionSet {
+        solutions: vec![Solution {
             predicate_to_solve: pred_addr.clone(),
-            decision_variables: Default::default(),
+            predicate_data: Default::default(),
             state_mutations: vec![
                 // Set the post state to 7.
                 Mutation {
@@ -465,11 +465,11 @@ async fn predicate_graph_state_read() {
 
     // Apply the solution's mutations for the post state.
     let mut post_state = pre_state.clone();
-    post_state.apply_mutations(&solution);
+    post_state.apply_mutations(&set);
 
     // First, validate both predicates and solution.
     essential_check::predicate::check(&contract.predicates[0]).unwrap();
-    essential_check::solution::check(&solution).unwrap();
+    essential_check::solution::check_set(&set).unwrap();
 
     // There's only one predicate to solve.
     let predicate = Arc::new(contract.predicates[0].clone());
@@ -487,10 +487,10 @@ async fn predicate_graph_state_read() {
     let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     // Run the check, and ensure ok and gas aren't 0.
-    let gas = solution::check_predicates(
+    let gas = solution::check_set_predicates(
         &pre_state,
         &post_state,
-        Arc::new(solution),
+        Arc::new(set),
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),

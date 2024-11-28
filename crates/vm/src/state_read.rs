@@ -51,7 +51,7 @@ where
     pub(crate) vm: &'vm mut Vm,
 }
 
-impl<'vm, S> Future for StateReadFuture<'vm, S>
+impl<S> Future for StateReadFuture<'_, S>
 where
     S: StateRead,
 {

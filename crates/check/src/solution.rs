@@ -1,9 +1,9 @@
-//! Items related to validating `Solution`s.
+//! Items related to validating `Solution`s and `SolutionSet`s.
 
 use crate::{
     types::{
         predicate::Predicate,
-        solution::{Solution, SolutionData, SolutionDataIndex},
+        solution::{Solution, SolutionIndex, SolutionSet},
         Key, PredicateAddress, Word,
     },
     vm::{
@@ -40,12 +40,11 @@ pub struct CheckPredicateConfig {
     pub collect_all_failures: bool,
 }
 
-/// Required impl for retrieving access to any [`SolutionData`]'s [`Predicate`]s during check.
+/// Required impl for retrieving access to any [`Solution`]'s [`Predicate`]s during check.
 pub trait GetPredicate {
     /// Provides immediate access to the predicate with the given content address.
     ///
-    /// This is called by [`check_predicates`] for each predicate in each solution data being
-    /// checked.
+    /// This is called by [`check_set_predicates`] for each predicate in each solution being checked.
     ///
     /// All necessary programs are assumed to have been read from storage and
     /// validated ahead of time.
@@ -56,8 +55,8 @@ pub trait GetPredicate {
 pub trait GetProgram {
     /// Provides immediate access to the program with the given content address.
     ///
-    /// This is called by [`check_predicates`] for each node within each predicate for
-    /// each solution data being checked.
+    /// This is called by [`check_set_predicates`] for each node within each predicate for
+    /// each solution being checked.
     ///
     /// All necessary programs are assumed to have been read from storage and
     /// validated ahead of time.
@@ -74,35 +73,35 @@ struct ProgramCtx {
     reads: Reads,
 }
 
-/// [`check`] error.
+/// [`check_set`] error.
 #[derive(Debug, Error)]
-pub enum InvalidSolution {
-    /// Invalid solution data.
-    #[error("invalid solution data: {0}")]
-    Data(#[from] InvalidSolutionData),
+pub enum InvalidSolutionSet {
+    /// Invalid solution.
+    #[error("invalid solution: {0}")]
+    Solution(#[from] InvalidSolution),
     /// State mutations validation failed.
     #[error("state mutations validation failed: {0}")]
-    StateMutations(#[from] InvalidStateMutations),
+    StateMutations(#[from] InvalidSetStateMutations),
 }
 
-/// [`check_data`] error.
+/// [`check_solutions`] error.
 #[derive(Debug, Error)]
-pub enum InvalidSolutionData {
-    /// There must be at least one solution data.
-    #[error("must be at least one solution data")]
+pub enum InvalidSolution {
+    /// There must be at least one solution.
+    #[error("must be at least one solution")]
     Empty,
-    /// The number of solution data exceeds the limit.
-    #[error("the number of solution data ({0}) exceeds the limit ({MAX_SOLUTION_DATA})")]
+    /// The number of solutions exceeds the limit.
+    #[error("the number of solutions ({0}) exceeds the limit ({MAX_SOLUTIONS})")]
     TooMany(usize),
-    /// A solution data expects too many decision variables.
-    #[error("data {0} expects too many decision vars {1} (limit: {MAX_DECISION_VARIABLES})")]
-    TooManyDecisionVariables(usize, usize),
-    /// State mutation entry error.
+    /// A solution's predicate data length exceeds the limit.
+    #[error("solution {0}'s predicate data length exceeded {1} (limit: {MAX_PREDICATE_DATA})")]
+    PredicateDataLenExceeded(usize, usize),
+    /// Invalid state mutation entry.
     #[error("Invalid state mutation entry: {0}")]
     StateMutationEntry(KvError),
-    /// Decision variable value too large.
-    #[error("Decision variable value len {0} exceeds limit {MAX_VALUE_SIZE}")]
-    DecVarValueTooLarge(usize),
+    /// Predicate data value too large.
+    #[error("Predicate data value len {0} exceeds limit {MAX_VALUE_SIZE}")]
+    PredDataValueTooLarge(usize),
 }
 
 /// Error with a slot key or value.
@@ -116,9 +115,9 @@ pub enum KvError {
     ValueTooLarge(usize),
 }
 
-/// [`check_state_mutations`] error.
+/// [`check_set_state_mutations`] error.
 #[derive(Debug, Error)]
-pub enum InvalidStateMutations {
+pub enum InvalidSetStateMutations {
     /// The number of state mutations exceeds the limit.
     #[error("the number of state mutations ({0}) exceeds the limit ({MAX_STATE_MUTATIONS})")]
     TooMany(usize),
@@ -127,23 +126,23 @@ pub enum InvalidStateMutations {
     MultipleMutationsForSlot(PredicateAddress, Key),
 }
 
-/// [`check_predicates`] error.
+/// [`check_set_predicates`] error.
 #[derive(Debug, Error)]
 pub enum PredicatesError<E> {
-    /// One or more solution data failed their associated predicate checks.
+    /// One or more solution failed their associated predicate checks.
     #[error("{0}")]
     Failed(#[from] PredicateErrors<E>),
     /// One or more tasks failed to join.
     #[error("one or more spawned tasks failed to join: {0}")]
     Join(#[from] tokio::task::JoinError),
-    /// Summing solution data gas resulted in overflow.
-    #[error("summing solution data gas overflowed")]
+    /// Summing solution gas resulted in overflow.
+    #[error("summing solution gas overflowed")]
     GasOverflowed,
 }
 
-/// Predicate checking failed for the solution data at the given indices.
+/// Predicate checking failed for the solution at the given indices.
 #[derive(Debug, Error)]
-pub struct PredicateErrors<E>(pub Vec<(SolutionDataIndex, PredicateError<E>)>);
+pub struct PredicateErrors<E>(pub Vec<(SolutionIndex, PredicateError<E>)>);
 
 /// [`check_predicate`] error.
 #[derive(Debug, Error)]
@@ -186,25 +185,14 @@ pub enum ProgramError<E> {
     Vm(#[from] vm::error::ExecError<E>),
 }
 
-/// The number of decision variables provided by the solution data differs to
-/// the number expected by the predicate.
-#[derive(Debug, Error)]
-#[error("number of solution data decision variables ({data}) differs from predicate ({predicate})")]
-pub struct InvalidDecisionVariablesLength {
-    /// Number of decision variables provided by solution data.
-    pub data: usize,
-    /// Number of decision variables expected by the solution data's associated predicate.
-    pub predicate: u32,
-}
-
 /// The index of each constraint that was not satisfied.
 #[derive(Debug, Error)]
 pub struct ConstraintsUnsatisfied(pub Vec<usize>);
 
-/// Maximum number of decision variables of a solution.
-pub const MAX_DECISION_VARIABLES: u32 = 100;
-/// Maximum number of solution data of a solution.
-pub const MAX_SOLUTION_DATA: usize = 100;
+/// Maximum number of predicate data of a solution.
+pub const MAX_PREDICATE_DATA: u32 = 100;
+/// Maximum number of solutions within a solution set.
+pub const MAX_SOLUTIONS: usize = 100;
 /// Maximum number of state mutations of a solution.
 pub const MAX_STATE_MUTATIONS: usize = 1000;
 /// Maximum number of words in a slot value.
@@ -214,7 +202,7 @@ pub const MAX_KEY_SIZE: usize = 1000;
 
 impl<E: fmt::Display> fmt::Display for PredicateErrors<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("predicate checking failed for one or more solution data:\n")?;
+        f.write_str("predicate checking failed for one or more solutions:\n")?;
         for (ix, err) in &self.0 {
             f.write_str(&format!("  {ix}: {err}\n"))?;
         }
@@ -284,14 +272,14 @@ impl<T: GetProgram> GetProgram for Arc<T> {
     }
 }
 
-/// Validate a solution, to the extent it can be validated without reference to
+/// Validate a solution set, to the extent it can be validated without reference to
 /// its associated predicates.
 ///
-/// This includes solution data and state mutations.
-#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(solution)), err))]
-pub fn check(solution: &Solution) -> Result<(), InvalidSolution> {
-    check_data(&solution.data)?;
-    check_state_mutations(solution)?;
+/// This includes solutions and state mutations.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(solution = %content_addr(set)), err))]
+pub fn check_set(set: &SolutionSet) -> Result<(), InvalidSolutionSet> {
+    check_solutions(&set.solutions)?;
+    check_set_state_mutations(set)?;
     Ok(())
 }
 
@@ -311,73 +299,71 @@ fn check_key_size(value: &[Word]) -> Result<(), KvError> {
     }
 }
 
-/// Validate the solution's slice of [`SolutionData`].
-pub fn check_data(data_slice: &[SolutionData]) -> Result<(), InvalidSolutionData> {
-    // Validate solution data.
-    // Ensure that at solution has at least one solution data.
-    if data_slice.is_empty() {
-        return Err(InvalidSolutionData::Empty);
+/// Validate the solution set's slice of [`Solution`]s.
+pub fn check_solutions(solutions: &[Solution]) -> Result<(), InvalidSolution> {
+    // Validate solution.
+    // Ensure that at solution has at least one solution.
+    if solutions.is_empty() {
+        return Err(InvalidSolution::Empty);
     }
-    // Ensure that solution data length is below limit length.
-    if data_slice.len() > MAX_SOLUTION_DATA {
-        return Err(InvalidSolutionData::TooMany(data_slice.len()));
+    // Ensure that solution length is below limit length.
+    if solutions.len() > MAX_SOLUTIONS {
+        return Err(InvalidSolution::TooMany(solutions.len()));
     }
 
-    // Check whether we have too many decision vars
-    for (data_ix, data) in data_slice.iter().enumerate() {
+    // Check whether the predicate data length has been exceeded.
+    for (solution_ix, solution) in solutions.iter().enumerate() {
         // Ensure the length limit is not exceeded.
-        if data.decision_variables.len() > MAX_DECISION_VARIABLES as usize {
-            return Err(InvalidSolutionData::TooManyDecisionVariables(
-                data_ix,
-                data.decision_variables.len(),
+        if solution.predicate_data.len() > MAX_PREDICATE_DATA as usize {
+            return Err(InvalidSolution::PredicateDataLenExceeded(
+                solution_ix,
+                solution.predicate_data.len(),
             ));
         }
-        for v in &data.decision_variables {
-            check_value_size(v).map_err(|_| InvalidSolutionData::DecVarValueTooLarge(v.len()))?;
+        for v in &solution.predicate_data {
+            check_value_size(v).map_err(|_| InvalidSolution::PredDataValueTooLarge(v.len()))?;
         }
     }
     Ok(())
 }
 
-/// Validate the solution's state mutations.
-pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution> {
+/// Validate the solution set's state mutations.
+pub fn check_set_state_mutations(set: &SolutionSet) -> Result<(), InvalidSolutionSet> {
     // Validate state mutations.
-    // Ensure that solution state mutations length is below limit length.
-    if solution.state_mutations_len() > MAX_STATE_MUTATIONS {
-        return Err(InvalidStateMutations::TooMany(solution.state_mutations_len()).into());
+    // Ensure that the solution set's state mutations length is below limit length.
+    if set.state_mutations_len() > MAX_STATE_MUTATIONS {
+        return Err(InvalidSetStateMutations::TooMany(set.state_mutations_len()).into());
     }
 
     // Ensure that no more than one mutation per slot is proposed.
-    for data in &solution.data {
+    for solution in &set.solutions {
         let mut mut_keys = HashSet::new();
-        for mutation in &data.state_mutations {
+        for mutation in &solution.state_mutations {
             if !mut_keys.insert(&mutation.key) {
-                return Err(InvalidStateMutations::MultipleMutationsForSlot(
-                    data.predicate_to_solve.clone(),
+                return Err(InvalidSetStateMutations::MultipleMutationsForSlot(
+                    solution.predicate_to_solve.clone(),
                     mutation.key.clone(),
                 )
                 .into());
             }
             // Check key length.
-            check_key_size(&mutation.key).map_err(InvalidSolutionData::StateMutationEntry)?;
+            check_key_size(&mutation.key).map_err(InvalidSolution::StateMutationEntry)?;
             // Check value length.
-            check_value_size(&mutation.value).map_err(InvalidSolutionData::StateMutationEntry)?;
+            check_value_size(&mutation.value).map_err(InvalidSolution::StateMutationEntry)?;
         }
     }
 
     Ok(())
 }
 
-/// Checks all of a solution's `SolutionData` against its associated predicates.
+/// Checks all of a [`SolutionSet`]'s [`Solution`]s against their associated [`Predicate`]s.
 ///
-/// For each of the solution's `data` elements, we load the associated predicate and
-/// its programs and execute each asynchronously in topological order. The leaf nodes
-/// are treated as constraints and if any constraint returns `false`, the solution is
-/// considered to be invalid.
+/// For each solution, we load the associated predicate and its programs and execute each
+/// asynchronously in topological order. The leaf nodes are treated as constraints and if
+/// any constraint returns `false`, the whole solution set is considered to be invalid.
 ///
-/// **NOTE:** This assumes that the given `Solution` and all `Predicate`s
-/// have already been independently validated using
-/// [`solution::check`][crate::solution::check] and
+/// **NOTE:** This assumes that the given `SolutionSet` and all `Predicate`s have already
+/// been independently validated using [`solution::check_set`][check_set] and
 /// [`predicate::check`][crate::predicate::check] respectively.
 ///
 /// ## Arguments
@@ -387,10 +373,10 @@ pub fn check_state_mutations(solution: &Solution) -> Result<(), InvalidSolution>
 ///
 /// Returns the total gas spent.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
-pub async fn check_predicates<SA, SB>(
+pub async fn check_set_predicates<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
-    solution: Arc<Solution>,
+    solution_set: Arc<SolutionSet>,
     get_predicate: impl GetPredicate,
     get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
@@ -403,16 +389,16 @@ where
     SA::Error: Send,
 {
     #[cfg(feature = "tracing")]
-    tracing::trace!("{}", essential_hash::content_addr(&*solution));
+    tracing::trace!("{}", essential_hash::content_addr(&*solution_set));
 
     // Read pre and post states then check constraints.
     let mut set: JoinSet<(_, Result<_, PredicateError<SA::Error>>)> = JoinSet::new();
-    for (solution_data_index, data) in solution.data.iter().enumerate() {
-        let solution_data_index: SolutionDataIndex = solution_data_index
+    for (solution_index, solution) in solution_set.solutions.iter().enumerate() {
+        let solution_index: SolutionIndex = solution_index
             .try_into()
-            .expect("solution data index already validated");
-        let predicate = get_predicate.get_predicate(&data.predicate_to_solve);
-        let solution = solution.clone();
+            .expect("solution index already validated");
+        let predicate = get_predicate.get_predicate(&solution.predicate_to_solve);
+        let solution_set = solution_set.clone();
         let pre_state: SA = pre_state.clone();
         let post_state: SB = post_state.clone();
         let config = config.clone();
@@ -424,14 +410,14 @@ where
             let res = check_predicate(
                 &pre_state,
                 &post_state,
-                solution,
+                solution_set,
                 predicate,
                 &get_program,
-                solution_data_index,
+                solution_index,
                 &config,
             )
             .await;
-            (solution_data_index, res)
+            (solution_index, res)
         };
 
         #[cfg(feature = "tracing")]
@@ -444,11 +430,11 @@ where
     let mut total_gas: u64 = 0;
     let mut failed = vec![];
     while let Some(res) = set.join_next().await {
-        let (solution_data_ix, res) = res?;
+        let (solution_ix, res) = res?;
         let g = match res {
             Ok(ok) => ok,
             Err(e) => {
-                failed.push((solution_data_ix, e));
+                failed.push((solution_ix, e));
                 if config.collect_all_failures {
                     continue;
                 } else {
@@ -470,21 +456,21 @@ where
     Ok(total_gas)
 }
 
-/// Checks a solution against a single predicate using the solution data at the given index.
+/// Checks the predicate of the solution within the given set at the given `solution_index`.
 ///
 /// Spawns a task for each of the predicate's nodes to execute asynchronously.
 /// Oneshot channels are used to provide the execution results from parent to child.
 ///
-/// **NOTE:** This assumes that the given `Solution` and `Predicate` have been
-/// independently validated using [`solution::check`][crate::solution::check]
+/// **NOTE:** This assumes that the given `SolutionSet` and `Predicate` have been
+/// independently validated using [`solution::check_set`][check_set]
 /// and [`predicate::check`][crate::predicate::check] respectively.
 ///
 /// ## Arguments
 ///
 /// - `pre_state` must provide access to state *prior to* mutations being applied.
 /// - `post_state` must provide access to state *post* mutations being applied.
-/// - `solution_data_index` represents the data within `solution.data` that claims
-///   to solve this predicate.
+/// - `solution_index` represents the solution within `solution_set.solutions` that
+///   claims to solve this predicate.
 ///
 /// Returns the total gas spent.
 #[cfg_attr(
@@ -492,18 +478,18 @@ where
     tracing::instrument(
         skip_all,
         fields(
-            solution = %format!("{}", content_addr(&*solution))[0..8],
-            data={solution_data_index},
+            set = %format!("{}", content_addr(&*solution_set))[0..8],
+            solution={solution_index},
         ),
     ),
 )]
 pub async fn check_predicate<SA, SB>(
     pre_state: &SA,
     post_state: &SB,
-    solution: Arc<Solution>,
+    solution_set: Arc<SolutionSet>,
     predicate: Arc<Predicate>,
     get_program: &impl GetProgram,
-    solution_data_index: SolutionDataIndex,
+    solution_index: SolutionIndex,
     config: &CheckPredicateConfig,
 ) -> Result<Gas, PredicateError<SA::Error>>
 where
@@ -547,8 +533,8 @@ where
             let program_fut = run_program(
                 pre_state.clone(),
                 post_state.clone(),
-                solution.clone(),
-                solution_data_index,
+                solution_set.clone(),
+                solution_index,
                 get_program.get_program(&node.program_address),
                 ProgramCtx {
                     parents,
@@ -619,8 +605,8 @@ where
 async fn run_program<SA, SB>(
     pre_state: SA,
     post_state: SB,
-    solution: Arc<Solution>,
-    solution_data_index: SolutionDataIndex,
+    solution_set: Arc<SolutionSet>,
+    solution_index: SolutionIndex,
     program: Arc<Program>,
     ctx: ProgramCtx,
 ) -> Result<(Option<bool>, Gas), ProgramError<SA::Error>>
@@ -673,9 +659,9 @@ where
         &vm.memory
     );
 
-    // Setup solution data access for execution.
-    let mut_keys = vm::mut_keys_set(&solution, solution_data_index);
-    let access = Access::new(&solution, solution_data_index, &mut_keys);
+    // Setup solution access for execution.
+    let mut_keys = vm::mut_keys_set(&solution_set, solution_index);
+    let access = Access::new(&solution_set, solution_index, &mut_keys);
 
     // FIXME: Provide these from Config.
     let gas_cost = |_: &asm::Op| 1;

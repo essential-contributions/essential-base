@@ -2,7 +2,7 @@ use crate::Address;
 use essential_types::{
     contract::Contract,
     predicate::{Predicate, Program},
-    solution::{Solution, SolutionData},
+    solution::{Solution, SolutionSet},
     Block, ContentAddress,
 };
 
@@ -35,19 +35,14 @@ impl Address for Contract {
     }
 }
 
-/// Hash the [`SolutionData`] in a manner that treats `state_mutations` like a set.
-///
-/// Hashing occurs as follows:
-///
-/// - predicate_to_solve.contract.0
-impl Address for SolutionData {
+impl Address for Solution {
     fn content_address(&self) -> ContentAddress {
         ContentAddress(crate::hash(self))
     }
 }
 
-impl Address for Solution {
+impl Address for SolutionSet {
     fn content_address(&self) -> ContentAddress {
-        crate::solution_addr::from_solution(self)
+        crate::solution_set_addr::from_set(self)
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use essential_asm as asm;
-use essential_types::{solution::SolutionData, ContentAddress, PredicateAddress};
+use essential_types::{solution::Solution, ContentAddress, PredicateAddress};
 use essential_vm::{sync::eval_ops, Access};
 
 #[test]
@@ -10,12 +10,12 @@ fn test_forall_in_asm() {
     let _ = tracing_subscriber::fmt::try_init();
     let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        data: &[SolutionData {
+        solutions: &[Solution {
             predicate_to_solve: PredicateAddress {
                 contract: ContentAddress([0; 32]),
                 predicate: ContentAddress([0; 32]),
             },
-            decision_variables: vec![vec![2], vec![4, 6], vec![8, 12]],
+            predicate_data: vec![vec![2], vec![4, 6], vec![8, 12]],
             state_mutations: vec![],
         }],
         index: 0,
@@ -34,7 +34,7 @@ fn test_forall_in_asm() {
         asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
         asm::Stack::Push(1).into(),
-        asm::Access::DecisionVar.into(),
+        asm::Access::PredicateData.into(),
         // count up true
         asm::Stack::Push(1).into(),
         // repeat len times
@@ -43,7 +43,7 @@ fn test_forall_in_asm() {
         asm::Stack::Push(1).into(),
         asm::Access::RepeatCounter.into(),
         asm::Stack::Push(1).into(),
-        asm::Access::DecisionVar.into(),
+        asm::Access::PredicateData.into(),
         // list[i] * 2
         asm::Stack::Push(2).into(),
         asm::Alu::Mul.into(),
@@ -51,7 +51,7 @@ fn test_forall_in_asm() {
         asm::Stack::Push(2).into(),
         asm::Access::RepeatCounter.into(),
         asm::Stack::Push(1).into(),
-        asm::Access::DecisionVar.into(),
+        asm::Access::PredicateData.into(),
         // out[i] == list[i] * 2
         asm::Pred::Eq.into(),
         // true AND out[0] == list[0] * 2 ... AND out[len - 1] == list[len - 1] * 2
@@ -66,12 +66,12 @@ fn test_forall_in_asm() {
 fn test_fold_filter_in_asm() {
     let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        data: &[SolutionData {
+        solutions: &[Solution {
             predicate_to_solve: PredicateAddress {
                 contract: ContentAddress([0; 32]),
                 predicate: ContentAddress([0; 32]),
             },
-            decision_variables: vec![],
+            predicate_data: vec![],
             state_mutations: vec![],
         }],
         index: 0,

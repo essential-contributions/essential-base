@@ -5,7 +5,7 @@ mod util;
 use essential_vm::{
     asm::{self, short::*, Op},
     mut_keys_set,
-    types::solution::{Mutation, Solution, SolutionData},
+    types::solution::{Mutation, Solution, SolutionSet},
     Access, BytecodeMapped, Gas, GasLimit, Vm,
 };
 use util::*;
@@ -194,11 +194,11 @@ async fn read_pre_post_state() {
         vec![(vec![0, 0, 0, 0], vec![40]), (vec![0, 0, 0, 2], vec![42])],
     )]);
 
-    // The full solution that we're checking.
-    let solution = Solution {
-        data: vec![SolutionData {
+    // The full solution set that we're checking.
+    let set = SolutionSet {
+        solutions: vec![Solution {
             predicate_to_solve: predicate_addr.clone(),
-            decision_variables: vec![],
+            predicate_data: vec![],
             // We have one mutation that contracts a missing value to 41.
             state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 1],
@@ -207,13 +207,13 @@ async fn read_pre_post_state() {
         }],
     };
 
-    // The index of the solution data associated with the predicate we're solving.
-    let predicate_index = 0;
+    // The index of the solution associated with the predicate we're solving.
+    let solution_index = 0;
 
-    let mutable_keys = mut_keys_set(&solution, predicate_index);
+    let mutable_keys = mut_keys_set(&set, solution_index);
 
-    // Construct access to the necessary solution data for the VM.
-    let access = Access::new(&solution, predicate_index, &mutable_keys);
+    // Construct access to the necessary solution for the VM.
+    let access = Access::new(&set, solution_index, &mutable_keys);
 
     // A simple program that reads words directly to memory.
     let ops = &[
@@ -240,9 +240,9 @@ async fn read_pre_post_state() {
 
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
-    for data in &solution.data {
-        let contract_addr = &data.predicate_to_solve.contract;
-        for Mutation { key, value } in &data.state_mutations {
+    for solution in &set.solutions {
+        let contract_addr = &solution.predicate_to_solve.contract;
+        for Mutation { key, value } in &solution.state_mutations {
             post_state.set(contract_addr.clone(), key, value.clone());
         }
     }

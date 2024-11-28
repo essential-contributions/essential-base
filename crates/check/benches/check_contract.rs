@@ -9,7 +9,7 @@ use essential_hash::content_addr;
 use essential_types::{
     contract::{Contract, SignedContract},
     predicate::{Edge, Node, Predicate, Program, Reads},
-    solution::{Mutation, Solution, SolutionData},
+    solution::{Mutation, Solution, SolutionSet},
     ContentAddress, Key, PredicateAddress, Word,
 };
 use essential_vm::StateRead;
@@ -216,11 +216,11 @@ fn test_predicate_42(entropy: Word) -> (HashMap<ContentAddress, Arc<Program>>, P
             // We'll do this with `EqRange`.
             // First, push the `0`.
             PUSH(0),
-            // Next retrieve the `42` from the decision variable.
+            // Next retrieve the `42` from the predicate data.
             PUSH(0), // slot_ix
             PUSH(0), // value_ix
             PUSH(1), // len
-            VAR,
+            DATA,
             // Now EqRange.
             PUSH(2),
             EQRA,
@@ -268,9 +268,9 @@ fn test_predicate_42_solution_pair(
 ) -> (
     SignedContract,
     HashMap<ContentAddress, Arc<Program>>,
-    Solution,
+    SolutionSet,
 ) {
-    // Create the test predicate, ensure its decision_variables match, and sign.
+    // Create the test predicate, ensure its predicate_data matches, and sign.
     let (programs, predicates): (Vec<_>, _) =
         (0..amount).map(|i| test_predicate_42(i as Word)).unzip();
     let contract = Contract::without_salt(predicates);
@@ -279,13 +279,13 @@ fn test_predicate_42_solution_pair(
 
     let contract_addr = contract_addr(&signed_contract);
 
-    let data = (0..amount)
-        .map(|i| SolutionData {
+    let solutions = (0..amount)
+        .map(|i| Solution {
             predicate_to_solve: PredicateAddress {
                 contract: contract_addr.clone(),
                 predicate: essential_hash::content_addr(signed_contract.contract.get(i).unwrap()),
             },
-            decision_variables: vec![vec![42]],
+            predicate_data: vec![vec![42]],
             state_mutations: vec![Mutation {
                 key: vec![0, 0, 0, 0],
                 value: vec![42],
@@ -293,11 +293,11 @@ fn test_predicate_42_solution_pair(
         })
         .collect();
 
-    let solution = Solution { data };
+    let set = SolutionSet { solutions };
     let programs = programs
         .into_iter()
         .flat_map(|map| map.into_iter())
         .collect();
 
-    (signed_contract, programs, solution)
+    (signed_contract, programs, set)
 }

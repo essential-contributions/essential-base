@@ -153,21 +153,15 @@ pub enum ControlFlowError {
 /// Access operation error.
 #[derive(Debug, Error)]
 pub enum AccessError {
-    /// A decision variable slot was out of bounds.
-    #[error("decision variable slot out of bounds: {0}")]
-    DecisionSlotIxOutOfBounds(Word),
-    /// A decision variable slot index was out of bounds.
-    #[error("decision variable slot index out of bounds")]
-    DecisionIndexOutOfBounds,
-    /// A decision variable length was too large.
-    #[error("the length of a decision variable slot is too large: {0}")]
-    DecisionLengthTooLarge(usize),
-    /// A decision var index was out of bounds.
-    #[error("decision var value_ix out of bounds: {0}..{1}")]
-    DecisionValueRangeOutOfBounds(Word, Word),
-    /// A solution data index was out of bounds.
-    #[error("solution data index out of bounds")]
-    SolutionDataOutOfBounds,
+    /// A predicate data slot was out of bounds.
+    #[error("predicate data slot out of bounds: {0}")]
+    PredicateDataSlotIxOutOfBounds(Word),
+    /// A predicate data value length was too large.
+    #[error("the length of a predicate data value is too large: {0}")]
+    PredicateDataValueTooLarge(usize),
+    /// A predicate data index was out of bounds.
+    #[error("predicate data value_ix out of bounds: {0}..{1}")]
+    PredicateDataValueRangeOutOfBounds(Word, Word),
     /// A state slot index was out of bounds.
     #[error("state slot_ix out of bounds: {0}")]
     StateSlotIxOutOfBounds(Word),
@@ -215,15 +209,15 @@ pub enum MissingAccessArgError {
     /// Missing `slot_ix` argument for `State` operation.
     #[error("missing `slot_ix` argument for `State` operation")]
     StateSlotIx,
-    /// Missing `len` argument for `DecisionVar` operation.
-    #[error("missing `len` argument for `DecisionVar` operation")]
-    DecVarLen,
-    /// Missing `value_ix` argument for `DecisionVar` operation.
-    #[error("missing `value_ix` argument for `DecisionVar` operation")]
-    DecVarValueIx,
-    /// Missing `slot_ix` argument for `DecisionVar` operation.
-    #[error("missing `slot_ix` argument for `DecisionVar` operation")]
-    DecVarSlotIx,
+    /// Missing `len` argument for `PredicateData` operation.
+    #[error("missing `len` argument for `PredicateData` operation")]
+    PredDataLen,
+    /// Missing `value_ix` argument for `PredicateData` operation.
+    #[error("missing `value_ix` argument for `PredicateData` operation")]
+    PredDataValueIx,
+    /// Missing `slot_ix` argument for `PredicateData` operation.
+    #[error("missing `slot_ix` argument for `PredicateData` operation")]
+    PredDataSlotIx,
 }
 
 /// ALU operation error.

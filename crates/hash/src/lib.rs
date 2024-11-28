@@ -11,7 +11,7 @@ use sha2::Digest;
 mod address_impl;
 pub mod block_addr;
 pub mod contract_addr;
-pub mod solution_addr;
+pub mod solution_set_addr;
 
 /// Standardized trait for creating content addresses for
 /// types using the correct constructors.

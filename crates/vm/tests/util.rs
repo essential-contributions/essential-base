@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 use essential_vm::{
-    types::{solution::SolutionData, ContentAddress, Key, PredicateAddress, Word},
+    types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
     Access, StateRead,
 };
 use std::{
@@ -18,9 +18,9 @@ pub const TEST_PREDICATE_ADDR: PredicateAddress = PredicateAddress {
     contract: TEST_SET_CA,
     predicate: TEST_PREDICATE_CA,
 };
-pub const TEST_SOLUTION_DATA: SolutionData = SolutionData {
+pub const TEST_SOLUTION: Solution = Solution {
     predicate_to_solve: TEST_PREDICATE_ADDR,
-    decision_variables: vec![],
+    predicate_data: vec![],
     state_mutations: vec![],
 };
 
@@ -30,15 +30,15 @@ pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
     &INSTANCE
 }
 
-pub(crate) fn test_solution_data_arr() -> &'static [SolutionData] {
-    static INSTANCE: std::sync::LazyLock<[SolutionData; 1]> =
-        std::sync::LazyLock::new(|| [TEST_SOLUTION_DATA]);
+pub(crate) fn test_solution_data_arr() -> &'static [Solution] {
+    static INSTANCE: std::sync::LazyLock<[Solution; 1]> =
+        std::sync::LazyLock::new(|| [TEST_SOLUTION]);
     &*INSTANCE
 }
 
 pub(crate) fn test_access() -> &'static Access<'static> {
     static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
-        data: test_solution_data_arr(),
+        solutions: test_solution_data_arr(),
         index: 0,
         mutable_keys: test_empty_keys(),
     });
