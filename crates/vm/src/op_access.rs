@@ -21,7 +21,7 @@ pub trait OpAccess {
     fn op_access(&mut self, index: usize) -> Option<Result<Self::Op, Self::Error>>;
 }
 
-impl<'a, Op> OpAccess for &'a [Op]
+impl<Op> OpAccess for &[Op]
 where
     Op: Clone,
 {
@@ -32,7 +32,7 @@ where
     }
 }
 
-impl<'a, Op, Bytes> OpAccess for &'a BytecodeMapped<Op, Bytes>
+impl<Op, Bytes> OpAccess for &BytecodeMapped<Op, Bytes>
 where
     Op: TryFromBytes,
     Bytes: core::ops::Deref<Target = [u8]>,

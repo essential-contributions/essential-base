@@ -279,7 +279,7 @@ where
     }
 }
 
-impl<'vm, S> Future for StepOpAsyncFuture<'vm, S>
+impl<S> Future for StepOpAsyncFuture<'_, S>
 where
     S: StateRead,
 {
