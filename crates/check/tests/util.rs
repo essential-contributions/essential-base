@@ -1,15 +1,12 @@
 use essential_check::{
-    constraint_vm,
     sign::secp256k1::{PublicKey, Secp256k1, SecretKey},
-    state_read_vm,
-    state_read_vm::StateRead,
-    types::{
-        predicate::Predicate,
-        solution::{Mutation, Solution, SolutionData},
-        ContentAddress, Key, PredicateAddress, Word,
-    },
+    types::{solution::SolutionSet, ContentAddress, Key, PredicateAddress, Word},
+    vm::StateRead,
 };
-use essential_types::contract::{self, Contract};
+use essential_types::{
+    contract::{self, Contract},
+    predicate::Predicate,
+};
 use std::{
     collections::BTreeMap,
     future::{self, Ready},
@@ -78,7 +75,6 @@ impl State {
             None
         }
 
-        // If the predicate does not exist yet, assume `None`s as though predicate hasn't been deployed yet?
         let contract = match self.get(&contract_addr) {
             None => return Err(InvalidStateRead),
             Some(contract) => contract,
@@ -94,12 +90,12 @@ impl State {
         Ok(words)
     }
 
-    /// Apply all mutations proposed by the given solution.
-    pub fn apply_mutations(&mut self, solution: &Solution) {
-        for data in &solution.data {
-            for mutation in data.state_mutations.iter() {
+    /// Apply all mutations proposed by the given solution set.
+    pub fn apply_mutations(&mut self, set: &SolutionSet) {
+        for solution in &set.solutions {
+            for mutation in solution.state_mutations.iter() {
                 self.set(
-                    data.predicate_to_solve.contract.clone(),
+                    solution.predicate_to_solve.contract.clone(),
                     &mutation.key,
                     mutation.value.clone(),
                 );
@@ -123,17 +119,14 @@ impl StateRead for State {
     }
 }
 
-pub fn empty_solution() -> Solution {
-    Solution {
-        data: Default::default(),
+pub fn empty_solution_set() -> SolutionSet {
+    SolutionSet {
+        solutions: Default::default(),
     }
 }
 
 pub fn empty_predicate() -> Predicate {
-    Predicate {
-        state_read: Default::default(),
-        constraints: Default::default(),
-    }
+    Predicate::default()
 }
 
 pub fn empty_contract() -> Contract {
@@ -147,56 +140,6 @@ pub fn random_keypair(seed: [u8; 32]) -> (SecretKey, PublicKey) {
     secp.generate_keypair(&mut rng)
 }
 
-// A simple predicate that expects the value of previously uncontract state slot with index 0 to be 42.
-pub fn test_predicate_42(entropy: Word) -> Predicate {
-    Predicate {
-        // State read program to read state slot 0.
-        state_read: test_predicate_42_state_read(),
-        // Program to check pre-mutation value is None and
-        // post-mutation value is 42 at slot 0.
-        constraints: test_predicate_42_constraint(entropy),
-    }
-}
-
-fn test_predicate_42_state_read() -> Vec<Vec<u8>> {
-    use state_read_vm::asm::short::*;
-    vec![state_read_vm::asm::to_bytes([
-        PUSH(1),
-        ALOCS,
-        PUSH(0),
-        PUSH(0),
-        PUSH(0),
-        PUSH(0),
-        PUSH(4),
-        PUSH(1),
-        PUSH(0),
-        KRNG,
-    ])
-    .collect()]
-}
-
-fn test_predicate_42_constraint(entropy: Word) -> Vec<Vec<u8>> {
-    use constraint_vm::asm::short::*;
-    vec![constraint_vm::asm::to_bytes([
-        PUSH(entropy),
-        POP,
-        PUSH(0), // slot_ix
-        PUSH(0), // pre
-        SLEN,
-        PUSH(0),
-        EQ,
-        PUSH(0), // slot_ix
-        PUSH(0), // value_ix
-        PUSH(1), // len
-        PUSH(1), // post
-        STATE,
-        PUSH(42),
-        EQ,
-        AND,
-    ])
-    .collect()]
-}
-
 pub fn contract_addr(predicates: &contract::SignedContract) -> ContentAddress {
     essential_hash::content_addr(&predicates.contract)
 }
@@ -206,34 +149,4 @@ pub fn predicate_addr(predicates: &contract::SignedContract, ix: usize) -> Predi
         contract: contract_addr(predicates),
         predicate: essential_hash::content_addr(&predicates.contract[ix]),
     }
-}
-
-// Creates a test `Predicate` along with a `Solution` that solves it.
-pub fn test_predicate_42_solution_pair(
-    entropy: Word,
-    keypair_seed: [u8; 32],
-) -> (contract::SignedContract, Solution) {
-    // Create the test predicate, ensure its decision_variables match, and sign.
-    let predicate = test_predicate_42(entropy);
-    let (sk, _pk) = random_keypair(keypair_seed);
-    let predicates = essential_sign::contract::sign(vec![predicate].into(), &sk);
-    let predicate_addr = predicate_addr(&predicates, 0);
-
-    // Construct the solution decision variables.
-    // The first is an inline variable 42.
-    let decision_variables = vec![vec![42]];
-
-    // Create the solution.
-    let solution = Solution {
-        data: vec![SolutionData {
-            predicate_to_solve: predicate_addr,
-            decision_variables,
-            state_mutations: vec![Mutation {
-                key: vec![0, 0, 0, 0],
-                value: vec![42],
-            }],
-        }],
-    };
-
-    (predicates, solution)
 }

@@ -1,7 +1,7 @@
 [package]
 description = "Core logic related to validating Essential state transitions."
 name = "essential-check"
-version = "0.9.0"
+version = "0.10.0"
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -9,12 +9,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-essential-constraint-vm = { workspace = true }
 essential-hash = { workspace = true, optional = true }
 essential-sign = { workspace = true }
-essential-state-read-vm = { workspace = true }
 essential-types = { workspace = true }
-rayon = { workspace = true }
+essential-vm = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true, optional = true }
@@ -31,8 +29,7 @@ tracing-subscriber.workspace = true
 tracing = [
     "dep:essential-hash",
     "dep:tracing",
-    "essential-constraint-vm/tracing",
-    "essential-state-read-vm/tracing",
+    "essential-vm/tracing",
 ]
 
 [[bench]]

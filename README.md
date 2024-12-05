@@ -17,16 +17,14 @@ The foundational crates that the rest of the Essential ecosystem is built upon.
 
 ### Core functionality
 - [essential-check](./crates/check/README.md) Validate contracts and solutions. Read state and check constraints.
-- [essential-constraint-vm](./crates/constraint-vm/README.md) Check predicate constraints.
-- [essential-state-read-vm](./crates/state-read-vm/README.md) Run programs that read contract state.
+- [essential-vm](./crates/vm/README.md) Evaluate a predicate's programs.
 - [essential-types](./crates/types/README.md) Base types used throughout the Essential ecosystem.
 
 ### Assembly
 - [Assembly specification](./crates/asm-spec/asm.yml) The full list of operations that the Essential VMs support.
 - [essential-asm-gen](./crates/asm-gen/README.md) Proc-macro for generating ASM types from spec.
 - [essential-asm-spec](./crates/asm-spec/README.md) Parses the assembly yaml.
-- [essential-constraint-asm](./crates/constraint-asm/README.md) Assembly operations for the constraint VM.
-- [essential-state-asm](./crates/state-asm/README.md) Assembly operations for the state read VM.
+- [essential-asm](./crates/asm/README.md) Assembly operations for the Essential VM.
 
 ### Crypto
 - [essential-hash](./crates/hash/README.md) Hashing functionality for the Essential ecosystem.

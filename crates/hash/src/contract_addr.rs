@@ -7,7 +7,7 @@
 use essential_types::{contract::Contract, ContentAddress, Hash};
 
 /// Shorthand for the common case of producing an contract address from an
-/// iterator yielding references to [`Predicate`]s.
+/// iterator yielding references to [`Predicate`][essential_types::predicate::Predicate]s.
 ///
 /// If you have already calculated the content address for each predicate consider
 /// using [`from_predicate_addrs`] or [`from_predicate_addrs_slice`].

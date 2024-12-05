@@ -1,6 +1,6 @@
 [package]
 name = "essential-asm-gen"
-version = "0.6.0"
+version = "0.7.0"
 description = "proc-macro for generating Essential ASM types from spec"
 edition.workspace = true
 authors.workspace = true

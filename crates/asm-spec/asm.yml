@@ -1,657 +1,574 @@
-StateRead:
-  description: All operations available to state-read execution.
+Op:
+  description: |
+    All operations available to the Essential VM execution.
   group:
-    Constraint:
-      description: |
-        All operations available to the constraint checker.
-
-        Note that this is a subset of the operations available to state read execution.
+    Stack:
+      description: Operations related to stack manipulation.
       group:
-        Stack:
-          description: Operations related to stack manipulation.
-          group:
-            Push:
-              opcode: 0x01
-              description: Push one word onto the stack.
-              num_arg_bytes: 8
-              stack_out: [value]
-
-            Pop:
-              opcode: 0x02
-              description: Pop one word from the stack.
-              stack_in: [a]
-
-            Dup:
-              opcode: 0x03
-              description: Duplicate the top word on the stack.
-              stack_in: [value]
-              stack_out: [value, value]
-
-            DupFrom:
-              opcode: 0x04
-              short: DUPF
-              description: |
-                Duplicate the word at the given stack depth index.
-
-                `0` is the index of the element at the top of the stack.
-              stack_in: [index]
-              stack_out: [value_i]
-
-            Swap:
-              opcode: 0x05
-              description: Swap top two words on stack.
-              stack_in: [a, b]
-              stack_out: [b, a]
-
-            SwapIndex:
-              opcode: 0x06
-              short: SWAPI
-              description: |
-                Swap the top word on the stack with the word at the given stack depth index.
-
-                `0` is the index of the element at the top of the stack.
-              panics:
-                - Index is out of range.
-              stack_in: [a, b, c, d, index]
-              stack_out: [a, d, c, b]
-
-            Select:
-              opcode: 0x07
-              short: SEL
-              description: |
-                Conditionally keep one of the top two elements on the stack.
-
-                If condition is `true`, the top element is kept.
-              stack_in: [a, b, cond]
-              stack_out: [b]
-
-            SelectRange:
-              opcode: 0x08
-              short: SLTR
-              description: |
-                Conditionally keep one of the top two ranges on the stack.
-
-                If condition is `true`, the top range is kept.
-                
-                The ranges must be of equal length.
-                The ranges must be stacked sequentially.
-                Here `N` is `len -1`.
-              stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len, cond]
-              stack_out: [arr_b_0, ..arr_b_N]
-
-            Repeat:
-              opcode: 0x09
-              short: REP
-              description: |
-                Repeat a section of code the number of times.
-                Takes a boolean to either count from 0 up or from the number of repeats down to 0.
-              stack_in: [num_repeats, count_up_bool]
-
-            RepeatEnd:
-              opcode: 0x0A
-              short: REPE
-              description: |
-                Increment or decrements the top counter on the repeat stack.
-                If the counter is counting up and `counter == limit - 1`
-                then this pops the counter and continues with the program.
-                If the counter is counting down and the counter is 0
-                then this pops the counter and continues with the program.
-                If it is `< limit - 1` or `> 0` respectively then the program jumps to
-                the last Repeat
-              panics:
-                - If there is no counter on the repeat stack.
-                - If there is no repeat registered to return to.
-
-            Reserve:
-              opcode: 0x0B
-              short: RES
-              description: |
-                Reserve space on the stack for `len` words.
-                The reserved space is set to 0.
-              stack_in: [len]
-            
-            Load:
-              opcode: 0x0C
-              short: LODS
-              description: |
-                Load the value at the given stack depth index relative to the bottom.
-
-                `0` is the index of the element at the bottom of the stack.
-              panics:
-                - Index is out of range.
-              stack_in: [index]
-              stack_out: [value]
-
-            Store:
-              opcode: 0x0D
-              short: STOS
-              description: |
-                Store the value at the given stack depth index relative to the bottom.
-
-                `0` is the index of the element at the bottom of the stack.
-              panics:
-                - Index is out of range.
-              stack_in: [index, value]
-
-        Pred:
-          description: Operations for computing predicates.
-          group:
-            Eq:
-              opcode: 0x10
-              description: Check equality of two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs == rhs"]
-
-            EqRange:
-              opcode: 0x11
-              short: EQRA
-              description: |
-                Check equality of two ranges on the stack.
-
-                The ranges must be of equal length.
-                The ranges must be stacked sequentially.
-                Here `N` is `len -1`.
-              stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len]
-              stack_out: ["(top-(2*len))..(top - len) == (top - len)..top"]
-
-            Gt:
-              opcode: 0x12
-              description: Check if left-hand side is greater than right-hand side.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs > rhs"]
-
-            Lt:
-              opcode: 0x13
-              description: Check if left-hand side is less than right-hand side.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs < rhs"]
-
-            Gte:
-              opcode: 0x14
-              description: Check if left-hand side is greater than or equal to right-hand side.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs >= rhs"]
-
-            Lte:
-              opcode: 0x15
-              description: Check if left-hand side is less than or equal to right-hand side.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs <= rhs"]
-
-            And:
-              opcode: 0x16
-              description: Logical AND of two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs && rhs"]
-
-            Or:
-              opcode: 0x17
-              description: Logical OR of two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs || rhs"]
-
-            Not:
-              opcode: 0x18
-              description: Logical NOT of a word.
-              stack_in: [a]
-              stack_out: ["!a"]
-
-            EqSet:
-              opcode: 0x19
-              short: EQST
-              description: |
-                Pop two sets off the stack and check if they are equal.
-                This is set equality so order does not matter.
-                Sets must be the same length.
-
-                Note the encoding of each set is:
-                `[elem_0_word_0, ...elem_0_word_I, elem_0_len, ...elem_N_word_0, ...elem_N_word_J, elem_N_len, set_len]`.
-
-                Note this differs from `EqRange` in that there is a size given at the end of both sets.
-              stack_in: [lhs, lhs_set_length, rhs, rhs_set_length]
-              stack_out: [set(lhs) == set(rhs)]
-            
-            BitAnd:
-              opcode: 0x1A
-              short: BAND
-              description: Bitwise AND of two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs & rhs"]
-            
-            BitOr:
-              opcode: 0x1B
-              short: BOR
-              description: Bitwise OR of two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs | rhs"]
-
-        Alu:
-          description: Operations for computing arithmetic and logic.
-          group:
-            Add:
-              opcode: 0x20
-              description: Add two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs + rhs"]
-
-            Sub:
-              opcode: 0x21
-              description: Subtract two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs - rhs"]
-
-            Mul:
-              opcode: 0x22
-              description: Multiply two words.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs * rhs"]
-
-            Div:
-              opcode: 0x23
-              description: Integer division.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs / rhs"]
-
-            Mod:
-              opcode: 0x24
-              description: Modulus of lhs by rhs.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs % rhs"]
-
-            Shl:
-              opcode: 0x25
-              description: Logical shift left by number of bits.
-              panics:
-                - Number of bits is negative.
-                - Number of bits is greater than a Word.
-              stack_in: [lhs, rhs, num_bits]
-              stack_out: ["lhs << rhs"]
-
-            Shr:
-              opcode: 0x26
-              description: Logical shift right by number of bits.
-              panics:
-                - Number of bits is negative.
-                - Number of bits is greater than a Word.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs >> rhs"]
-            
-            ShrI:
-              opcode: 0x27
-              description: Arithmetic shift right by number of bits.
-              panics:
-                - Number of bits is negative.
-                - Number of bits is greater than a Word.
-              stack_in: [lhs, rhs]
-              stack_out: ["lhs >> rhs"]
-
-        Access:
-          description: Operations for accessing input data.
-          group:
-            ThisAddress:
-              opcode: 0x30
-              short: THIS
-              description: |
-                Get the content hash of this predicate.
-
-                This operation returns a list of words with a length of 4, representing the hash.
-              stack_out: [key]
-
-            ThisContractAddress:
-              opcode: 0x31
-              short: THISC
-              description: |
-                Get the content hash of the contract this predicate belongs to.
-
-                This operation returns a list of words with a length of 4, representing the contract's hash.
-              stack_out: [key]
-
-            MutKeys:
-              opcode: 0x34
-              short: MKEYS
-              description: |
-                Push the keys of the proposed state mutations onto the stack.
-
-                Note the order is non-deterministic because this is a set.
-
-                Returns only total length 0 if there are no mutations.
-              stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
-            
-            RepeatCounter:
-              opcode: 0x36
-              short: REPC
-              description: Access the top repeat counters current value.
-              stack_out: [counter_value]
-
-            DecisionVar:
-              opcode: 0x37
-              short: VAR
-              description: |
-                Access a range of `len` words starting from `value_ix` within the decision variable located at `slot_ix`.
-
-                Returns a list of decision words with length equal to the specified len.
-              panics:
-                - slot_ix is out of range.
-                - The range `value_ix..(value_ix + len)` is out of range.
-              stack_in: [slot_ix, value_ix, len]
-              stack_out:
-                elem: word
-                len: len 
-
-            DecisionVarLen:
-              opcode: 0x38
-              short: VLEN
-              description: Get the length of a the decision variable value located at `slot_ix`.
-              panics:
-                - slot_ix is out of range.
-              stack_in: [slot_ix]
-              stack_out: [len]
-
-            State:
-              opcode: 0x39
-              description: |
-                Access a range of words from the state value located in the slot at `slot_ix`.
-
-                Push `len` words from the value onto the stack, starting from the word at `value_ix`.  
-
-                The argument delta `false` accesses pre state.
-                The argument delta `true` accesses post state.
-              panics:
-                - slot_ix is out of range.
-                - The range `value_ix..(value_ix + len)` is out of range.
-                - delta is not a boolean.
-              stack_in: [slot_ix, value_ix, len, delta]
-              stack_out:
-                elem: word
-                len: len 
-
-            StateLen:
-              opcode: 0x3A
-              short: SLEN
-              description: |
-                Get the length of a state value at a specified `slot_ix`.
-
-                The argument delta `false` accesses pre state.
-                The argument delta `true` accesses post state.
-
-                Returns the length of the state value.
-              panics:
-                - slot_ix is out of range.
-                - delta is not a boolean.
-              stack_in: [slot_ix, delta]
-              stack_out: [len]
-
-            NumSlots:
-              opcode: 0x3B
-              short: NSLT
-              description: |
-                Get the number of decision var or state slots.
-
-                `which_slots`:
-                
-                - `0` for decision vars.
-                
-                - `1` for pre state slots.
-                
-                - `2` for post state slots.
-              stack_in: [which_slots]
-              stack_out: [len]
-
-            PredicateExists:
-              opcode: 0x3C
-              short: PEX
-              description: |
-                Check if a solution to a predicate exists within the same solution
-                with the hash of the arguments and address.
-
-                Returns `true` if the predicate exists.
-              stack_in: [sha256(arg0len, arg0, argNlen, argN, contract_addr, predicate_addr)]
-              stack_out: [bool]
-
-        # Byte 4 reserved for Access ops
-
-        Crypto:
-          description: Operations providing cryptographic functionality.
-          group:
-            Sha256:
-              opcode: 0x50
-              short: SHA2
-              description: |
-                Produce a SHA 256 hash from the specified data.
-                
-                Hashes are byte aligned so length is number of bytes **not** number of words.
-              panics:
-                - data_len * 8 is longer than the data.
-              stack_in: [data, data_len]
-              stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
-
-            VerifyEd25519:
-              opcode: 0x51
-              short: VRFYED
-              description: |
-                Validate an Ed25519 signature against a public key.
-
-                Data is byte aligned so length is number of bytes **not** number of words.
-              stack_in:
-                [
-                  data,
-                  data_len,
-                  sig_w0,
-                  sig_w1,
-                  sig_w2,
-                  sig_w3,
-                  sig_w4,
-                  sig_w5,
-                  sig_w6,
-                  sig_w7,
-                  key_w0,
-                  key_w1,
-                  key_w2,
-                  key_w3,
-                ]
-              stack_out: [bool]
-
-            RecoverSecp256k1:
-              opcode: 0x52
-              short: RSECP
-              description: |
-                Recover the public key from a secp256k1 signature.
-
-                If the signature is invalid, the operation will return all zeros.
-              stack_in:
-                [
-                  hash_0,
-                  hash_1,
-                  hash_2,
-                  hash_3,
-                  sig_w0,
-                  sig_w1,
-                  sig_w2,
-                  sig_w3,
-                  sig_w4,
-                  sig_w5,
-                  sig_w6,
-                  sig_w7,
-                  sig_8,
-                ]
-              stack_out: [pub_key_w0, pub_key_w1, pub_key_w2, pub_key_w3, pub_key_4]
-
-        TotalControlFlow:
-          description: Control flow operations that keep the program total.
-          group:
-            Halt:
-              opcode: 0x60
-              short: HLT
-              description: End the execution of the program.
-
-            HaltIf:
-              opcode: 0x61
-              short: HLTIF
-              description: Halt the program if the value is true.
-              stack_in: [value]
-
-            JumpForwardIf:
-              opcode: 0x63
-              short: JMPIF
-              description: Jump forward the given number of instructions if the value is true.
-              panics:
-                - The jump is negative.
-                - The jump distance is zero.
-              stack_in: [n_instruction, condition]
-            
-            PanicIf:
-              opcode: 0x64
-              short: PNCIF
-              description: |
-                Panic if the `condition` is true.
-
-                Returns the stack at the time of the panic
-                in the error message.
-              panics:
-                - The `condition` is true.
-              stack_in: [condition]
-
-        Temporary:
-          description: Operations for temporary memory.
-          group:
-            Alloc:
-              opcode: 0x70
-              short: ALOC
-              description: |
-                Allocate a new block of memory to the end of the temporary memory.
-                Sets new memory to 0.
-                Returns the index to the start of the new block of memory.
-                Allocate 0 to get the current length of the memory.
-              panics:
-                - Max memory size reached.
-              stack_in: [size]
-              stack_out: [index]
-            
-            Free:
-              opcode: 0x71
-              description: Free memory down to the specified index.
-              panics:
-                - The index is negative.
-              stack_in: [index]
-
-            Load:
-              opcode: 0x72
-              short: LOD
-              description: Load the value at the index of temporary memory onto the stack.
-              panics:
-                - Index is out of bounds.
-              stack_in: [index]
-              stack_out: [value]
-
-            Store:
-              opcode: 0x73
-              short: STO
-              description: Store the value at the index of temporary memory.
-              panics:
-                - Index is out of bounds.
-              stack_in: [index, value]
-
-            LoadRange:
-              opcode: 0x74
-              short: LODR
-              description: Load a range of words starting at the index of temporary memory.
-              panics:
-                - Index is out of bounds.
-                - Index + len is out of bounds.
-              stack_in: [index, len]
-              stack_out: [values]
-
-            StoreRange:
-              opcode: 0x75
-              short: STOR
-              description: Store a range of words starting at the index of temporary memory.
-              panics:
-                - Index is out of bounds.
-                - Index + len is out of bounds.
-              stack_in: [index, values, len]
-
-    StateMemory:
-      description: Operations for controlling mutable state slots.
-      group:
-        AllocSlots:
-          opcode: 0x80
-          short: ALOCS
-          description: Allocate new slots to the end of the memory.
-          stack_in: [size]
+        Push:
+          opcode: 0x01
+          description: Push one word onto the stack.
+          num_arg_bytes: 8
+          stack_out: [value]
+
+        Pop:
+          opcode: 0x02
+          description: Pop one word from the stack.
+          stack_in: [a]
+
+        Dup:
+          opcode: 0x03
+          description: Duplicate the top word on the stack.
+          stack_in: [value]
+          stack_out: [value, value]
+
+        DupFrom:
+          opcode: 0x04
+          short: DUPF
+          description: |
+            Duplicate the word at the given stack depth index.
+
+            `0` is the index of the element at the top of the stack.
+          stack_in: [index]
+          stack_out: [value_i]
+
+        Swap:
+          opcode: 0x05
+          description: Swap top two words on stack.
+          stack_in: [a, b]
+          stack_out: [b, a]
+
+        SwapIndex:
+          opcode: 0x06
+          short: SWAPI
+          description: |
+            Swap the top word on the stack with the word at the given stack depth index.
+
+            `0` is the index of the element at the top of the stack.
+          panics:
+            - Index is out of range.
+          stack_in: [a, b, c, d, index]
+          stack_out: [a, d, c, b]
+
+        Select:
+          opcode: 0x07
+          short: SEL
+          description: |
+            Conditionally keep one of the top two elements on the stack.
+
+            If condition is `true`, the top element is kept.
+          stack_in: [a, b, cond]
+          stack_out: [b]
+
+        SelectRange:
+          opcode: 0x08
+          short: SLTR
+          description: |
+            Conditionally keep one of the top two ranges on the stack.
+
+            If condition is `true`, the top range is kept.
+
+            The ranges must be of equal length.
+            The ranges must be stacked sequentially.
+            Here `N` is `len -1`.
+          stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len, cond]
+          stack_out: [arr_b_0, ..arr_b_N]
+
+        Repeat:
+          opcode: 0x09
+          short: REP
+          description: |
+            Repeat a section of code the number of times.
+            Takes a boolean to either count from 0 up or from the number of repeats down to 0.
+          stack_in: [num_repeats, count_up_bool]
+
+        RepeatEnd:
+          opcode: 0x0A
+          short: REPE
+          description: |
+            Increment or decrements the top counter on the repeat stack.
+            If the counter is counting up and `counter == limit - 1`
+            then this pops the counter and continues with the program.
+            If the counter is counting down and the counter is 0
+            then this pops the counter and continues with the program.
+            If it is `< limit - 1` or `> 0` respectively then the program jumps to
+            the last Repeat
+          panics:
+            - If there is no counter on the repeat stack.
+            - If there is no repeat registered to return to.
+
+        Reserve:
+          opcode: 0x0B
+          short: RES
+          description: |
+            Reserve space on the stack for `len` words.
+            The reserved space is set to 0.
+          stack_in: [len]
 
         Load:
-          opcode: 0x81
-          short: LODSM
+          opcode: 0x0C
+          short: LODS
           description: |
-            Access a range of `len` words starting from `value_ix` within 
-            the memory slot located at `slot_ix`.
+            Load the value at the given stack depth index relative to the bottom.
 
-            Returns a list of words with length equal to the specified len.
+            `0` is the index of the element at the bottom of the stack.
           panics:
-            - slot_ix is out of bounds.
+            - Index is out of range.
+          stack_in: [index]
+          stack_out: [value]
+
+        Store:
+          opcode: 0x0D
+          short: STOS
+          description: |
+            Store the value at the given stack depth index relative to the bottom.
+
+            `0` is the index of the element at the bottom of the stack.
+          panics:
+            - Index is out of range.
+          stack_in: [index, value]
+
+    Pred:
+      description: Operations for computing predicates.
+      group:
+        Eq:
+          opcode: 0x10
+          description: Check equality of two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs == rhs"]
+
+        EqRange:
+          opcode: 0x11
+          short: EQRA
+          description: |
+            Check equality of two ranges on the stack.
+
+            The ranges must be of equal length.
+            The ranges must be stacked sequentially.
+            Here `N` is `len -1`.
+          stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len]
+          stack_out: ["(top-(2*len))..(top - len) == (top - len)..top"]
+
+        Gt:
+          opcode: 0x12
+          description: Check if left-hand side is greater than right-hand side.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs > rhs"]
+
+        Lt:
+          opcode: 0x13
+          description: Check if left-hand side is less than right-hand side.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs < rhs"]
+
+        Gte:
+          opcode: 0x14
+          description: Check if left-hand side is greater than or equal to right-hand side.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs >= rhs"]
+
+        Lte:
+          opcode: 0x15
+          description: Check if left-hand side is less than or equal to right-hand side.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs <= rhs"]
+
+        And:
+          opcode: 0x16
+          description: Logical AND of two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs && rhs"]
+
+        Or:
+          opcode: 0x17
+          description: Logical OR of two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs || rhs"]
+
+        Not:
+          opcode: 0x18
+          description: Logical NOT of a word.
+          stack_in: [a]
+          stack_out: ["!a"]
+
+        EqSet:
+          opcode: 0x19
+          short: EQST
+          description: |
+            Pop two sets off the stack and check if they are equal.
+            This is set equality so order does not matter.
+            Sets must be the same length.
+
+            Note the encoding of each set is:
+            `[elem_0_word_0, ...elem_0_word_I, elem_0_len, ...elem_N_word_0, ...elem_N_word_J, elem_N_len, set_len]`.
+
+            Note this differs from `EqRange` in that there is a size given at the end of both sets.
+          stack_in: [lhs, lhs_set_length, rhs, rhs_set_length]
+          stack_out: [set(lhs) == set(rhs)]
+
+        BitAnd:
+          opcode: 0x1A
+          short: BAND
+          description: Bitwise AND of two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs & rhs"]
+
+        BitOr:
+          opcode: 0x1B
+          short: BOR
+          description: Bitwise OR of two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs | rhs"]
+
+    Alu:
+      description: Operations for computing arithmetic and logic.
+      group:
+        Add:
+          opcode: 0x20
+          description: Add two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs + rhs"]
+
+        Sub:
+          opcode: 0x21
+          description: Subtract two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs - rhs"]
+
+        Mul:
+          opcode: 0x22
+          description: Multiply two words.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs * rhs"]
+
+        Div:
+          opcode: 0x23
+          description: Integer division.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs / rhs"]
+
+        Mod:
+          opcode: 0x24
+          description: Modulus of lhs by rhs.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs % rhs"]
+
+        Shl:
+          opcode: 0x25
+          description: Logical shift left by number of bits.
+          panics:
+            - Number of bits is negative.
+            - Number of bits is greater than a Word.
+          stack_in: [lhs, rhs, num_bits]
+          stack_out: ["lhs << rhs"]
+
+        Shr:
+          opcode: 0x26
+          description: Logical shift right by number of bits.
+          panics:
+            - Number of bits is negative.
+            - Number of bits is greater than a Word.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs >> rhs"]
+
+        ShrI:
+          opcode: 0x27
+          description: Arithmetic shift right by number of bits.
+          panics:
+            - Number of bits is negative.
+            - Number of bits is greater than a Word.
+          stack_in: [lhs, rhs]
+          stack_out: ["lhs >> rhs"]
+
+    Access:
+      description: Operations for accessing input data.
+      group:
+        ThisAddress:
+          opcode: 0x30
+          short: THIS
+          description: |
+            Get the content hash of this predicate.
+
+            This operation returns a list of words with a length of 4, representing the hash.
+          stack_out: [key]
+
+        ThisContractAddress:
+          opcode: 0x31
+          short: THISC
+          description: |
+            Get the content hash of the contract this predicate belongs to.
+
+            This operation returns a list of words with a length of 4, representing the contract's hash.
+          stack_out: [key]
+
+        # 0x32, 0x33 reserved for potential new Address or related ops
+
+        MutKeys:
+          opcode: 0x34
+          short: MKEYS
+          description: |
+            Push the keys of the proposed state mutations onto the stack.
+
+            Note the order is non-deterministic because this is a set.
+
+            Returns only total length 0 if there are no mutations.
+          stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
+
+        # 0x35, 0x36, 0x37 reserved for potential keys and/or state-mutations ops
+
+        RepeatCounter:
+          opcode: 0x38
+          short: REPC
+          description: Access the top repeat counters current value.
+          stack_out: [counter_value]
+
+        # 0x39 reserved for repeat or related op
+
+        PredicateData:
+          opcode: 0x3A
+          short: DATA
+          description: |
+            Access a range of `len` words starting from `value_ix` within the
+            predicate data located at `slot_ix`.
+
+            Returns a list of predicate data words with length equal to the
+            specified len.
+          panics:
+            - slot_ix is out of range.
             - The range `value_ix..(value_ix + len)` is out of range.
           stack_in: [slot_ix, value_ix, len]
           stack_out:
             elem: word
             len: len
 
-        Store:
-          opcode: 0x82
-          short: STOSM
-          description: |
-            Store `len` words of data at the `slot_ix` starting at `value_ix`.
+        PredicateDataLen:
+          opcode: 0x3B
+          short: DLEN
+          description: Get the length of a the predicate data value located at `slot_ix`.
           panics:
-            - slot_ix is out of bounds.
-            - value_ix > ValueLen.
-            - len is out of bounds.
-          stack_in: [slot_ix, value_ix, data, len]
-
-        Truncate:
-          opcode: 0x83
-          short: TRUNC
-          description: |
-            Truncate the memory slot located at `slot_ix` to `len` words.
-          panics:
-            - slot_ix is out of bounds.
-          stack_in: [slot_ix, len]
-
-        Length:
-          opcode: 0x84
-          short: SMLEN
-          description: Get the current length of the memory.
-          stack_out: [length]
-
-        ValueLen:
-          opcode: 0x85
-          short: SMVLEN
-          description: Get the current length of the value at the `slot_ix`.
+            - slot_ix is out of range.
           stack_in: [slot_ix]
-          stack_out: [length]
+          stack_out: [len]
 
-    KeyRange:
-      opcode: 0x90
-      short: KRNG
-      description: |
-        Read a range of values at each key from state starting at the key
-        into state slots starting at the slot index.
+        PredicateDataSlots:
+          opcode: 0x3C
+          short: DSLT
+          description: Get the number of predicate data slots.
+          stack_out: [len]
 
-        The key is lexographically incremented for each value read.
-        All keys are assumed to be the same length.
+        PredicateExists:
+          opcode: 0x3D
+          short: PEX
+          description: |
+            Check if a solution to a predicate exists within the same solution
+            with the hash of the arguments and address.
 
-        Returns the values onto the stack, followed by their indices.
-      stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]
+            Returns `true` if the predicate exists.
+          stack_in: ["sha256(arg0len, arg0, argNlen, argN, contract_addr, predicate_addr)"]
+          stack_out: [bool]
 
-    KeyRangeExtern:
-      opcode: 0x91
-      short: KREX
-      description: |
-        Read a range of values at each key from external state starting at the key
-        into state slots starting at the slot index.
+        # 0x3E reserved for PredicateExists alternative with partial input (#222)
 
-        The key is lexographically incremented for each value read.
+    # 0x4* reserved for more Access ops
 
-        The external state is at the `ext` address.
+    Crypto:
+      description: Operations providing cryptographic functionality.
+      group:
+        Sha256:
+          opcode: 0x50
+          short: SHA2
+          description: |
+            Produce a SHA 256 hash from the specified data.
 
-        Returns the values onto the stack, followed by their indices.
-      stack_in:
-        [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, ...key_wN, key_len, num_keys_to_read, slot_index]
+            Hashes are byte aligned so length is number of bytes **not** number of words.
+          panics:
+            - data_len * 8 is longer than the data.
+          stack_in: [data, data_len]
+          stack_out: [hash_w0, hash_w1, hash_w2, hash_w3]
+
+        VerifyEd25519:
+          opcode: 0x51
+          short: VRFYED
+          description: |
+            Validate an Ed25519 signature against a public key.
+
+            Data is byte aligned so length is number of bytes **not** number of words.
+          stack_in:
+            [
+              data,
+              data_len,
+              sig_w0,
+              sig_w1,
+              sig_w2,
+              sig_w3,
+              sig_w4,
+              sig_w5,
+              sig_w6,
+              sig_w7,
+              key_w0,
+              key_w1,
+              key_w2,
+              key_w3,
+            ]
+          stack_out: [bool]
+
+        RecoverSecp256k1:
+          opcode: 0x52
+          short: RSECP
+          description: |
+            Recover the public key from a secp256k1 signature.
+
+            If the signature is invalid, the operation will return all zeros.
+          stack_in:
+            [
+              hash_0,
+              hash_1,
+              hash_2,
+              hash_3,
+              sig_w0,
+              sig_w1,
+              sig_w2,
+              sig_w3,
+              sig_w4,
+              sig_w5,
+              sig_w6,
+              sig_w7,
+              sig_8,
+            ]
+          stack_out: [pub_key_w0, pub_key_w1, pub_key_w2, pub_key_w3, pub_key_4]
+
+    TotalControlFlow:
+      description: Control flow operations that keep the program total.
+      group:
+        Halt:
+          opcode: 0x60
+          short: HLT
+          description: End the execution of the program.
+
+        HaltIf:
+          opcode: 0x61
+          short: HLTIF
+          description: Halt the program if the value is true.
+          stack_in: [value]
+
+        JumpForwardIf:
+          opcode: 0x62
+          short: JMPIF
+          description: Jump forward the given number of instructions if the value is true.
+          panics:
+            - The jump is negative.
+            - The jump distance is zero.
+          stack_in: [n_instruction, condition]
+
+        PanicIf:
+          opcode: 0x63
+          short: PNCIF
+          description: |
+            Panic if the `condition` is true.
+
+            Returns the stack at the time of the panic
+            in the error message.
+          panics:
+            - The `condition` is true.
+          stack_in: [condition]
+
+    Memory:
+      description: Operations for memory.
+      group:
+        Alloc:
+          opcode: 0x70
+          short: ALOC
+          description: |
+            Allocate a new block of memory to the end.
+
+            Sets new memory to 0.
+
+            Returns the index to the start of the new block of memory.
+
+            Allocate 0 to get the current length of the memory.
+          panics:
+            - Max memory size reached.
+          stack_in: [size]
+          stack_out: [index]
+
+        Free:
+          opcode: 0x71
+          description: Truncate memory to the specified new length, freeing all that follows.
+          panics:
+            - The new length is negative.
+            - The new length is greater than the existing length.
+          stack_in: [new_length]
+
+        Load:
+          opcode: 0x72
+          short: LOD
+          description: Load the value at the given index from memory onto the stack.
+          panics:
+            - Index is out of bounds.
+          stack_in: [index]
+          stack_out: [value]
+
+        Store:
+          opcode: 0x73
+          short: STO
+          description: Store the value at the given index within memory.
+          panics:
+            - Index is out of bounds.
+          stack_in: [index, value]
+
+        LoadRange:
+          opcode: 0x74
+          short: LODR
+          description: Load a range of words starting at the index within memory.
+          panics:
+            - Index is out of bounds.
+            - Index + len is out of bounds.
+          stack_in: [index, len]
+          stack_out: [values]
+
+        StoreRange:
+          opcode: 0x75
+          short: STOR
+          description: Store a range of words starting at the index within memory.
+          panics:
+            - Index is out of bounds.
+            - Index + len is out of bounds.
+          stack_in: [index, values, len]
+
+    StateRead:
+      description: Operations related to reading state.
+      group:
+        KeyRange:
+          opcode: 0x80
+          short: KRNG
+          description: |
+            Read a range of values at each key from state starting at the key
+            into memory starting at the given memory address.
+
+            The key is lexographically incremented for each value read.
+            All keys are assumed to be the same length.
+
+            An [index, len] pair is written into memory for each value, followed by
+            the values themselves. E.g. when reading values *a* and *b*, they will
+            be laid out in memory from the given `mem_addr` as follows:
+            `[a_addr, a_len, b_addr, b_len, a_value, b_value]`
+          stack_in: [key_w0, ...key_wN, key_len, num_keys_to_read, mem_addr]
+
+        KeyRangeExtern:
+          opcode: 0x81
+          short: KREX
+          description: |
+            Read a range of values at each key from external state starting at the key
+            into memory starting at the given memory address.
+
+            The key is lexographically incremented for each value read.
+            All keys are assumed to be the same length.
+
+            The external state is at the `ext` address.
+
+            An [index, len] pair is written into memory for each value, followed by
+            the values themselves. E.g. when reading values *a* and *b*, they will
+            be laid out in memory from the given `mem_addr` as follows:
+            `[a_addr, a_len, b_addr, b_len, a_value, b_value]`
+          stack_in:
+            [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, ...key_wN, key_len, num_keys_to_read, mem_addr]

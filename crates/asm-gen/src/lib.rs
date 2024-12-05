@@ -1,7 +1,7 @@
 //! Generate essential ASM declarations from the official specification.
 //!
 //! Provides proc macros for generating declarations and implementations for
-//! both the `essentail-constraint-asm` and `essential-state-asm` crates.
+//! the `essential-asm` crate.
 
 use essential_asm_spec::{visit, Group, Node, Op, StackOut, Tree};
 use proc_macro::TokenStream;
@@ -452,8 +452,8 @@ fn impl_from_subgroups(name: &str, group: &Group) -> Vec<syn::ItemImpl> {
 }
 
 /// Wrap an expression with the given nested op group naming.
-/// E.g. the args [StateRead, Constraint, Stack]` and `my_expr` becomes
-/// `StateRead::Constraint(Constraint::Stack(my_expr))`.
+/// E.g. the args [Op, Stack]` and `my_expr` becomes
+/// `Op::Stack(my_expr)`.
 fn enum_variant_tuple1_expr(names: &[String], mut expr: syn::Expr) -> syn::Expr {
     assert!(!names.is_empty(), "Expecting at least one variant name");
     let mut idents: Vec<_> = names
@@ -469,7 +469,7 @@ fn enum_variant_tuple1_expr(names: &[String], mut expr: syn::Expr) -> syn::Expr 
 }
 
 /// Generate an opcode expression from the given nested op group naming.
-/// E.g. `[Constraint, Stack, Push]` becomes `Constraint::Stack(Stack::Push)`.
+/// E.g. `[Op, Stack, Push]` becomes `Op::Stack(Stack::Push)`.
 fn opcode_expr_from_names(names: &[String]) -> syn::Expr {
     assert!(
         names.len() >= 2,
@@ -730,76 +730,8 @@ fn opcode_enum_impls(names: &[String], group: &Group) -> Vec<syn::ItemImpl> {
     impls
 }
 
-/// Generate items related only to constraint execution.
-fn constraint_items(
-    tree: &Tree,
-    new_item: impl Fn(&[String], &Group) -> syn::Item,
-) -> Vec<syn::Item> {
-    let mut items = vec![];
-    visit::constraint_groups(tree, &mut |str, group| items.push(new_item(str, group)));
-    items
-}
-
-/// Generate all op enum declarations for constraint execution.
-fn constraint_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    constraint_items(tree, |names, group| {
-        let name = names.last().unwrap();
-        syn::Item::Enum(op_enum_decl(name, group))
-    })
-}
-
-/// Generate all opcode enum declarations for constraint execution.
-fn constraint_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    constraint_items(tree, |names, group| {
-        let name = names.last().unwrap();
-        syn::Item::Enum(opcode_enum_decl(name, group))
-    })
-}
-
-/// Generate the bytes iterator declaration and implementation for all op groups.
-fn constraint_op_enum_bytes_iter(tree: &Tree) -> Vec<syn::Item> {
-    let mut items = vec![];
-    visit::constraint_groups(tree, &mut |names, group| {
-        let name = names.last().unwrap();
-        items.push(syn::Item::Enum(op_enum_bytes_iter_decl(name, group)));
-        items.push(syn::Item::Impl(op_enum_bytes_iter_impl(name, group)));
-    });
-    items
-}
-
-/// Generate all op enum implementations for constraint execution.
-fn constraint_op_enum_impls(tree: &Tree) -> Vec<syn::Item> {
-    let mut items = vec![];
-    visit::constraint_groups(tree, &mut |names, group| {
-        items.extend(op_enum_impls(names, group).into_iter().map(syn::Item::Impl));
-    });
-    items
-}
-
-/// Generate all opcode enum implementations for constraint execution.
-fn constraint_opcode_enum_impls(tree: &Tree) -> Vec<syn::Item> {
-    let mut items = vec![];
-    visit::constraint_groups(tree, &mut |name, group| {
-        items.extend(
-            opcode_enum_impls(name, group)
-                .into_iter()
-                .map(syn::Item::Impl),
-        );
-    });
-    items
-}
-
-/// Generate all op const declarations for constraint execution.
-fn constraint_op_consts(tree: &Tree) -> Vec<syn::Item> {
-    let mut items = vec![];
-    visit::constraint_ops(tree, &mut |names, op| {
-        items.extend(op_consts(names, op));
-    });
-    items
-}
-
-/// Generate all op const declarations for state read execution.
-fn state_op_consts(tree: &Tree) -> Vec<syn::Item> {
+/// Generate all op const declarations.
+fn all_op_consts(tree: &Tree) -> Vec<syn::Item> {
     let mut items = vec![];
     visit::ops(tree, &mut |names, op| {
         items.extend(op_consts(names, op));
@@ -807,39 +739,33 @@ fn state_op_consts(tree: &Tree) -> Vec<syn::Item> {
     items
 }
 
-/// Generate items related to state read execution, omitting those already
-/// generated for constraint execution.
-fn state_read_items(
-    tree: &Tree,
-    new_item: impl Fn(&[String], &Group) -> syn::Item,
-) -> Vec<syn::Item> {
+/// Generate items for each op group and collect them into a `Vec`.
+fn collect_items(tree: &Tree, new_item: impl Fn(&[String], &Group) -> syn::Item) -> Vec<syn::Item> {
     let mut items = vec![];
-    visit::state_read_groups(tree, &mut |str, group| items.push(new_item(str, group)));
+    visit::groups(tree, &mut |str, group| items.push(new_item(str, group)));
     items
 }
 
-/// Generate all op enum declarations for state read execution besides those
-/// already generated for constraint execution.
-fn state_read_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    state_read_items(tree, |names, group| {
+/// Generate all op enum declarations.
+fn all_op_enum_decls(tree: &Tree) -> Vec<syn::Item> {
+    collect_items(tree, |names, group| {
         let name = names.last().unwrap();
         syn::Item::Enum(op_enum_decl(name, group))
     })
 }
 
-/// Generate all opcode enum declarations for state read execution, omitting
-/// those already generated for constraint execution.
-fn state_read_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
-    state_read_items(tree, |names, group| {
+/// Generate all opcode enum declarations.
+fn all_opcode_enum_decls(tree: &Tree) -> Vec<syn::Item> {
+    collect_items(tree, |names, group| {
         let name = names.last().unwrap();
         syn::Item::Enum(opcode_enum_decl(name, group))
     })
 }
 
 /// Generate the bytes iterator declaration and implementation for all op groups.
-fn state_read_op_enum_bytes_iter(tree: &Tree) -> Vec<syn::Item> {
+fn all_op_enum_bytes_iter(tree: &Tree) -> Vec<syn::Item> {
     let mut items = vec![];
-    visit::state_read_groups(tree, &mut |names, group| {
+    visit::groups(tree, &mut |names, group| {
         let name = names.last().unwrap();
         items.push(syn::Item::Enum(op_enum_bytes_iter_decl(name, group)));
         items.push(syn::Item::Impl(op_enum_bytes_iter_impl(name, group)));
@@ -847,19 +773,19 @@ fn state_read_op_enum_bytes_iter(tree: &Tree) -> Vec<syn::Item> {
     items
 }
 
-/// Generate all opcode enum implementations for constraint execution.
-fn state_read_op_enum_impls(tree: &Tree) -> Vec<syn::Item> {
+/// Generate all op enum implementations.
+fn all_op_enum_impls(tree: &Tree) -> Vec<syn::Item> {
     let mut items = vec![];
-    visit::state_read_groups(tree, &mut |name, group| {
+    visit::groups(tree, &mut |name, group| {
         items.extend(op_enum_impls(name, group).into_iter().map(syn::Item::Impl));
     });
     items
 }
 
-/// Generate all opcode enum implementations for constraint execution.
-fn state_read_opcode_enum_impls(tree: &Tree) -> Vec<syn::Item> {
+/// Generate all opcode enum implementations.
+fn all_opcode_enum_impls(tree: &Tree) -> Vec<syn::Item> {
     let mut items = vec![];
-    visit::state_read_groups(tree, &mut |name, group| {
+    visit::groups(tree, &mut |name, group| {
         items.extend(
             opcode_enum_impls(name, group)
                 .into_iter()
@@ -893,15 +819,6 @@ fn docs_table_row(names: &[String], op: &Op) -> String {
     )
 }
 
-/// Generates a markdown table containing only the constraint operations.
-fn constraint_ops_docs_table(tree: &Tree) -> syn::LitStr {
-    let mut docs = DOCS_TABLE_HEADER.to_string();
-    visit::constraint_ops(tree, &mut |names, op| {
-        docs.push_str(&docs_table_row(names, op));
-    });
-    syn::parse_quote! { #docs }
-}
-
 /// Generates a markdown table containing all operations.
 fn ops_docs_table(tree: &Tree) -> syn::LitStr {
     let mut docs = DOCS_TABLE_HEADER.to_string();
@@ -920,88 +837,38 @@ fn token_stream_from_items(items: impl IntoIterator<Item = syn::Item>) -> TokenS
 }
 
 #[proc_macro]
-pub fn gen_constraint_op_decls(_input: TokenStream) -> TokenStream {
+pub fn gen_all_op_decls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
-    let items = constraint_op_enum_decls(&tree);
+    let items = all_op_enum_decls(&tree);
     token_stream_from_items(items)
 }
 
 #[proc_macro]
-pub fn gen_constraint_opcode_decls(_input: TokenStream) -> TokenStream {
+pub fn gen_all_opcode_decls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
-    let items = constraint_opcode_enum_decls(&tree);
+    let items = all_opcode_enum_decls(&tree);
     token_stream_from_items(items)
 }
 
 #[proc_macro]
-pub fn gen_constraint_op_bytes_iter(_input: TokenStream) -> TokenStream {
+pub fn gen_all_op_bytes_iter(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
-    let items = constraint_op_enum_bytes_iter(&tree);
+    let items = all_op_enum_bytes_iter(&tree);
     token_stream_from_items(items)
 }
 
 #[proc_macro]
-pub fn gen_constraint_op_impls(_input: TokenStream) -> TokenStream {
+pub fn gen_all_op_impls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
-    let items = constraint_op_enum_impls(&tree);
+    let items = all_op_enum_impls(&tree);
     token_stream_from_items(items)
 }
 
 #[proc_macro]
-pub fn gen_constraint_opcode_impls(_input: TokenStream) -> TokenStream {
+pub fn gen_all_opcode_impls(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
-    let items = constraint_opcode_enum_impls(&tree);
+    let items = all_opcode_enum_impls(&tree);
     token_stream_from_items(items)
-}
-
-#[proc_macro]
-pub fn gen_constraint_op_consts(_input: TokenStream) -> TokenStream {
-    let tree = essential_asm_spec::tree();
-    let items = constraint_op_consts(&tree);
-
-    token_stream_from_items(items)
-}
-
-#[proc_macro]
-pub fn gen_state_read_op_decls(_input: TokenStream) -> TokenStream {
-    let tree = essential_asm_spec::tree();
-    let items = state_read_op_enum_decls(&tree);
-    token_stream_from_items(items)
-}
-
-#[proc_macro]
-pub fn gen_state_read_opcode_decls(_input: TokenStream) -> TokenStream {
-    let tree = essential_asm_spec::tree();
-    let items = state_read_opcode_enum_decls(&tree);
-    token_stream_from_items(items)
-}
-
-#[proc_macro]
-pub fn gen_state_read_op_bytes_iter(_input: TokenStream) -> TokenStream {
-    let tree = essential_asm_spec::tree();
-    let items = state_read_op_enum_bytes_iter(&tree);
-    token_stream_from_items(items)
-}
-
-#[proc_macro]
-pub fn gen_state_read_op_impls(_input: TokenStream) -> TokenStream {
-    let tree = essential_asm_spec::tree();
-    let items = state_read_op_enum_impls(&tree);
-    token_stream_from_items(items)
-}
-
-#[proc_macro]
-pub fn gen_state_read_opcode_impls(_input: TokenStream) -> TokenStream {
-    let tree = essential_asm_spec::tree();
-    let items = state_read_opcode_enum_impls(&tree);
-    token_stream_from_items(items)
-}
-
-#[proc_macro]
-pub fn gen_constraint_ops_docs_table(_input: TokenStream) -> TokenStream {
-    let tree = essential_asm_spec::tree();
-    let lit_str = constraint_ops_docs_table(&tree);
-    lit_str.into_token_stream().into()
 }
 
 #[proc_macro]
@@ -1012,9 +879,9 @@ pub fn gen_ops_docs_table(_input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn gen_state_op_consts(_input: TokenStream) -> TokenStream {
+pub fn gen_all_op_consts(_input: TokenStream) -> TokenStream {
     let tree = essential_asm_spec::tree();
-    let items = state_op_consts(&tree);
+    let items = all_op_consts(&tree);
 
     token_stream_from_items(items)
 }
