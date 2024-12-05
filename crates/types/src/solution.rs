@@ -26,6 +26,8 @@ pub type SolutionIndex = u16;
 /// reads within the [`predicate_to_solve`][Solution::predicate_to_solve].
 pub struct SolutionSet {
     /// The input data for each predicate.
+    // Support deserializing the old `data` name.
+    #[serde(alias = "data")]
     pub solutions: Vec<Solution>,
 }
 
@@ -36,6 +38,8 @@ pub struct Solution {
     /// The predicate that the solution attempts to solve.
     pub predicate_to_solve: PredicateAddress,
     /// The input data required by the predicate.
+    // Support deserializing the old `decision_variables` name.
+    #[serde(alias = "decision_variables")]
     pub predicate_data: Vec<Value>,
     /// The state mutations proposed by the solution.
     pub state_mutations: Vec<Mutation>,
