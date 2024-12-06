@@ -9,7 +9,6 @@ use serde::Serialize;
 use sha2::Digest;
 
 mod address_impl;
-pub mod block_addr;
 pub mod contract_addr;
 pub mod solution_set_addr;
 
