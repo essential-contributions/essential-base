@@ -3,14 +3,8 @@ use essential_types::{
     contract::Contract,
     predicate::{Predicate, Program},
     solution::{Solution, SolutionSet},
-    Block, ContentAddress,
+    ContentAddress,
 };
-
-impl Address for Block {
-    fn content_address(&self) -> ContentAddress {
-        crate::block_addr::from_block(self)
-    }
-}
 
 impl Address for Predicate {
     fn content_address(&self) -> ContentAddress {

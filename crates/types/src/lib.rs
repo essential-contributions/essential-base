@@ -5,7 +5,6 @@
 use ::serde::{Deserialize, Serialize};
 #[doc(inline)]
 pub use contract::Contract;
-use core::time::Duration;
 #[doc(inline)]
 pub use predicate::{Predicate, Program};
 #[cfg(feature = "schema")]
@@ -64,16 +63,4 @@ pub struct PredicateAddress {
     /// This is equal to `essential_hash::content_addr(predicate)` where `predicate`
     /// is a [`&Predicate`][predicate::Predicate].
     pub predicate: ContentAddress,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-/// A protocol block.
-pub struct Block {
-    /// The block number.
-    pub number: Word,
-    /// The timestamp of the block.
-    pub timestamp: Duration,
-    /// The list of solution sets that make up a block.
-    pub solution_sets: Vec<SolutionSet>,
 }
