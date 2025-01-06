@@ -7,17 +7,20 @@ Op:
       group:
         Push:
           opcode: 0x01
+          short: PUSH
           description: Push one word onto the stack.
           num_arg_bytes: 8
           stack_out: [value]
 
         Pop:
           opcode: 0x02
+          short: POP
           description: Pop one word from the stack.
           stack_in: [a]
 
         Dup:
           opcode: 0x03
+          short: DUP
           description: Duplicate the top word on the stack.
           stack_in: [value]
           stack_out: [value, value]
@@ -34,6 +37,7 @@ Op:
 
         Swap:
           opcode: 0x05
+          short: SWAP
           description: Swap top two words on stack.
           stack_in: [a, b]
           stack_out: [b, a]
@@ -133,6 +137,7 @@ Op:
       group:
         Eq:
           opcode: 0x10
+          short: EQ
           description: Check equality of two words.
           stack_in: [lhs, rhs]
           stack_out: ["lhs == rhs"]
@@ -151,42 +156,49 @@ Op:
 
         Gt:
           opcode: 0x12
+          short: GT
           description: Check if left-hand side is greater than right-hand side.
           stack_in: [lhs, rhs]
           stack_out: ["lhs > rhs"]
 
         Lt:
           opcode: 0x13
+          short: LT
           description: Check if left-hand side is less than right-hand side.
           stack_in: [lhs, rhs]
           stack_out: ["lhs < rhs"]
 
         Gte:
           opcode: 0x14
+          short: GTE
           description: Check if left-hand side is greater than or equal to right-hand side.
           stack_in: [lhs, rhs]
           stack_out: ["lhs >= rhs"]
 
         Lte:
           opcode: 0x15
+          short: LTE
           description: Check if left-hand side is less than or equal to right-hand side.
           stack_in: [lhs, rhs]
           stack_out: ["lhs <= rhs"]
 
         And:
           opcode: 0x16
+          short: AND
           description: Logical AND of two words.
           stack_in: [lhs, rhs]
           stack_out: ["lhs && rhs"]
 
         Or:
           opcode: 0x17
+          short: OR
           description: Logical OR of two words.
           stack_in: [lhs, rhs]
           stack_out: ["lhs || rhs"]
 
         Not:
           opcode: 0x18
+          short: NOT
           description: Logical NOT of a word.
           stack_in: [a]
           stack_out: ["!a"]
@@ -225,36 +237,42 @@ Op:
       group:
         Add:
           opcode: 0x20
+          short: ADD
           description: Add two words.
           stack_in: [lhs, rhs]
           stack_out: ["lhs + rhs"]
 
         Sub:
           opcode: 0x21
+          short: SUB
           description: Subtract two words.
           stack_in: [lhs, rhs]
           stack_out: ["lhs - rhs"]
 
         Mul:
           opcode: 0x22
+          short: MUL
           description: Multiply two words.
           stack_in: [lhs, rhs]
           stack_out: ["lhs * rhs"]
 
         Div:
           opcode: 0x23
+          short: DIV
           description: Integer division.
           stack_in: [lhs, rhs]
           stack_out: ["lhs / rhs"]
 
         Mod:
           opcode: 0x24
+          short: MOD
           description: Modulus of lhs by rhs.
           stack_in: [lhs, rhs]
           stack_out: ["lhs % rhs"]
 
         Shl:
           opcode: 0x25
+          short: SHL
           description: Logical shift left by number of bits.
           panics:
             - Number of bits is negative.
@@ -264,6 +282,7 @@ Op:
 
         Shr:
           opcode: 0x26
+          short: SHR
           description: Logical shift right by number of bits.
           panics:
             - Number of bits is negative.
@@ -273,6 +292,7 @@ Op:
 
         ShrI:
           opcode: 0x27
+          short: SHRI
           description: Arithmetic shift right by number of bits.
           panics:
             - Number of bits is negative.
@@ -493,6 +513,7 @@ Op:
 
         Free:
           opcode: 0x71
+          short: FREE
           description: Truncate memory to the specified new length, freeing all that follows.
           panics:
             - The new length is negative.
