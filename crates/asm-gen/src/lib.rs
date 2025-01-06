@@ -68,12 +68,7 @@ fn panic_docs(panic_reasons: &[String]) -> String {
 /// Generate the docstring for an `Op` variant.
 fn op_docs(op: &Op) -> String {
     let arg_docs = bytecode_arg_docs(op.num_arg_bytes);
-    let short_docs = if op.short.is_empty() {
-        String::new()
-    } else {
-        format!(": `{}`", op.short)
-    };
-    let opcode_docs = format!("`0x{:02X}`{}\n\n", op.opcode, short_docs);
+    let opcode_docs = format!("`0x{:02X}`: `{}`\n\n", op.opcode, op.short);
     let desc = &op.description;
     let stack_in_docs = stack_in_docs(&op.stack_in);
     let stack_out_docs = stack_out_docs(&op.stack_out);
@@ -681,11 +676,7 @@ fn op_const_expr(names: &[String], insert_word: bool) -> syn::Expr {
 
 /// Generate the const declarations for the given op.
 fn op_consts(names: &[String], op: &Op) -> Vec<syn::Item> {
-    let const_name = if op.short.is_empty() {
-        syn::Ident::new(&names.last().unwrap().to_uppercase(), Span::call_site())
-    } else {
-        syn::Ident::new(&op.short, Span::call_site())
-    };
+    let const_name = syn::Ident::new(&op.short, Span::call_site());
     let docs = format!("## {}\n\n{}", names.last().unwrap(), op_docs(op));
 
     if op.num_arg_bytes == 0 {
