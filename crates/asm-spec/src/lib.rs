@@ -1,6 +1,7 @@
 //! A small crate that exports the [ASM_YAML] spec string and provides a
 //! structured [Tree] model representing its deserialized form.
 
+use core::fmt;
 use serde::Deserialize;
 
 mod de;
@@ -36,7 +37,6 @@ pub struct Group {
 pub struct Op {
     pub opcode: u8,
     pub description: String,
-    #[serde(default)]
     pub short: String,
     #[serde(default)]
     pub panics: Vec<String>,
@@ -93,6 +93,12 @@ pub fn tree() -> Tree {
         .expect("ASM_YAML is a const and should never fail to deserialize")
 }
 
+impl fmt::Display for Op {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.short)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,6 +138,14 @@ mod tests {
                 op.opcode
             );
             last_opcode = op.opcode;
+        });
+    }
+
+    #[test]
+    fn display_short_name() {
+        let tree = tree();
+        super::visit::ops(&tree, &mut |_name, op| {
+            assert_eq!(format!("{}", op), op.short);
         });
     }
 }
