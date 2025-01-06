@@ -83,6 +83,7 @@ Op:
           short: REP
           description: |
             Repeat a section of code the number of times.
+
             Takes a boolean to either count from 0 up or from the number of repeats down to 0.
           stack_in: [num_repeats, count_up_bool]
 
@@ -90,11 +91,14 @@ Op:
           opcode: 0x0A
           short: REPE
           description: |
-            Increment or decrements the top counter on the repeat stack.
+            Increment or decrement the top counter on the repeat stack.
+
             If the counter is counting up and `counter == limit - 1`
             then this pops the counter and continues with the program.
+
             If the counter is counting down and the counter is 0
             then this pops the counter and continues with the program.
+
             If it is `< limit - 1` or `> 0` respectively then the program jumps to
             the last Repeat
           panics:
@@ -106,6 +110,7 @@ Op:
           short: RES
           description: |
             Reserve space on the stack for `len` words.
+
             The reserved space is set to 0.
           stack_in: [len]
 
@@ -150,6 +155,7 @@ Op:
 
             The ranges must be of equal length.
             The ranges must be stacked sequentially.
+
             Here `N` is `len -1`.
           stack_in: [arr_a_0, ..arr_a_N, arr_b_0, ..arr_b_N, len]
           stack_out: ["(top-(2*len))..(top - len) == (top - len)..top"]
@@ -208,7 +214,9 @@ Op:
           short: EQST
           description: |
             Pop two sets off the stack and check if they are equal.
+
             This is set equality so order does not matter.
+
             Sets must be the same length.
 
             Note the encoding of each set is:
@@ -486,8 +494,7 @@ Op:
           description: |
             Panic if the `condition` is true.
 
-            Returns the stack at the time of the panic
-            in the error message.
+            Returns the stack at the time of the panic in the error message.
           panics:
             - The `condition` is true.
           stack_in: [condition]
