@@ -23,8 +23,8 @@ fn bytecode_arg_docs(num_arg_bytes: u8) -> String {
     );
     let arg_words = num_arg_bytes as usize / WORD_SIZE;
     format!(
-        "## Bytecode Argument\nThis operation expects a {num_arg_bytes}-byte \
-        ({arg_words}-word) argument following its opcode within bytecode."
+        "\n## Bytecode Argument\nThis operation expects a {num_arg_bytes}-byte \
+        ({arg_words}-word) argument following its opcode within bytecode.\n"
     )
 }
 
@@ -33,7 +33,7 @@ fn stack_in_docs(stack_in: &[String]) -> String {
     if stack_in.is_empty() {
         return String::new();
     }
-    format!("## Stack Input\n`[{}]`\n", stack_in.join(", "))
+    format!("\n## Stack Input\n`[{}]`\n", stack_in.join(", "))
 }
 
 /// Generate an Op's stack-output docstring.
@@ -41,11 +41,11 @@ fn stack_out_docs(stack_out: &StackOut) -> String {
     match stack_out {
         StackOut::Fixed(words) if words.is_empty() => String::new(),
         StackOut::Fixed(words) => {
-            format!("## Stack Output\n`[{}]`\n", words.join(", "))
+            format!("\n## Stack Output\n`[{}]`\n", words.join(", "))
         }
         StackOut::Dynamic(out) => {
             format!(
-                "## Stack Output\n`[{}, ...]`\nThe stack output length depends on the \
+                "\n## Stack Output\n`[{}, ...]`\nThe stack output length depends on the \
                 value of the `{}` stack input word.\n",
                 out.elem, out.len
             )
@@ -58,7 +58,7 @@ fn panic_docs(panic_reasons: &[String]) -> String {
     if panic_reasons.is_empty() {
         return String::new();
     }
-    let mut docs = "## Panics\n".to_string();
+    let mut docs = "\n## Panics\n".to_string();
     panic_reasons
         .iter()
         .for_each(|reason| docs.push_str(&format!("- {reason}\n")));
@@ -67,13 +67,19 @@ fn panic_docs(panic_reasons: &[String]) -> String {
 
 /// Generate the docstring for an `Op` variant.
 fn op_docs(op: &Op) -> String {
-    let arg_docs = bytecode_arg_docs(op.num_arg_bytes);
-    let opcode_docs = format!("`0x{:02X}`: `{}`\n\n", op.opcode, op.short);
-    let desc = &op.description;
-    let stack_in_docs = stack_in_docs(&op.stack_in);
-    let stack_out_docs = stack_out_docs(&op.stack_out);
-    let panic_docs = panic_docs(&op.panics);
-    format!("{opcode_docs}\n{desc}\n{arg_docs}\n{stack_in_docs}\n{stack_out_docs}\n{panic_docs}")
+    let arg_docs = bytecode_arg_docs(op.num_arg_bytes).replace("\n", "\n    ");
+    let opcode_docs = format!("    `0x{:02X}`: `{}`\n", op.opcode, op.short);
+    let desc = format!(
+        "\n    {}\n",
+        &op.description
+            .strip_suffix("\n")
+            .unwrap_or(&op.description)
+            .replace("\n", "\n    ")
+    );
+    let stack_in_docs = stack_in_docs(&op.stack_in).replace("\n", "\n    ");
+    let stack_out_docs = stack_out_docs(&op.stack_out).replace("\n", "\n    ");
+    let panic_docs = panic_docs(&op.panics).replace("\n", "\n    ");
+    format!("{opcode_docs}{desc}{arg_docs}{stack_in_docs}{stack_out_docs}{panic_docs}")
 }
 
 /// Generate the docstring for an `Opcode` variant.
@@ -677,7 +683,7 @@ fn op_const_expr(names: &[String], insert_word: bool) -> syn::Expr {
 /// Generate the const declarations for the given op.
 fn op_consts(names: &[String], op: &Op) -> Vec<syn::Item> {
     let const_name = syn::Ident::new(&op.short, Span::call_site());
-    let docs = format!("## {}\n\n{}", names.last().unwrap(), op_docs(op));
+    let docs = format!("\n    ## {}\n\n{}", names.last().unwrap(), op_docs(op));
 
     if op.num_arg_bytes == 0 {
         let full_name = op_const_expr(names, false);

@@ -37,7 +37,6 @@ pub struct Group {
 pub struct Op {
     pub opcode: u8,
     pub description: String,
-    #[serde(default)]
     pub short: String,
     #[serde(default)]
     pub panics: Vec<String>,
