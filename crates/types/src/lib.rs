@@ -45,11 +45,13 @@ pub struct Signature(
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
+#[cfg_attr(feature = "fuzz", derive(proptest_derive::Arbitrary))]
 /// Content address of a predicate or contract.
 pub struct ContentAddress(pub Hash);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
+#[cfg_attr(feature = "fuzz", derive(proptest_derive::Arbitrary))]
 /// Address of a predicate.
 pub struct PredicateAddress {
     /// Content address of the contract with which this predicate was deployed.

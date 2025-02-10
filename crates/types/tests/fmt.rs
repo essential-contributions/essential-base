@@ -1,67 +1,45 @@
 use essential_types::{ContentAddress, Signature};
+use prop::test_runner::FileFailurePersistence;
+use proptest::{prelude::*, test_runner::Config};
 
-#[test]
-fn content_address() {
-    let ca = ContentAddress([
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-        25, 26, 27, 28, 29, 30, 31,
-    ]);
+proptest! {
+    #![proptest_config(Config::with_failure_persistence(FileFailurePersistence::WithSource("regressions")))]
 
-    // `fmt::LowerHex`
-    assert_eq!(
-        &format!("{ca:x}"),
-        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-    );
+    #[test]
+    fn content_address_roundtrip(bytes in prop::array::uniform32(0u8..)) {
+        let ca = ContentAddress(bytes);
 
-    // `fmt::UpperHex`
-    assert_eq!(
-        &format!("{ca:X}"),
-        "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F"
-    );
+        // `fmt::LowerHex`
+        let lower_hex = format!("{ca:x}");
+        // `fmt::UpperHex`
+        let upper_hex = format!("{ca:X}");
+        // `fmt::Display`
+        let display = format!("{ca}");
 
-    // `fmt::Display`
-    let ca_string = format!("{ca}");
-    assert_eq!(
-        &ca_string,
-        "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F"
-    );
+        let parsed: ContentAddress = display.parse().unwrap();
 
-    // `str::FromStr`
-    let ca2: ContentAddress = ca_string.parse().unwrap();
-    assert_eq!(ca, ca2);
-}
+        prop_assert_eq!(parsed, ca);
+        prop_assert_eq!(lower_hex.len(), 64);
+        prop_assert_eq!(upper_hex.len(), 64);
+        prop_assert_eq!(upper_hex.to_lowercase(), lower_hex);
+        }
 
-#[test]
-fn signature() {
-    let sig = Signature(
-        [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-            24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
-            46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-        ],
-        3,
-    );
+    #[test]
+    fn signature_roundtrip(compact_sig in any::<[u8; 64]>(), id in any::<u8>()) {
+        let sig = Signature(compact_sig, id);
 
-    // `fmt::LowerHex`
-    assert_eq!(
-        &format!("{sig:x}"),
-        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f03"
-    );
+        // `fmt::LowerHex`
+        let lower_hex = format!("{sig:x}");
+        // `fmt::UpperHex`
+        let upper_hex = format!("{sig:X}");
+        // `fmt::Display`
+        let display = format!("{sig}");
 
-    // `fmt::UpperHex`
-    assert_eq!(
-        &format!("{sig:X}"),
-        "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F03"
-    );
+        let parsed: Signature = display.parse().unwrap();
 
-    // `fmt::Display`
-    let sig_string = format!("{sig}");
-    assert_eq!(
-        &sig_string,
-        "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F03"
-    );
-
-    // `str::FromStr`
-    let sig2: Signature = sig_string.parse().unwrap();
-    assert_eq!(sig, sig2);
+        prop_assert_eq!(parsed, sig);
+        prop_assert_eq!(lower_hex.len(), 130);
+        prop_assert_eq!(upper_hex.len(), 130);
+        prop_assert_eq!(upper_hex.to_lowercase(), lower_hex);
+    }
 }
