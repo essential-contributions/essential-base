@@ -24,6 +24,8 @@ futures = "0.3" # For `state-read-vm` tests.
 hex = "0.4.3"
 postcard = { version = "1.0.10", features = ["alloc"] }
 proc-macro2 = "1"
+proptest-derive = "0.5.1"
+proptest = "1.6.0"
 quote = "1"
 rand = { version = "0.8", features = ["small_rng"] } # For `vm` tests.
 schemars = "0.8.21"
