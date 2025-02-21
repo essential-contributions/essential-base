@@ -1,7 +1,10 @@
+use essential_hash::hash_bytes;
 use essential_sign::contract::sign;
-use essential_types::{contract::Contract, predicate::Predicate, Signature};
+use essential_types::{contract::Contract, predicate::Predicate};
 use rand::SeedableRng;
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
+
+use essential_sign::sign_message;
 
 fn test_predicate() -> Predicate {
     Predicate::default()
@@ -46,12 +49,15 @@ fn fail_to_recover() {
 }
 
 #[test]
-fn verify_signature() {
-    let (sk, _pk) = random_keypair([0xcd; 32]);
-    let contract = Contract::without_salt(vec![test_predicate()]);
-    let signed = sign(contract, &sk);
-    let mut signed_corrupted = signed.clone();
-    signed_corrupted.signature = Signature([0u8; 64], 0);
-    assert!(essential_sign::contract::verify(&signed).is_ok());
-    assert!(essential_sign::contract::verify(&signed_corrupted).is_err());
+fn verify_pubkey() {
+    let (sk, pk) = random_keypair([0xcd; 32]);
+    let (_sk2, pk2) = random_keypair([0xab; 32]);
+
+    let data = b"Essential";
+    let hash = hash_bytes(data);
+    let msg = Message::from_digest(hash);
+    let signed_message = sign_message(&msg, &sk);
+
+    assert!(essential_sign::verify_message(&msg, &signed_message, &pk).is_ok());
+    assert!(essential_sign::verify_message(&msg, &signed_message, &pk2).is_err());
 }
