@@ -17,7 +17,7 @@
 use essential_types::{Hash, Signature};
 pub use secp256k1;
 use secp256k1::{
-    ecdsa::{RecoverableSignature, RecoveryId},
+    ecdsa::{RecoverableSignature, RecoveryId, Signature as CompactSignature},
     Message, PublicKey, Secp256k1, SecretKey,
 };
 
@@ -33,7 +33,7 @@ pub fn sign_hash(hash: Hash, sk: &SecretKey) -> Signature {
 }
 
 /// Sign directly over the given [`Message`] with secret key using secp256k1 curve.
-fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
+pub fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
     let secp = Secp256k1::new();
     let (rec_id, sig) = secp.sign_ecdsa_recoverable(msg, sk).serialize_compact();
     Signature(sig, i32::from(rec_id).try_into().unwrap())
@@ -45,15 +45,19 @@ fn sign_message(msg: &Message, sk: &SecretKey) -> Signature {
 /// with `verify_message`.
 pub fn verify_hash(hash: Hash, signature: &Signature) -> Result<(), secp256k1::Error> {
     let msg = Message::from_digest(hash);
-    verify_message(&msg, signature)
+    recover_from_message(&msg, signature)?;
+    Ok(())
 }
 
-/// Verify the given message against the given signature.
-fn verify_message(msg: &Message, signature: &Signature) -> Result<(), secp256k1::Error> {
-    let pk = recover_from_message(msg, signature)?;
-    let secp = Secp256k1::new();
-    let sig = secp256k1::ecdsa::Signature::from_compact(&signature.0)?;
-    secp.verify_ecdsa(msg, &sig, &pk)
+/// Verify the given [`PublicKey`] against the message & signature.
+pub fn verify_message(
+    msg: &Message,
+    sig: &Signature,
+    pk: &PublicKey,
+) -> Result<(), secp256k1::Error> {
+    let secp = Secp256k1::verification_only();
+    let compact_sig = CompactSignature::from_compact(&sig.0)?;
+    secp.verify_ecdsa(msg, &compact_sig, pk)
 }
 
 /// Recover the [`PublicKey`] from the signed hash.
