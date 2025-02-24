@@ -34,10 +34,10 @@ impl Vm {
     /// If memory bloat is a concern, consider using the [`Vm::exec_bytecode`]
     /// or [`Vm::exec_bytecode_iter`] methods which allow for providing a more
     /// compact representation of the operations in the form of mapped bytecode.
-    pub async fn exec_ops<'a, S>(
+    pub async fn exec_ops<S>(
         &mut self,
         ops: &[Op],
-        access: Access<'a>,
+        access: Access<'_>,
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -61,10 +61,10 @@ impl Vm {
     /// This can be a more memory efficient alternative to [`Vm::exec_ops`] due
     /// to the compact representation of operations in the form of bytecode and
     /// indices.
-    pub async fn exec_bytecode<'a, S, B>(
+    pub async fn exec_bytecode<S, B>(
         &mut self,
         bytecode_mapped: &BytecodeMapped<B>,
-        access: Access<'a>,
+        access: Access<'_>,
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -90,10 +90,10 @@ impl Vm {
     /// However, successful execution still requires building the full
     /// [`BytecodeMapped`] instance internally. So if bytecode has already been
     /// mapped, [`Vm::exec_bytecode`] should be preferred.
-    pub async fn exec_bytecode_iter<'a, S, I>(
+    pub async fn exec_bytecode_iter<S, I>(
         &mut self,
         bytecode_iter: I,
-        access: Access<'a>,
+        access: Access<'_>,
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -120,9 +120,9 @@ impl Vm {
     /// - [`Vm::exec_ops`]
     /// - [`Vm::exec_bytecode`]
     /// - [`Vm::exec_bytecode_iter`]
-    pub async fn exec<'a, S, OA>(
+    pub async fn exec<S, OA>(
         &mut self,
-        access: Access<'a>,
+        access: Access<'_>,
         state_read: &S,
         op_access: OA,
         op_gas_cost: &impl OpGasCost,
