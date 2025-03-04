@@ -238,6 +238,7 @@ pub fn step_op_stack(
         return Ok(repeat.repeat()?.map(ProgramControlFlow::Pc));
     }
     let r = match op {
+        asm::Stack::Drop => stack.pop_len_words(|_| Ok(())),
         asm::Stack::Dup => stack.pop1_push2(|w| Ok([w, w])),
         asm::Stack::DupFrom => stack.dup_from().map_err(From::from),
         asm::Stack::Push(word) => stack.push(word).map_err(From::from),

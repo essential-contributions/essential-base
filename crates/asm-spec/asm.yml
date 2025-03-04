@@ -129,6 +129,12 @@ Op:
           panics:
             - Index is out of range.
           stack_in: [value, index]
+        
+        Drop:
+          opcode: 0x0E
+          short: DROP
+          description: Drop the top `n` elements from the stack.
+          stack_in: [n]
 
     Pred:
       description: Operations for computing predicates.
