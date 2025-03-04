@@ -13,10 +13,10 @@ fn setup_stack(values: &[Word]) -> Stack {
 fn test_reserve_zeroed_success() {
     let mut stack = setup_stack(&[3]); // Push length 3
     assert!(stack.reserve_zeroed().is_ok());
-    assert_eq!(stack.0, vec![0, 0, 0]);
+    assert_eq!(stack.0, vec![0, 0, 0, 0]);
     stack.push(2).unwrap(); // Push length 2
     assert!(stack.reserve_zeroed().is_ok());
-    assert_eq!(stack.0, vec![0, 0, 0, 0, 0]);
+    assert_eq!(stack.0, vec![0, 0, 0, 0, 0, 0, 4]);
 }
 
 #[test]
@@ -44,6 +44,13 @@ fn test_reserve_zeroed_exceeds_size_limit() {
         stack.reserve_zeroed().unwrap_err(),
         StackError::IndexOutOfBounds
     ));
+}
+
+#[test]
+fn test_reserve_zero_gives_stack_len() {
+    let mut stack = setup_stack(&[1, 2, 3, 0]); // Push length 3
+    assert!(stack.reserve_zeroed().is_ok());
+    assert_eq!(stack.0, vec![1, 2, 3, 3]);
 }
 
 #[test]

@@ -103,7 +103,9 @@ Op:
           description: |
             Reserve space on the stack for `len` words.
             The reserved space is set to 0.
+            Returns the index to the start of the reserved space.
           stack_in: [len]
+          stack_out: [index]
 
         Load:
           opcode: 0x0C

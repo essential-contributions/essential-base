@@ -45,11 +45,14 @@ impl Stack {
     pub(crate) fn reserve_zeroed(&mut self) -> StackResult<()> {
         let len = self.pop()?;
         let len = usize::try_from(len).map_err(|_| StackError::IndexOutOfBounds)?;
-        let new_len = self.len().saturating_add(len);
+        let start = self.len();
+        let new_len = start.saturating_add(len);
         if new_len > Self::SIZE_LIMIT {
             return Err(StackError::IndexOutOfBounds);
         }
         self.0.resize(new_len, 0);
+        let start = Word::try_from(start).map_err(|_| StackError::IndexOutOfBounds)?;
+        self.push(start)?;
         Ok(())
     }
 
