@@ -151,7 +151,7 @@ fn test_fold_filter_in_asm() {
         asm::Stack::Push(0).into(),
         asm::Pred::Eq.into(),
         asm::Pred::Not.into(),
-        asm::TotalControlFlow::JumpForwardIf.into(),
+        asm::TotalControlFlow::JumpIf.into(),
         // acc.push(list[0]);
         asm::Stack::Push(1).into(),
         asm::Stack::Push(1).into(),
@@ -172,7 +172,7 @@ fn test_fold_filter_in_asm() {
         asm::Stack::Push(0).into(),
         asm::Pred::Eq.into(),
         asm::Pred::Not.into(),
-        asm::TotalControlFlow::JumpForwardIf.into(),
+        asm::TotalControlFlow::JumpIf.into(),
         // acc.push(list[1]);
         asm::Stack::Push(2).into(),
         asm::Stack::Push(1).into(),
@@ -193,7 +193,7 @@ fn test_fold_filter_in_asm() {
         asm::Stack::Push(0).into(),
         asm::Pred::Eq.into(),
         asm::Pred::Not.into(),
-        asm::TotalControlFlow::JumpForwardIf.into(),
+        asm::TotalControlFlow::JumpIf.into(),
         // acc.push(list[2]);
         asm::Stack::Push(3).into(),
         asm::Stack::Push(1).into(),

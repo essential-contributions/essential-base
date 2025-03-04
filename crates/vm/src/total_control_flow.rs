@@ -17,16 +17,22 @@ pub enum ProgramControlFlow {
     Halt,
 }
 
-pub fn jump_forward_if(stack: &mut Stack, pc: usize) -> OpSyncResult<Option<ProgramControlFlow>> {
+pub fn jump_if(stack: &mut Stack, pc: usize) -> OpSyncResult<Option<ProgramControlFlow>> {
     let [dist, cond] = stack.pop2()?;
     let cond = bool_from_word(cond).ok_or(TotalControlFlowError::InvalidJumpForwardIfCondition)?;
     if cond {
-        let dist = usize::try_from(dist).map_err(|_| StackError::IndexOutOfBounds)?;
+        let neg = dist < 0;
+        let dist = usize::try_from(dist.abs()).map_err(|_| StackError::IndexOutOfBounds)?;
         if dist == 0 {
             return Err(TotalControlFlowError::JumpedToSelf.into());
         }
-        let pc = pc.checked_add(dist).ok_or(OpSyncError::PcOverflow)?;
-        Ok(Some(ProgramControlFlow::Pc(pc)))
+        if neg {
+            let pc = pc.checked_sub(dist).ok_or(OpSyncError::PcOverflow)?;
+            Ok(Some(ProgramControlFlow::Pc(pc)))
+        } else {
+            let pc = pc.checked_add(dist).ok_or(OpSyncError::PcOverflow)?;
+            Ok(Some(ProgramControlFlow::Pc(pc)))
+        }
     } else {
         Ok(None)
     }

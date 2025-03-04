@@ -262,7 +262,7 @@ pub fn step_op_total_control_flow(
     pc: usize,
 ) -> OpSyncResult<Option<ProgramControlFlow>> {
     match op {
-        asm::TotalControlFlow::JumpForwardIf => total_control_flow::jump_forward_if(stack, pc),
+        asm::TotalControlFlow::JumpIf => total_control_flow::jump_if(stack, pc),
         asm::TotalControlFlow::HaltIf => total_control_flow::halt_if(stack),
         asm::TotalControlFlow::Halt => Ok(Some(ProgramControlFlow::Halt)),
         asm::TotalControlFlow::PanicIf => total_control_flow::panic_if(stack).map(|_| None),

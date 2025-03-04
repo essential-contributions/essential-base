@@ -453,12 +453,11 @@ Op:
           description: Halt the program if the value is true.
           stack_in: [value]
 
-        JumpForwardIf:
+        JumpIf:
           opcode: 0x62
           short: JMPIF
-          description: Jump forward the given number of instructions if the value is true.
+          description: Jump the given number of instructions if the value is true.
           panics:
-            - The jump is negative.
             - The jump distance is zero.
           stack_in: [n_instruction, condition]
 
