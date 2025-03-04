@@ -83,8 +83,8 @@ fn test_load_out_of_bounds() {
 #[test]
 fn test_store_success() {
     let mut stack = setup_stack(&[1, 2, 3]);
-    stack.push(1).unwrap(); // Index to store at
     stack.push(99).unwrap(); // Value to store
+    stack.push(1).unwrap(); // Index to store at
     assert!(stack.store().is_ok());
     assert_eq!(stack.0, vec![1, 99, 3]);
 }

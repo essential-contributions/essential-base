@@ -126,7 +126,7 @@ Op:
             `0` is the index of the element at the bottom of the stack.
           panics:
             - Index is out of range.
-          stack_in: [index, value]
+          stack_in: [value, index]
 
     Pred:
       description: Operations for computing predicates.
@@ -514,7 +514,7 @@ Op:
           description: Store the value at the given index within memory.
           panics:
             - Index is out of bounds.
-          stack_in: [index, value]
+          stack_in: [value, index]
 
         LoadRange:
           opcode: 0x74
@@ -533,7 +533,7 @@ Op:
           panics:
             - Index is out of bounds.
             - Index + len is out of bounds.
-          stack_in: [index, values, len]
+          stack_in: [values, len, index]
 
     StateRead:
       description: Operations related to reading state.

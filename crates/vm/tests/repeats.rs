@@ -91,31 +91,31 @@ fn test_fold_filter_in_asm() {
     // };
     let ops = &[
         // tmp acc: int = 0;
+        asm::Stack::Push(0).into(),
         asm::Stack::Push(1).into(),
         asm::Memory::Alloc.into(),
-        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // for i in 0..3 unrolled
         // acc += list[0];
         asm::Stack::Push(0).into(),
-        asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
+        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // acc += list[1];
-        asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
         asm::Stack::Push(2).into(),
         asm::Alu::Add.into(),
+        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // acc += list[2];
-        asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
         asm::Stack::Push(3).into(),
         asm::Alu::Add.into(),
+        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // sum == acc;
         asm::Stack::Push(6).into(),
@@ -138,9 +138,9 @@ fn test_fold_filter_in_asm() {
     // }
     let ops = &[
         // tmp count: int = 0;
+        asm::Stack::Push(0).into(),
         asm::Stack::Push(1).into(),
         asm::Memory::Alloc.into(),
-        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // for i in 0..3 unrolled
         // if list[0] % 2 == 0
@@ -154,15 +154,15 @@ fn test_fold_filter_in_asm() {
         asm::TotalControlFlow::JumpForwardIf.into(),
         // acc.push(list[0]);
         asm::Stack::Push(1).into(),
-        asm::Memory::Alloc.into(),
         asm::Stack::Push(1).into(),
+        asm::Memory::Alloc.into(),
         asm::Memory::Store.into(),
         // count += 1;
-        asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
+        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // if list[1] % 2 == 0
         asm::Stack::Push(11).into(), // Num to jump
@@ -174,16 +174,16 @@ fn test_fold_filter_in_asm() {
         asm::Pred::Not.into(),
         asm::TotalControlFlow::JumpForwardIf.into(),
         // acc.push(list[1]);
+        asm::Stack::Push(2).into(),
         asm::Stack::Push(1).into(),
         asm::Memory::Alloc.into(),
-        asm::Stack::Push(2).into(),
         asm::Memory::Store.into(),
         // count += 1;
-        asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
+        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // if list[2] % 2 == 0
         asm::Stack::Push(11).into(), // Num to jump
@@ -195,16 +195,16 @@ fn test_fold_filter_in_asm() {
         asm::Pred::Not.into(),
         asm::TotalControlFlow::JumpForwardIf.into(),
         // acc.push(list[2]);
+        asm::Stack::Push(3).into(),
         asm::Stack::Push(1).into(),
         asm::Memory::Alloc.into(),
-        asm::Stack::Push(3).into(),
         asm::Memory::Store.into(),
         // count += 1;
-        asm::Stack::Push(0).into(),
         asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
+        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         // count == 1 && even == acc;
         asm::Stack::Push(0).into(),

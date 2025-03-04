@@ -67,7 +67,7 @@ impl Stack {
 
     /// Store a word at the given index.
     pub(crate) fn store(&mut self) -> StackResult<()> {
-        let [ix, word] = self.pop2()?;
+        let [word, ix] = self.pop2()?;
         let ix = usize::try_from(ix).map_err(|_| StackError::IndexOutOfBounds)?;
         let Some(w) = self.0.get_mut(ix) else {
             return Err(StackError::IndexOutOfBounds);

@@ -591,8 +591,8 @@ fn test_memory_alloc_store_load_ops() {
         asm::Stack::Push(5).into(),
         asm::Memory::Alloc.into(),
         asm::Stack::Pop.into(),
-        asm::Stack::Push(0).into(),
         asm::Stack::Push(42).into(),
+        asm::Stack::Push(0).into(),
         asm::Memory::Store.into(),
         asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
@@ -607,11 +607,11 @@ fn test_memory_store_load_range_ops() {
         asm::Stack::Push(5).into(),
         asm::Memory::Alloc.into(),
         asm::Stack::Pop.into(),
-        asm::Stack::Push(0).into(), // addr
         asm::Stack::Push(1).into(), // values (pushed in order)
         asm::Stack::Push(2).into(),
         asm::Stack::Push(3).into(),
         asm::Stack::Push(3).into(), // len
+        asm::Stack::Push(0).into(), // addr
         asm::Memory::StoreRange.into(),
         asm::Stack::Push(0).into(), // addr
         asm::Stack::Push(3).into(), // len
@@ -645,9 +645,9 @@ fn test_memory_store_range_bug_ops() {
         asm::Stack::Push(5).into(),
         asm::Memory::Alloc.into(),
         asm::Stack::Pop.into(),
-        asm::Stack::Push(2).into(),  // addr
         asm::Stack::Push(99).into(), // value
         asm::Stack::Push(1).into(),  // len
+        asm::Stack::Push(2).into(),  // addr
         asm::Memory::StoreRange.into(),
         asm::Stack::Push(2).into(), // addr
         asm::Memory::Load.into(),
@@ -677,10 +677,10 @@ fn test_memory_store_range_invalid_address_ops() {
         asm::Stack::Push(3).into(),
         asm::Memory::Alloc.into(),
         asm::Stack::Pop.into(),
-        asm::Stack::Push(2).into(), // addr (only one slot left)
         asm::Stack::Push(2).into(), // len
         asm::Stack::Push(1).into(), // values
         asm::Stack::Push(2).into(),
+        asm::Stack::Push(2).into(), // addr (only one slot left)
         asm::Memory::StoreRange.into(),
     ];
     let result = exec_ops(ops, *test_access());
@@ -770,13 +770,13 @@ fn test_memory_load_store_range_with_ops() {
         asm::Stack::Push(10).into(),
         asm::Memory::Alloc.into(),
         asm::Stack::Pop.into(),
-        asm::Stack::Push(5).into(), // addr
         asm::Stack::Push(1).into(), // values
         asm::Stack::Push(2).into(),
         asm::Stack::Push(3).into(),
         asm::Stack::Push(4).into(),
         asm::Stack::Push(5).into(),
         asm::Stack::Push(5).into(), // len
+        asm::Stack::Push(5).into(), // addr
         asm::Memory::StoreRange.into(),
         asm::Stack::Push(5).into(), // addr
         asm::Stack::Push(5).into(), // len

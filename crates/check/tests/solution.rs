@@ -225,15 +225,15 @@ async fn predicate_graph_memory_passing() {
     // Store `[1, 2, 3]` at the start of memory.
     let a = Program(
         asm::to_bytes([
+            PUSH(1),
             PUSH(3),
             ALOC,
-            PUSH(1),
-            STO,
-            PUSH(1),
-            PUSH(2),
             STO,
             PUSH(2),
+            PUSH(1),
+            STO,
             PUSH(3),
+            PUSH(2),
             STO,
             HLT,
         ])
@@ -242,15 +242,15 @@ async fn predicate_graph_memory_passing() {
     // Store `[4, 5, 6]` at the start of memory.
     let b = Program(
         asm::to_bytes([
+            PUSH(4),
             PUSH(3),
             ALOC,
-            PUSH(4),
             STO,
-            PUSH(1),
             PUSH(5),
+            PUSH(1),
             STO,
-            PUSH(2),
             PUSH(6),
+            PUSH(2),
             STO,
             HLT,
         ])
