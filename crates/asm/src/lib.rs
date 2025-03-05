@@ -270,4 +270,10 @@ mod tests {
             _ => panic!("unexpected error variant"),
         }
     }
+
+    #[test]
+    fn display_short_name() {
+        let op = opcode::Stack::Push;
+        assert_eq!(format!("{}", op), op.short);
+    }
 }
