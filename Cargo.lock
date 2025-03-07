@@ -405,7 +405,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "essential-asm"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "bitflags",
  "essential-asm-gen",
@@ -415,7 +415,7 @@ dependencies = [
 
 [[package]]
 name = "essential-asm-gen"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "essential-asm-spec",
  "essential-types",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "essential-asm-spec"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "serde",
  "serde_yaml",
@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "essential-check"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "criterion",
  "essential-hash",
@@ -487,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "essential-vm"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "criterion",
  "ed25519-dalek",
