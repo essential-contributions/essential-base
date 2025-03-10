@@ -61,8 +61,11 @@ pub enum OpError<E = Infallible> {
     #[error("total control flow operation error: {0}")]
     TotalControlFlow(#[from] TotalControlFlowError),
     /// An error occurred during a `Memory` operation.
-    #[error("temporary operation error: {0}")]
+    #[error("memory operation error: {0}")]
     Memory(#[from] MemoryError),
+    /// An error occurred during a `ParentMemory` operation.
+    #[error("parent memory operation error: {0}")]
+    ParentMemory(#[from] ParentMemoryError),
     /// Pc counter overflowed.
     #[error("PC counter overflowed")]
     PcOverflow,
@@ -323,6 +326,17 @@ pub enum MemoryError {
     Overflow,
 }
 
+/// Parent memory operation error.
+#[derive(Debug, Error)]
+pub enum ParentMemoryError {
+    /// Attempted to access parent memory outside of a `Compute` context.
+    #[error("Attempted to access parent memory outside of a `Compute` context")]
+    NoParent,
+    /// A memory access error occurred.
+    #[error("A memory access error occurred: {0}")]
+    Memory(#[from] MemoryError),
+}
+
 /// Decode error.
 #[derive(Debug, Error)]
 pub enum DecodeError {
@@ -370,6 +384,7 @@ impl<E> OpError<E> {
                 OpError::TotalControlFlow(total_control_flow_error)
             }
             OpError::Memory(memory_error) => OpError::Memory(memory_error),
+            OpError::ParentMemory(memory_error) => OpError::ParentMemory(memory_error),
             OpError::PcOverflow => OpError::PcOverflow,
             OpError::Decode(decode_error) => OpError::Decode(decode_error),
             OpError::Encode(encode_error) => OpError::Encode(encode_error),

@@ -542,6 +542,30 @@ Op:
             - Index + len is out of bounds.
           stack_in: [values, len, index]
 
+    ParentMemory:
+      description: Operations for reading parent memory from within a compute context.
+      group:
+        Load:
+          opcode: 0x7A
+          short: PLOD
+          description: Load the value at the given index from parent memory onto the stack.
+          panics:
+            - Not in compute context.
+            - Index is out of bounds.
+          stack_in: [index]
+          stack_out: [value]
+
+        LoadRange:
+          opcode: 0x7B
+          short: PLODR
+          description: Load a range of words starting at the index within parent memory.
+          panics:
+            - Not in compute context.
+            - Index is out of bounds.
+            - Index + len is out of bounds.
+          stack_in: [index, len]
+          stack_out: [values]
+
     StateRead:
       description: Operations related to reading state.
       group:

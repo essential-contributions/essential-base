@@ -367,7 +367,7 @@ fn test_store_range_after_free() {
 
 #[test]
 fn test_load_range_empty_memory() {
-    let mut memory = Memory::new();
+    let memory = Memory::new();
 
     // Trying to load from empty memory should fail
     assert!(matches!(
