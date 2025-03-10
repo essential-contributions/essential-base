@@ -129,7 +129,7 @@ Op:
           panics:
             - Index is out of range.
           stack_in: [value, index]
-        
+
         Drop:
           opcode: 0x0E
           short: DROP
@@ -579,3 +579,18 @@ Op:
             `[a_addr, a_len, b_addr, b_len, a_value, b_value]`
           stack_in:
             [ext_w0, ext_w1, ext_w2, ext_w3, key_w0, ...key_wN, key_len, num_keys_to_read, mem_addr]
+
+    Compute:
+      description: Operations related to VM compute execution.
+      group:
+        Compute:
+          opcode: 0x90
+          short: CMPT
+          description: |
+            Hand off execution to compute threads until Halt operation is encountered.
+
+            The computes read from a shared memory and write to their local memories, which are conciled on thread join.
+          panics:
+            - Recursion limit (1) is reached.
+          stack_in: [n_computes]
+          stack_out: [compute_index]
