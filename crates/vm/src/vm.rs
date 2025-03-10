@@ -5,6 +5,7 @@ use crate::{
     future, Access, BytecodeMapped, BytecodeMappedLazy, Gas, GasLimit, LazyCache, Memory, Op,
     OpAccess, OpGasCost, Repeat, Stack, StateRead,
 };
+use std::sync::Arc;
 
 /// The operation execution state of the VM.
 #[derive(Debug, Default, PartialEq)]
@@ -15,6 +16,13 @@ pub struct Vm {
     pub stack: Stack,
     /// The memory for temporary storage of words.
     pub memory: Memory,
+    /// The stack of parent `Memory`s.
+    ///
+    /// This is empty at the beginning of execution, but is pushed to each time
+    /// we enter a [`Compute`] op context with the parent's `Memory`.
+    ///
+    /// This can also be used to observe the `Compute` op depth.
+    pub parent_memory: Vec<Arc<Memory>>,
     /// The repeat stack.
     pub repeat: Repeat,
     /// Lazily cached data for the VM.
