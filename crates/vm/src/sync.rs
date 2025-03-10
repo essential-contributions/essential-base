@@ -57,7 +57,6 @@ where
     let mut vm = Vm::default();
     while let Some(res) = op_access.op_access(vm.pc) {
         let op = res.map_err(|err| ExecError(vm.pc, err.into()))?;
-
         let res = step_op(access, op, &mut vm, state);
 
         #[cfg(feature = "tracing")]
