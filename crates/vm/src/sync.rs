@@ -4,11 +4,13 @@ use crate::{
     access, alu, asm, crypto,
     error::{
         EvalSyncError, EvalSyncResult, ExecSyncError, ExecSyncResult, OpSyncError, OpSyncResult,
+        ParentMemoryError,
     },
     pred, repeat, total_control_flow,
     types::convert::bool_from_word,
     Access, LazyCache, Memory, OpAccess, OpSync, ProgramControlFlow, Repeat, Stack, Vm,
 };
+use std::sync::Arc;
 
 impl From<asm::Access> for OpSync {
     fn from(op: asm::Access) -> Self {
@@ -89,12 +91,21 @@ where
     let mut pc = 0;
     let mut stack = Stack::default();
     let mut memory = Memory::new();
+    let parent_memory = &[];
     let mut repeat = Repeat::new();
     let cache = LazyCache::new();
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ExecSyncError(pc, err.into()))?;
-
-        let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat, &cache);
+        let res = step_op(
+            access,
+            op,
+            &mut stack,
+            &mut memory,
+            parent_memory,
+            pc,
+            &mut repeat,
+            &cache,
+        );
 
         #[cfg(feature = "tracing")]
         crate::trace_op_res(&mut op_access, pc, &stack, &memory, res.as_ref());
@@ -123,10 +134,11 @@ pub fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncResult<Opt
         repeat,
         pc,
         memory,
+        parent_memory,
         cache,
         ..
     } = vm;
-    match step_op(access, op, stack, memory, *pc, repeat, cache)? {
+    match step_op(access, op, stack, memory, parent_memory, *pc, repeat, cache)? {
         Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
         Some(ProgramControlFlow::Halt) => return Ok(None),
         None => (),
@@ -142,6 +154,7 @@ pub fn step_op(
     op: OpSync,
     stack: &mut Stack,
     memory: &mut Memory,
+    parent_memory: &[Arc<Memory>],
     pc: usize,
     repeat: &mut Repeat,
     cache: &LazyCache,
@@ -154,6 +167,7 @@ pub fn step_op(
         OpSync::Stack(op) => step_op_stack(op, pc, stack, repeat),
         OpSync::ControlFlow(op) => step_op_total_control_flow(op, stack, pc),
         OpSync::Memory(op) => step_op_memory(op, stack, memory).map(|_| None),
+        OpSync::ParentMemory(op) => step_op_parent_memory(op, stack, parent_memory).map(|_| None),
     }
 }
 
@@ -305,6 +319,28 @@ pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -
                 Ok::<_, OpSyncError>(())
             })?;
             Ok(())
+        }
+    }
+}
+
+/// Step forward execution by the given parent memory operation.
+pub fn step_op_parent_memory(
+    op: asm::ParentMemory,
+    stack: &mut Stack,
+    parent_memory: &[Arc<Memory>],
+) -> OpSyncResult<()> {
+    let Some(memory) = parent_memory.last() else {
+        return Err(ParentMemoryError::NoParent.into());
+    };
+    match op {
+        asm::ParentMemory::Load => stack.pop1_push1(|addr| {
+            let w = memory.load(addr)?;
+            Ok(w)
+        }),
+        asm::ParentMemory::LoadRange => {
+            let [addr, size] = stack.pop2()?;
+            let words = memory.load_range(addr, size)?;
+            Ok(stack.extend(words)?)
         }
     }
 }
