@@ -88,40 +88,26 @@ where
     OA: OpAccess<Op = OpSync>,
     OA::Error: Into<OpSyncError>,
 {
-    let mut pc = 0;
-    let mut stack = Stack::default();
-    let mut memory = Memory::new();
-    let parent_memory = &[];
-    let mut repeat = Repeat::new();
-    let cache = LazyCache::new();
-    while let Some(res) = op_access.op_access(pc) {
-        let op = res.map_err(|err| ExecSyncError(pc, err.into()))?;
-        let res = step_op(
-            access,
-            op,
-            &mut stack,
-            &mut memory,
-            parent_memory,
-            pc,
-            &mut repeat,
-            &cache,
-        );
+    let mut vm = Vm::default();
+    while let Some(res) = op_access.op_access(vm.pc) {
+        let op = res.map_err(|err| ExecSyncError(vm.pc, err.into()))?;
+        let res = step_op(op, access, &mut vm);
 
         #[cfg(feature = "tracing")]
-        crate::trace_op_res(&mut op_access, pc, &stack, &memory, res.as_ref());
+        crate::trace_op_res(&mut op_access, vm.pc, &vm.stack, &vm.memory, res.as_ref());
 
         let update = match res {
             Ok(update) => update,
-            Err(err) => return Err(ExecSyncError(pc, err)),
+            Err(err) => return Err(ExecSyncError(vm.pc, err)),
         };
 
         match update {
-            Some(ProgramControlFlow::Pc(new_pc)) => pc = new_pc,
+            Some(ProgramControlFlow::Pc(new_pc)) => vm.pc = new_pc,
             Some(ProgramControlFlow::Halt) => break,
-            None => pc += 1,
+            None => vm.pc += 1,
         }
     }
-    Ok(stack)
+    Ok(vm.stack)
 }
 
 /// Step forward the VM by a single synchronous operation.
@@ -129,16 +115,7 @@ where
 /// Returns a `Some(usize)` representing the new program counter resulting from
 /// this step, or `None` in the case that execution has halted.
 pub fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncResult<Option<usize>> {
-    let Vm {
-        stack,
-        repeat,
-        pc,
-        memory,
-        parent_memory,
-        cache,
-        ..
-    } = vm;
-    match step_op(access, op, stack, memory, parent_memory, *pc, repeat, cache)? {
+    match step_op(op, access, vm)? {
         Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
         Some(ProgramControlFlow::Halt) => return Ok(None),
         None => (),
@@ -150,22 +127,25 @@ pub fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncResult<Opt
 
 /// Step forward execution by the given synchronous operation.
 pub fn step_op(
-    access: Access,
     op: OpSync,
-    stack: &mut Stack,
-    memory: &mut Memory,
-    parent_memory: &[Arc<Memory>],
-    pc: usize,
-    repeat: &mut Repeat,
-    cache: &LazyCache,
+    access: Access,
+    vm: &mut Vm,
 ) -> OpSyncResult<Option<ProgramControlFlow>> {
+    let Vm {
+        stack,
+        repeat,
+        pc,
+        memory,
+        parent_memory,
+        cache,
+    } = vm;
     match op {
         OpSync::Access(op) => step_op_access(access, op, stack, repeat, cache).map(|_| None),
         OpSync::Alu(op) => step_op_alu(op, stack).map(|_| None),
         OpSync::Crypto(op) => step_op_crypto(op, stack).map(|_| None),
         OpSync::Pred(op) => step_op_pred(op, stack).map(|_| None),
-        OpSync::Stack(op) => step_op_stack(op, pc, stack, repeat),
-        OpSync::ControlFlow(op) => step_op_total_control_flow(op, stack, pc),
+        OpSync::Stack(op) => step_op_stack(op, *pc, stack, repeat),
+        OpSync::ControlFlow(op) => step_op_total_control_flow(op, stack, *pc),
         OpSync::Memory(op) => step_op_memory(op, stack, memory).map(|_| None),
         OpSync::ParentMemory(op) => step_op_parent_memory(op, stack, parent_memory).map(|_| None),
     }
