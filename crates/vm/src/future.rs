@@ -1,5 +1,6 @@
 use crate::{
     asm::{self, Op},
+    compute::{self, ComputeFuture},
     error::{ExecError, OpAsyncError, OpAsyncResult, OpError, OutOfGasError},
     state_read::{self, StateReadFuture},
     sync::step_op_sync,
@@ -112,6 +113,8 @@ where
 {
     /// The async `StateRead::WordRange` (or `WordRangeExtern`) operation future.
     StateRead(StateReadFuture<'a, S>),
+    /// The async `Compute::Compute` operation future.
+    Compute(ComputeFuture<S>),
 }
 
 impl From<GasLimit> for GasExec {
@@ -133,13 +136,16 @@ where
     fn from(future: StepOpAsyncFuture<'a, S>) -> Self {
         match future {
             StepOpAsyncFuture::StateRead(future) => future.vm,
+            _ => {
+                panic!("no other op stores &mut Vm")
+            }
         }
     }
 }
 
 impl<'a, S, OA, OG> Future for ExecFuture<'a, S, OA, OG>
 where
-    S: StateRead,
+    S: StateRead + Unpin,
     OA: OpAccess<Op = Op> + Unpin,
     OG: OpGasCost,
     OA::Error: Into<OpError<S::Error>>,
@@ -284,10 +290,17 @@ where
     S: StateRead,
 {
     // Future returns a result with the new program counter.
-    type Output = OpAsyncResult<usize, S::Error>;
+    type Output = OpAsyncResult<usize, OpAsyncError<S::Error>>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let (prev_pc, res) = match *self {
             Self::StateRead(ref mut future) => {
+                let pc = future.vm.pc;
+                match Pin::new(future).poll(cx) {
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(res) => (pc, res),
+                }
+            }
+            Self::Compute(ref mut future) => {
                 let pc = future.vm.pc;
                 match Pin::new(future).poll(cx) {
                     Poll::Pending => return Poll::Pending,
@@ -341,14 +354,22 @@ where
     S: StateRead,
 {
     match op {
-        OpAsync(asm::StateRead::KeyRange) => {
-            let future = state_read::key_range(state_read, &contract_addr, &mut *vm)?;
-            Ok(StepOpAsyncFuture::StateRead(future))
-        }
-        OpAsync(asm::StateRead::KeyRangeExtern) => {
-            let future = state_read::key_range_ext(state_read, &mut *vm)?;
-            Ok(StepOpAsyncFuture::StateRead(future))
-        }
+        OpAsync::StateRead(op) => match op {
+            asm::StateRead::KeyRange => {
+                let future = state_read::key_range(state_read, &contract_addr, &mut *vm)?;
+                Ok(StepOpAsyncFuture::StateRead(future))
+            }
+            asm::StateRead::KeyRangeExtern => {
+                let future = state_read::key_range_ext(state_read, &mut *vm)?;
+                Ok(StepOpAsyncFuture::StateRead(future))
+            }
+        },
+        OpAsync::Compute(op) => match op {
+            asm::Compute::Compute => {
+                let future = compute::compute()?;
+                Ok(StepOpAsyncFuture::Compute(future))
+            }
+        },
     }
 }
 

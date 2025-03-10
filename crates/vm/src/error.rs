@@ -6,6 +6,7 @@ use crate::{
     Gas,
 };
 use thiserror::Error;
+use tokio::task::JoinError;
 
 /// Shorthand for a `Result` where the error type is a `ExecError`.
 pub type ExecResult<T, E> = Result<T, ExecError<E>>;
@@ -100,6 +101,9 @@ pub enum OpAsyncError<E> {
     /// The next program counter would overflow.
     #[error("the next program counter would overflow")]
     PcOverflow,
+    /// An error occurred during `Compute` operation.
+    #[error("compute error: {0}")]
+    Compute(#[from] ComputeError),
 }
 
 /// A synchronous operation failed.
@@ -369,6 +373,18 @@ pub enum EncodeError {
     /// Encoding item failed because it was too large.
     #[error("item length too large: {0}")]
     ItemLengthTooLarge(usize),
+}
+
+/// Shorthand for a `Result` where the error type is a `ComputeError`.
+pub type ComputeResult<T> = Result<T, ComputeError>;
+
+/// Compute operation error.
+#[derive(Debug, Error)]
+pub enum ComputeError {
+    #[error("placeholder error")]
+    Placeholder,
+    #[error("join set error: {0}")]
+    Join(JoinError),
 }
 
 impl From<core::convert::Infallible> for OpSyncError {
