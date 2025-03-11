@@ -58,6 +58,6 @@ fn verify_pubkey() {
     let msg = Message::from_digest(hash);
     let signed_message = sign_message(&msg, &sk);
 
-    assert!(essential_sign::verify_message(&msg, &signed_message, &pk).is_ok());
-    assert!(essential_sign::verify_message(&msg, &signed_message, &pk2).is_err());
+    assert!(essential_sign::verify_message(&msg, &signed_message.0, &pk).is_ok());
+    assert!(essential_sign::verify_message(&msg, &signed_message.0, &pk2).is_err());
 }
