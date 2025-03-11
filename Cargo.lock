@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "essential-check"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "criterion",
  "essential-hash",
@@ -467,7 +467,7 @@ version = "0.1.0"
 
 [[package]]
 name = "essential-sign"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "essential-hash",
  "essential-types",
