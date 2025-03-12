@@ -52,11 +52,11 @@ pub fn verify_hash(hash: Hash, signature: &Signature) -> Result<(), secp256k1::E
 /// Verify the given [`PublicKey`] against the message & signature.
 pub fn verify_message(
     msg: &Message,
-    sig: &Signature,
+    sig_bytes: &[u8; 64],
     pk: &PublicKey,
 ) -> Result<(), secp256k1::Error> {
     let secp = Secp256k1::verification_only();
-    let compact_sig = CompactSignature::from_compact(&sig.0)?;
+    let compact_sig = CompactSignature::from_compact(sig_bytes)?;
     secp.verify_ecdsa(msg, &compact_sig, pk)
 }
 
