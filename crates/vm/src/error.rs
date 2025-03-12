@@ -124,8 +124,11 @@ pub enum OpSyncError {
     #[error("total control flow operation error: {0}")]
     TotalControlFlow(#[from] TotalControlFlowError),
     /// An error occurred during a `Memory` operation.
-    #[error("temporary operation error: {0}")]
+    #[error("memory operation error: {0}")]
     Memory(#[from] MemoryError),
+    /// An error occurred during a `ParentMemory` operation.
+    #[error("parent memory operation error: {0}")]
+    ParentMemory(#[from] ParentMemoryError),
     /// An error occurred while parsing an operation from bytes.
     #[error("bytecode error: {0}")]
     FromBytes(#[from] asm::FromBytesError),
@@ -350,6 +353,17 @@ pub enum MemoryError {
     /// The memory size exceeded the size limit.
     #[error("the {}-word stack size limit was exceeded", crate::Memory::SIZE_LIMIT)]
     Overflow,
+}
+
+/// Parent memory operation error.
+#[derive(Debug, Error)]
+pub enum ParentMemoryError {
+    /// Attempted to access parent memory outside of a `Compute` context.
+    #[error("Attempted to access parent memory outside of a `Compute` context")]
+    NoParent,
+    /// A memory access error occurred.
+    #[error("A memory access error occurred: {0}")]
+    Memory(#[from] MemoryError),
 }
 
 /// Decode error.
