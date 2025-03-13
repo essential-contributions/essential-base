@@ -28,6 +28,9 @@ use tokio::{sync::oneshot, task::JoinSet};
 #[cfg(feature = "tracing")]
 use tracing::Instrument;
 
+#[cfg(test)]
+mod tests;
+
 /// Configuration options passed to [`check_predicate`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct CheckPredicateConfig {
@@ -71,6 +74,27 @@ struct ProgramCtx {
     parents: Vec<oneshot::Receiver<Arc<(Stack, Memory)>>>,
     children: Vec<oneshot::Sender<Arc<(Stack, Memory)>>>,
     reads: Reads,
+}
+
+/// The output of a program execution.
+#[derive(Debug, PartialEq)]
+enum ProgramOutput {
+    /// The program output is a boolean value
+    /// indicating whether the constraint was satisfied.
+    Satisfied(bool),
+    // FIXME: Remove dead code allow when used.
+    #[allow(dead_code)]
+    /// The program output is data.
+    DataOutput(DataOutput),
+}
+
+/// Types of data output from a program.
+#[derive(Debug, PartialEq)]
+enum DataOutput {
+    // FIXME: Remove dead code allow when used.
+    #[allow(dead_code)]
+    /// The program output is the memory.
+    Memory(Memory),
 }
 
 /// [`check_set`] error.
@@ -564,7 +588,7 @@ where
         match prog_res {
             Ok((satisfied, gas)) => {
                 // Check for unsatisfied constraints.
-                if let Some(false) = satisfied {
+                if let Some(ProgramOutput::Satisfied(false)) = satisfied {
                     unsatisfied.push(node_ix);
                 }
                 total_gas = total_gas.saturating_add(gas);
@@ -609,7 +633,7 @@ async fn run_program<SA, SB>(
     solution_index: SolutionIndex,
     program: Arc<Program>,
     ctx: ProgramCtx,
-) -> Result<(Option<bool>, Gas), ProgramError<SA::Error>>
+) -> Result<(Option<ProgramOutput>, Gas), ProgramError<SA::Error>>
 where
     SA: StateRead,
     SB: StateRead<Error = SA::Error>,
@@ -681,7 +705,11 @@ where
 
     // If this node is a constraint (has no children), check the stack result.
     let opt_satisfied = if ctx.children.is_empty() {
-        Some(vm.stack[..] == [1])
+        match vm.stack[..] {
+            [2] => Some(ProgramOutput::DataOutput(DataOutput::Memory(vm.memory))),
+            [1] => Some(ProgramOutput::Satisfied(true)),
+            _ => Some(ProgramOutput::Satisfied(false)),
+        }
     } else {
         let output = Arc::new((vm.stack, vm.memory));
         for tx in ctx.children {
