@@ -2,6 +2,7 @@
 
 use crate::{
     predicate::{PredicateDecodeError, PredicateEncodeError},
+    solution::decode::MutationDecodeError,
     ContentAddress, PredicateAddress, Signature,
 };
 use core::{fmt, str};
@@ -89,6 +90,19 @@ impl fmt::Display for PredicateEncodeError {
             match self {
                 PredicateEncodeError::TooManyNodes => "too many nodes",
                 PredicateEncodeError::TooManyEdges => "too many edges",
+            }
+        )
+    }
+}
+
+impl fmt::Display for MutationDecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                MutationDecodeError::BytesTooShort =>
+                    "bytes too short for lengths given for key or value",
             }
         )
     }
