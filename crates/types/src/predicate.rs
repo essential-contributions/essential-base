@@ -10,20 +10,6 @@ use schemars::JsonSchema;
 
 pub mod encode;
 
-/// The state a program has access to.
-#[derive(
-    Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-#[repr(u8)]
-#[cfg_attr(feature = "schema", derive(JsonSchema))]
-pub enum Reads {
-    /// State prior to mutations.
-    #[default]
-    Pre = 0,
-    /// State post mutations.
-    Post,
-}
-
 /// A node in the graph.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
@@ -34,8 +20,6 @@ pub struct Node {
     pub edge_start: Edge,
     /// The content address of the [`Program`] that this node executes.
     pub program_address: ContentAddress,
-    /// Which type of state this program has access to.
-    pub reads: Reads,
 }
 
 /// An edge in the graph.
