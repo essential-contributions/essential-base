@@ -3,7 +3,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Key, PredicateAddress, Value};
+use crate::{Key, PredicateAddress, Value, Word};
+
+pub mod decode;
+pub mod encode;
 
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
@@ -61,5 +64,40 @@ impl SolutionSet {
     /// Get the sum of all state mutations within the set of solutions.
     pub fn state_mutations_len(&self) -> usize {
         self.solutions.iter().map(|d| d.state_mutations.len()).sum()
+    }
+}
+
+impl Mutation {
+    /// Get the size in words of this mutation encoded.
+    pub fn encode_size(&self) -> usize {
+        encode::encode_mutation_size(self)
+    }
+
+    /// Encodes a mutation into a sequence of words.
+    ///
+    /// # Layout
+    /// ```text
+    /// +-----------------+-----------------+
+    /// | key length      | key             |
+    /// +-----------------+-----------------+
+    /// | value length    | value           |
+    /// +-----------------+-----------------+
+    /// ```
+    pub fn encode(&self) -> impl Iterator<Item = Word> + use<'_> {
+        encode::encode_mutation(self)
+    }
+
+    /// Decode a mutation from words.
+    ///
+    /// # Layout
+    /// ```text
+    /// +-----------------+-----------------+
+    /// | key length      | key             |
+    /// +-----------------+-----------------+
+    /// | value length    | value           |
+    /// +-----------------+-----------------+
+    /// ```
+    pub fn decode_mutation(bytes: &[Word]) -> Result<Self, decode::MutationDecodeError> {
+        decode::decode_mutation(bytes)
     }
 }
