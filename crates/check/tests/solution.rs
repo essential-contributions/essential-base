@@ -2,7 +2,7 @@ use essential_check::{solution, vm::asm};
 use essential_hash::content_addr;
 use essential_types::{
     contract::Contract,
-    predicate::{Edge, Node, Predicate, Program, Reads},
+    predicate::{Edge, Node, Predicate, Program},
     solution::{Mutation, Solution, SolutionSet},
     ContentAddress, PredicateAddress, Word,
 };
@@ -151,7 +151,6 @@ async fn predicate_graph_stack_passing() {
     let node = |program_address, edge_start| Node {
         program_address,
         edge_start,
-        reads: Reads::Pre, // unused for this test.
     };
     let nodes = vec![
         node(a_ca.clone(), 0),
@@ -225,15 +224,15 @@ async fn predicate_graph_memory_passing() {
     // Store `[1, 2, 3]` at the start of memory.
     let a = Program(
         asm::to_bytes([
-            PUSH(1),
             PUSH(3),
             ALOC,
-            STO,
-            PUSH(2),
             PUSH(1),
             STO,
-            PUSH(3),
+            PUSH(1),
             PUSH(2),
+            STO,
+            PUSH(2),
+            PUSH(3),
             STO,
             HLT,
         ])
@@ -242,15 +241,15 @@ async fn predicate_graph_memory_passing() {
     // Store `[4, 5, 6]` at the start of memory.
     let b = Program(
         asm::to_bytes([
-            PUSH(4),
             PUSH(3),
             ALOC,
+            PUSH(4),
             STO,
-            PUSH(5),
             PUSH(1),
+            PUSH(5),
             STO,
-            PUSH(6),
             PUSH(2),
+            PUSH(6),
             STO,
             HLT,
         ])
@@ -293,7 +292,6 @@ async fn predicate_graph_memory_passing() {
     let node = |program_address, edge_start| Node {
         program_address,
         edge_start,
-        reads: Reads::Pre, // unused for this test.
     };
     let nodes = vec![
         node(a_ca.clone(), 0),
@@ -424,16 +422,15 @@ async fn predicate_graph_state_read() {
     let b_ca = content_addr(&b);
     let c_ca = content_addr(&c);
 
-    let node = |program_address, edge_start, reads| Node {
+    let node = |program_address, edge_start| Node {
         program_address,
         edge_start,
-        reads,
     };
     let nodes = vec![
-        node(a_ca.clone(), 0, Reads::Pre),
-        node(b_ca.clone(), 2, Reads::Pre),
-        node(b_ca.clone(), 3, Reads::Post),
-        node(c_ca.clone(), Edge::MAX, Reads::Pre),
+        node(a_ca.clone(), 0),
+        node(b_ca.clone(), 2),
+        node(b_ca.clone(), 3),
+        node(c_ca.clone(), Edge::MAX),
     ];
     let edges = vec![1, 2, 3, 3];
     let predicate = Predicate { nodes, edges };
