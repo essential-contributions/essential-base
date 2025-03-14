@@ -176,6 +176,9 @@ pub enum PredicatesError<E> {
     /// Summing solution gas resulted in overflow.
     #[error("summing solution gas overflowed")]
     GasOverflowed,
+    /// Tried to compute mutations on solution set with existing mutations.
+    #[error("tried to compute mutations on solution set with existing mutations")]
+    ExistingMutations,
 }
 
 /// Predicate checking failed for the solution at the given indices.
@@ -197,6 +200,9 @@ pub enum PredicateError<E> {
     /// One or more of the constraints were unsatisfied.
     #[error("one or more constraints unsatisfied: {0}")]
     ConstraintsUnsatisfied(#[from] ConstraintsUnsatisfied),
+    /// One or more of the mutations were invalid.
+    #[error(transparent)]
+    Mutations(#[from] MutationsError),
 }
 
 /// Program execution failed for the programs at the given node indices.
@@ -226,6 +232,17 @@ pub enum ProgramError<E> {
 /// The index of each constraint that was not satisfied.
 #[derive(Debug, Error)]
 pub struct ConstraintsUnsatisfied(pub Vec<usize>);
+
+/// Error with computing mutations.
+#[derive(Debug, Error)]
+pub enum MutationsError {
+    /// Duplicate mutations for the same key.
+    #[error("duplicate mutations for the same key: {0:?}")]
+    DuplicateMutations(Key),
+    /// Error decoding mutations.
+    #[error(transparent)]
+    DecodeError(#[from] essential_types::solution::decode::MutationDecodeError),
+}
 
 /// Maximum number of predicate data of a solution.
 pub const MAX_PREDICATE_DATA: u32 = 100;
@@ -392,6 +409,92 @@ pub fn check_set_state_mutations(set: &SolutionSet) -> Result<(), InvalidSolutio
     }
 
     Ok(())
+}
+
+/// Check the given solution set against the given predicates and
+/// and compute the post state mutations for this set.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
+pub async fn check_and_compute_solution_set<SA, SB>(
+    pre_state: &SA,
+    post_state: &SB,
+    solution_set: SolutionSet,
+    get_predicate: impl GetPredicate,
+    get_program: impl 'static + Clone + GetProgram + Send + Sync,
+    config: Arc<CheckPredicateConfig>,
+) -> Result<(Gas, SolutionSet), PredicatesError<SA::Error>>
+where
+    SA: Clone + StateRead + Send + Sync + 'static,
+    SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
+    SA::Future: Send,
+    SB::Future: Send,
+    SA::Error: Send,
+{
+    // Check there are no existing mutations.
+    if solution_set
+        .solutions
+        .iter()
+        .any(|s| !s.state_mutations.is_empty())
+    {
+        return Err(PredicatesError::ExistingMutations);
+    }
+
+    // Check the set and gather any outputs.
+    let set = Arc::new(solution_set);
+    let outputs = check_set_predicates(
+        pre_state,
+        post_state,
+        set.clone(),
+        get_predicate,
+        get_program,
+        config,
+    )
+    .await?;
+
+    // Safe to unwrap the arc here as we have no other references.
+    let mut set = Arc::try_unwrap(set).expect("set should have one reference");
+
+    // Get the gas
+    let gas = outputs.gas;
+
+    // For each output check if there are any state mutations and apply them.
+    for output in outputs.data {
+        // No two outputs can point to the same solution index.
+        // Get the solution that these outputs came from.
+        let s = &mut set.solutions[output.solution_index as usize];
+
+        // Set to check for duplicate mutations.
+        let mut mut_set = HashSet::new();
+
+        // For each memory output decode the mutations and apply them.
+        for data in output.data {
+            match data {
+                DataOutput::Memory(memory) => {
+                    for mutation in essential_types::solution::decode::decode_mutations(&memory)
+                        .map_err(|e| {
+                            PredicatesError::Failed(PredicateErrors(vec![(
+                                output.solution_index,
+                                PredicateError::Mutations(MutationsError::DecodeError(e)),
+                            )]))
+                        })?
+                    {
+                        // Check for duplicate mutation keys.
+                        if !mut_set.insert(mutation.key.clone()) {
+                            return Err(PredicatesError::Failed(PredicateErrors(vec![(
+                                output.solution_index,
+                                PredicateError::Mutations(MutationsError::DuplicateMutations(
+                                    mutation.key.clone(),
+                                )),
+                            )])));
+                        }
+
+                        // Apply the mutation.
+                        s.state_mutations.push(mutation);
+                    }
+                }
+            }
+        }
+    }
+    Ok((gas, set))
 }
 
 /// Checks all of a [`SolutionSet`]'s [`Solution`]s against their associated [`Predicate`]s.
