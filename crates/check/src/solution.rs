@@ -76,23 +76,37 @@ struct ProgramCtx {
     reads: Reads,
 }
 
+/// The outputs of checking a solution set.
+#[derive(Debug, PartialEq)]
+pub struct Outputs {
+    /// The total gas spent.
+    pub gas: Gas,
+    /// The data outputs from solving each predicate.
+    pub data: Vec<DataFromSolution>,
+}
+
+/// The data outputs from solving a particular predicate.
+#[derive(Debug, PartialEq)]
+pub struct DataFromSolution {
+    /// The index of the solution that produced this data.
+    pub solution_index: SolutionIndex,
+    /// The data output from the solution.
+    pub data: Vec<DataOutput>,
+}
+
 /// The output of a program execution.
 #[derive(Debug, PartialEq)]
 enum ProgramOutput {
     /// The program output is a boolean value
     /// indicating whether the constraint was satisfied.
     Satisfied(bool),
-    // FIXME: Remove dead code allow when used.
-    #[allow(dead_code)]
     /// The program output is data.
     DataOutput(DataOutput),
 }
 
 /// Types of data output from a program.
 #[derive(Debug, PartialEq)]
-enum DataOutput {
-    // FIXME: Remove dead code allow when used.
-    #[allow(dead_code)]
+pub enum DataOutput {
     /// The program output is the memory.
     Memory(Memory),
 }
@@ -404,7 +418,7 @@ pub async fn check_set_predicates<SA, SB>(
     get_predicate: impl GetPredicate,
     get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
-) -> Result<Gas, PredicatesError<SA::Error>>
+) -> Result<Outputs, PredicatesError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
     SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
@@ -453,9 +467,13 @@ where
     // Calculate gas used.
     let mut total_gas: u64 = 0;
     let mut failed = vec![];
+
+    // Collect the outputs of each predicate.
+    let mut outputs = vec![];
+
     while let Some(res) = set.join_next().await {
         let (solution_ix, res) = res?;
-        let g = match res {
+        let (g, data_outputs) = match res {
             Ok(ok) => ok,
             Err(e) => {
                 failed.push((solution_ix, e));
@@ -470,6 +488,12 @@ where
         total_gas = total_gas
             .checked_add(g)
             .ok_or(PredicatesError::GasOverflowed)?;
+
+        let output = DataFromSolution {
+            solution_index: solution_ix,
+            data: data_outputs,
+        };
+        outputs.push(output);
     }
 
     // If any predicates failed, return an error.
@@ -477,7 +501,10 @@ where
         return Err(PredicateErrors(failed).into());
     }
 
-    Ok(total_gas)
+    Ok(Outputs {
+        gas: total_gas,
+        data: outputs,
+    })
 }
 
 /// Checks the predicate of the solution within the given set at the given `solution_index`.
@@ -515,7 +542,7 @@ pub async fn check_predicate<SA, SB>(
     get_program: &impl GetProgram,
     solution_index: SolutionIndex,
     config: &CheckPredicateConfig,
-) -> Result<Gas, PredicateError<SA::Error>>
+) -> Result<(Gas, Vec<DataOutput>), PredicateError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
     SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
@@ -583,13 +610,24 @@ where
 
     // Await the successful completion of our programs.
     let mut total_gas: Gas = 0;
+
+    // Collect any data outputs from the programs.
+    let mut data_outputs = Vec::new();
     while let Some(join_res) = program_tasks.join_next().await {
         let (node_ix, prog_res) = join_res?;
         match prog_res {
             Ok((satisfied, gas)) => {
                 // Check for unsatisfied constraints.
-                if let Some(ProgramOutput::Satisfied(false)) = satisfied {
-                    unsatisfied.push(node_ix);
+                match satisfied {
+                    Some(ProgramOutput::Satisfied(false)) => {
+                        unsatisfied.push(node_ix);
+                    }
+                    Some(ProgramOutput::Satisfied(true)) | None => {
+                        // Nothing to do here.
+                    }
+                    Some(ProgramOutput::DataOutput(data_output)) => {
+                        data_outputs.push(data_output);
+                    }
                 }
                 total_gas = total_gas.saturating_add(gas);
             }
@@ -612,7 +650,7 @@ where
         return Err(ConstraintsUnsatisfied(unsatisfied).into());
     }
 
-    Ok(total_gas)
+    Ok((total_gas, data_outputs))
 }
 
 /// Map the given program's bytecode and evaluate it.
