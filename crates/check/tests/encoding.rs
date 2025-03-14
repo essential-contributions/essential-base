@@ -3,7 +3,7 @@ use std::sync::Arc;
 use essential_check::vm;
 use essential_types::{
     contract::Contract,
-    predicate::{Edge, Node, Predicate, Program, Reads},
+    predicate::{Edge, Node, Predicate, Program},
     solution::{Solution, SolutionSet},
     ContentAddress, Hash, PredicateAddress,
 };
@@ -47,7 +47,6 @@ async fn test_encoding_sig_and_pub_key() {
     let nodes = vec![Node {
         program_address: program_address.clone(),
         edge_start: Edge::MAX,
-        reads: Reads::Pre,
     }];
     let edges = vec![];
     let predicate = Predicate { nodes, edges };
