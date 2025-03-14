@@ -1,9 +1,12 @@
-use essential_check::{solution, vm::asm};
+use essential_check::{
+    solution::{self, DataFromSolution, DataOutput},
+    vm::asm,
+};
 use essential_hash::content_addr;
 use essential_types::{
     contract::Contract,
     predicate::{Edge, Node, Predicate, Program, Reads},
-    solution::{Mutation, Solution, SolutionSet},
+    solution::{encode::encode_mutations, Mutation, Solution, SolutionSet},
     ContentAddress, PredicateAddress, Word,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -195,7 +198,7 @@ async fn predicate_graph_stack_passing() {
     let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     // Run the check, and ensure ok and gas aren't 0.
-    let gas = solution::check_set_predicates(
+    let outputs = solution::check_set_predicates(
         &State::EMPTY,
         &State::EMPTY,
         Arc::new(set),
@@ -206,7 +209,7 @@ async fn predicate_graph_stack_passing() {
     .await
     .unwrap();
 
-    assert!(gas > 0);
+    assert!(outputs.gas > 0);
 }
 
 // A simple test to check that resulting memories are passed from parents to children.
@@ -337,7 +340,7 @@ async fn predicate_graph_memory_passing() {
     let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     // Run the check, and ensure ok and gas aren't 0.
-    let gas = solution::check_set_predicates(
+    let outputs = solution::check_set_predicates(
         &State::EMPTY,
         &State::EMPTY,
         Arc::new(set),
@@ -348,7 +351,7 @@ async fn predicate_graph_memory_passing() {
     .await
     .unwrap();
 
-    assert!(gas > 0);
+    assert!(outputs.gas > 0);
 }
 
 // A simple test to check that transient nodes can read state and provide the results to its
@@ -487,7 +490,7 @@ async fn predicate_graph_state_read() {
     let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     // Run the check, and ensure ok and gas aren't 0.
-    let gas = solution::check_set_predicates(
+    let outputs = solution::check_set_predicates(
         &pre_state,
         &post_state,
         Arc::new(set),
@@ -498,5 +501,243 @@ async fn predicate_graph_state_read() {
     .await
     .unwrap();
 
-    assert!(gas > 0);
+    assert!(outputs.gas > 0);
+}
+
+#[tokio::test]
+async fn solution_outputs() {
+    use essential_vm::asm::short::*;
+    let _ = tracing_subscriber::fmt::try_init();
+    let bool_only = Program(asm::to_bytes([PUSH(1)]).collect());
+    let output_pred_0_prg_0 =
+        Program(asm::to_bytes([PUSH(42), PUSH(1), PUSH(1), ALOC, STOR, PUSH(2)]).collect());
+    let output_pred_0_prg_1 = Program(
+        asm::to_bytes([PUSH(43), PUSH(44), PUSH(2), PUSH(2), ALOC, STOR, PUSH(2)]).collect(),
+    );
+
+    let output_pred_1_prg_0 = Program(
+        asm::to_bytes([PUSH(45), PUSH(46), PUSH(2), PUSH(2), ALOC, STOR, PUSH(2)]).collect(),
+    );
+
+    let bool_only_ca = content_addr(&bool_only);
+    let output_pred_0_prg_0_ca = content_addr(&output_pred_0_prg_0);
+    let output_pred_0_prg_1_ca = content_addr(&output_pred_0_prg_1);
+    let output_pred_1_prg_0_ca = content_addr(&output_pred_1_prg_0);
+
+    let node = |program_address, edge_start| Node {
+        program_address,
+        edge_start,
+        reads: Reads::Pre, // unused for this test.
+    };
+    let nodes = vec![
+        node(bool_only_ca.clone(), Edge::MAX),
+        node(output_pred_0_prg_0_ca.clone(), Edge::MAX),
+        node(output_pred_0_prg_1_ca.clone(), Edge::MAX),
+    ];
+    let edges = vec![];
+    let predicate_0 = Predicate { nodes, edges };
+    let contract_0 = Contract::without_salt(vec![predicate_0]);
+    let pred_addr_0 = PredicateAddress {
+        contract: content_addr(&contract_0),
+        predicate: content_addr(&contract_0.predicates[0]),
+    };
+
+    let nodes = vec![node(output_pred_1_prg_0_ca.clone(), Edge::MAX)];
+    let edges = vec![];
+    let predicate_1 = Predicate { nodes, edges };
+    let contract_1 = Contract::without_salt(vec![predicate_1]);
+    let pred_addr_1 = PredicateAddress {
+        contract: content_addr(&contract_1),
+        predicate: content_addr(&contract_1.predicates[0]),
+    };
+
+    // Create a solution that "solves" our predicate.
+    let set = SolutionSet {
+        solutions: vec![
+            Solution {
+                predicate_to_solve: pred_addr_1.clone(),
+                predicate_data: Default::default(),
+                state_mutations: vec![],
+            },
+            Solution {
+                predicate_to_solve: pred_addr_0.clone(),
+                predicate_data: Default::default(),
+                state_mutations: vec![],
+            },
+        ],
+    };
+
+    let predicate_0 = Arc::new(contract_0.predicates[0].clone());
+    let predicate_1 = Arc::new(contract_1.predicates[0].clone());
+    let mut map = HashMap::new();
+    map.insert(pred_addr_0.contract.clone(), predicate_0);
+    map.insert(pred_addr_1.contract.clone(), predicate_1);
+
+    let get_predicate = |addr: &PredicateAddress| map.get(&addr.contract).unwrap().clone();
+    let programs: HashMap<ContentAddress, Arc<Program>> = vec![
+        (bool_only_ca, Arc::new(bool_only)),
+        (output_pred_0_prg_0_ca, Arc::new(output_pred_0_prg_0)),
+        (output_pred_0_prg_1_ca, Arc::new(output_pred_0_prg_1)),
+        (output_pred_1_prg_0_ca, Arc::new(output_pred_1_prg_0)),
+    ]
+    .into_iter()
+    .collect();
+    let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
+
+    // Run the check, and ensure ok and gas aren't 0.
+    let outputs = solution::check_set_predicates(
+        &State::EMPTY,
+        &State::EMPTY,
+        Arc::new(set),
+        get_predicate,
+        get_program,
+        Arc::new(solution::CheckPredicateConfig::default()),
+    )
+    .await
+    .unwrap();
+
+    assert!(outputs.gas > 0);
+    assert_eq!(outputs.data.len(), 2);
+    assert_eq!(
+        outputs.data[0],
+        DataFromSolution {
+            solution_index: 0,
+            data: vec![DataOutput::Memory(vec![45, 46].try_into().unwrap())]
+        }
+    );
+    assert_eq!(
+        outputs.data[1],
+        DataFromSolution {
+            solution_index: 1,
+            data: vec![
+                DataOutput::Memory(vec![42].try_into().unwrap()),
+                DataOutput::Memory(vec![43, 44].try_into().unwrap()),
+            ]
+        }
+    );
+}
+
+#[tokio::test]
+async fn solution_compute_mutations() {
+    use essential_vm::asm::short::*;
+    let _ = tracing_subscriber::fmt::try_init();
+    let mutations_0 = vec![Mutation {
+        key: vec![1, 2, 3, 4],
+        value: vec![42],
+    }];
+    let mutations_1 = vec![
+        Mutation {
+            key: vec![5, 6, 7, 8],
+            value: vec![43, 44],
+        },
+        Mutation {
+            key: vec![9],
+            value: vec![45, 46],
+        },
+    ];
+    let mutations_2 = vec![
+        Mutation {
+            key: vec![10, 11],
+            value: vec![47, 48, 49],
+        },
+        Mutation {
+            key: vec![12],
+            value: vec![50, 51],
+        },
+    ];
+    let encoded_mutations_0 = encode_mutations(&mutations_0).collect::<Vec<_>>();
+    let encoded_mutations_1 = encode_mutations(&mutations_1).collect::<Vec<_>>();
+    let encoded_mutations_2 = encode_mutations(&mutations_2).collect::<Vec<_>>();
+
+    let make_prog = |encoded_mutations: Vec<Word>| {
+        let encoded_mutations_len = encoded_mutations.len();
+        let mut p = encoded_mutations.into_iter().map(PUSH).collect::<Vec<_>>();
+        p.push(PUSH(encoded_mutations_len as Word));
+        p.push(PUSH(encoded_mutations_len as Word));
+        p.push(ALOC);
+        p.push(STOR);
+        p.push(PUSH(2));
+        Program(asm::to_bytes(p).collect())
+    };
+
+    let pred_0_prg_0 = make_prog(encoded_mutations_0.clone());
+    let pred_0_prg_1 = make_prog(encoded_mutations_1.clone());
+    let pred_1_prg_0 = make_prog(encoded_mutations_2.clone());
+
+    let pred_0_prg_0_ca = content_addr(&pred_0_prg_0);
+    let pred_0_prg_1_ca = content_addr(&pred_0_prg_1);
+    let pred_1_prg_0_ca = content_addr(&pred_1_prg_0);
+
+    let node = |program_address, edge_start| Node {
+        program_address,
+        edge_start,
+        reads: Reads::Pre, // unused for this test.
+    };
+    let nodes = vec![
+        node(pred_0_prg_0_ca.clone(), Edge::MAX),
+        node(pred_0_prg_1_ca.clone(), Edge::MAX),
+    ];
+    let edges = vec![];
+    let predicate_0 = Predicate { nodes, edges };
+    let contract_0 = Contract::without_salt(vec![predicate_0]);
+    let pred_addr_0 = PredicateAddress {
+        contract: content_addr(&contract_0),
+        predicate: content_addr(&contract_0.predicates[0]),
+    };
+
+    let nodes = vec![node(pred_1_prg_0_ca.clone(), Edge::MAX)];
+    let edges = vec![];
+    let predicate_1 = Predicate { nodes, edges };
+    let contract_1 = Contract::without_salt(vec![predicate_1]);
+    let pred_addr_1 = PredicateAddress {
+        contract: content_addr(&contract_1),
+        predicate: content_addr(&contract_1.predicates[0]),
+    };
+
+    // Create a solution that "solves" our predicate.
+    let set = SolutionSet {
+        solutions: vec![
+            Solution {
+                predicate_to_solve: pred_addr_1.clone(),
+                predicate_data: Default::default(),
+                state_mutations: vec![],
+            },
+            Solution {
+                predicate_to_solve: pred_addr_0.clone(),
+                predicate_data: Default::default(),
+                state_mutations: vec![],
+            },
+        ],
+    };
+
+    let predicate_0 = Arc::new(contract_0.predicates[0].clone());
+    let predicate_1 = Arc::new(contract_1.predicates[0].clone());
+    let mut map = HashMap::new();
+    map.insert(pred_addr_0.contract.clone(), predicate_0);
+    map.insert(pred_addr_1.contract.clone(), predicate_1);
+
+    let get_predicate = |addr: &PredicateAddress| map.get(&addr.contract).unwrap().clone();
+    let programs: HashMap<ContentAddress, Arc<Program>> = vec![
+        (pred_0_prg_0_ca, Arc::new(pred_0_prg_0)),
+        (pred_0_prg_1_ca, Arc::new(pred_0_prg_1)),
+        (pred_1_prg_0_ca, Arc::new(pred_1_prg_0)),
+    ]
+    .into_iter()
+    .collect();
+    let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
+
+    let set = solution::check_and_compute_solution_set(
+        &State::EMPTY,
+        &State::EMPTY,
+        set,
+        get_predicate,
+        get_program,
+        Arc::new(solution::CheckPredicateConfig::default()),
+    )
+    .await
+    .unwrap();
+
+    let expected = [mutations_0, mutations_1].concat();
+    assert_eq!(set.1.solutions[0].state_mutations, mutations_2);
+    assert_eq!(set.1.solutions[1].state_mutations, expected);
 }

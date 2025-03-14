@@ -28,6 +28,9 @@ use tokio::{sync::oneshot, task::JoinSet};
 #[cfg(feature = "tracing")]
 use tracing::Instrument;
 
+#[cfg(test)]
+mod tests;
+
 /// Configuration options passed to [`check_predicate`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct CheckPredicateConfig {
@@ -71,6 +74,41 @@ struct ProgramCtx {
     parents: Vec<oneshot::Receiver<Arc<(Stack, Memory)>>>,
     children: Vec<oneshot::Sender<Arc<(Stack, Memory)>>>,
     reads: Reads,
+}
+
+/// The outputs of checking a solution set.
+#[derive(Debug, PartialEq)]
+pub struct Outputs {
+    /// The total gas spent.
+    pub gas: Gas,
+    /// The data outputs from solving each predicate.
+    pub data: Vec<DataFromSolution>,
+}
+
+/// The data outputs from solving a particular predicate.
+#[derive(Debug, PartialEq)]
+pub struct DataFromSolution {
+    /// The index of the solution that produced this data.
+    pub solution_index: SolutionIndex,
+    /// The data output from the solution.
+    pub data: Vec<DataOutput>,
+}
+
+/// The output of a program execution.
+#[derive(Debug, PartialEq)]
+enum ProgramOutput {
+    /// The program output is a boolean value
+    /// indicating whether the constraint was satisfied.
+    Satisfied(bool),
+    /// The program output is data.
+    DataOutput(DataOutput),
+}
+
+/// Types of data output from a program.
+#[derive(Debug, PartialEq)]
+pub enum DataOutput {
+    /// The program output is the memory.
+    Memory(Memory),
 }
 
 /// [`check_set`] error.
@@ -138,6 +176,9 @@ pub enum PredicatesError<E> {
     /// Summing solution gas resulted in overflow.
     #[error("summing solution gas overflowed")]
     GasOverflowed,
+    /// Tried to compute mutations on solution set with existing mutations.
+    #[error("tried to compute mutations on solution set with existing mutations")]
+    ExistingMutations,
 }
 
 /// Predicate checking failed for the solution at the given indices.
@@ -159,6 +200,9 @@ pub enum PredicateError<E> {
     /// One or more of the constraints were unsatisfied.
     #[error("one or more constraints unsatisfied: {0}")]
     ConstraintsUnsatisfied(#[from] ConstraintsUnsatisfied),
+    /// One or more of the mutations were invalid.
+    #[error(transparent)]
+    Mutations(#[from] MutationsError),
 }
 
 /// Program execution failed for the programs at the given node indices.
@@ -188,6 +232,17 @@ pub enum ProgramError<E> {
 /// The index of each constraint that was not satisfied.
 #[derive(Debug, Error)]
 pub struct ConstraintsUnsatisfied(pub Vec<usize>);
+
+/// Error with computing mutations.
+#[derive(Debug, Error)]
+pub enum MutationsError {
+    /// Duplicate mutations for the same key.
+    #[error("duplicate mutations for the same key: {0:?}")]
+    DuplicateMutations(Key),
+    /// Error decoding mutations.
+    #[error(transparent)]
+    DecodeError(#[from] essential_types::solution::decode::MutationDecodeError),
+}
 
 /// Maximum number of predicate data of a solution.
 pub const MAX_PREDICATE_DATA: u32 = 100;
@@ -356,6 +411,92 @@ pub fn check_set_state_mutations(set: &SolutionSet) -> Result<(), InvalidSolutio
     Ok(())
 }
 
+/// Check the given solution set against the given predicates and
+/// and compute the post state mutations for this set.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
+pub async fn check_and_compute_solution_set<SA, SB>(
+    pre_state: &SA,
+    post_state: &SB,
+    solution_set: SolutionSet,
+    get_predicate: impl GetPredicate,
+    get_program: impl 'static + Clone + GetProgram + Send + Sync,
+    config: Arc<CheckPredicateConfig>,
+) -> Result<(Gas, SolutionSet), PredicatesError<SA::Error>>
+where
+    SA: Clone + StateRead + Send + Sync + 'static,
+    SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
+    SA::Future: Send,
+    SB::Future: Send,
+    SA::Error: Send,
+{
+    // Check there are no existing mutations.
+    if solution_set
+        .solutions
+        .iter()
+        .any(|s| !s.state_mutations.is_empty())
+    {
+        return Err(PredicatesError::ExistingMutations);
+    }
+
+    // Check the set and gather any outputs.
+    let set = Arc::new(solution_set);
+    let outputs = check_set_predicates(
+        pre_state,
+        post_state,
+        set.clone(),
+        get_predicate,
+        get_program,
+        config,
+    )
+    .await?;
+
+    // Safe to unwrap the arc here as we have no other references.
+    let mut set = Arc::try_unwrap(set).expect("set should have one reference");
+
+    // Get the gas
+    let gas = outputs.gas;
+
+    // For each output check if there are any state mutations and apply them.
+    for output in outputs.data {
+        // No two outputs can point to the same solution index.
+        // Get the solution that these outputs came from.
+        let s = &mut set.solutions[output.solution_index as usize];
+
+        // Set to check for duplicate mutations.
+        let mut mut_set = HashSet::new();
+
+        // For each memory output decode the mutations and apply them.
+        for data in output.data {
+            match data {
+                DataOutput::Memory(memory) => {
+                    for mutation in essential_types::solution::decode::decode_mutations(&memory)
+                        .map_err(|e| {
+                            PredicatesError::Failed(PredicateErrors(vec![(
+                                output.solution_index,
+                                PredicateError::Mutations(MutationsError::DecodeError(e)),
+                            )]))
+                        })?
+                    {
+                        // Check for duplicate mutation keys.
+                        if !mut_set.insert(mutation.key.clone()) {
+                            return Err(PredicatesError::Failed(PredicateErrors(vec![(
+                                output.solution_index,
+                                PredicateError::Mutations(MutationsError::DuplicateMutations(
+                                    mutation.key.clone(),
+                                )),
+                            )])));
+                        }
+
+                        // Apply the mutation.
+                        s.state_mutations.push(mutation);
+                    }
+                }
+            }
+        }
+    }
+    Ok((gas, set))
+}
+
 /// Checks all of a [`SolutionSet`]'s [`Solution`]s against their associated [`Predicate`]s.
 ///
 /// For each solution, we load the associated predicate and its programs and execute each
@@ -380,7 +521,7 @@ pub async fn check_set_predicates<SA, SB>(
     get_predicate: impl GetPredicate,
     get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
-) -> Result<Gas, PredicatesError<SA::Error>>
+) -> Result<Outputs, PredicatesError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
     SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
@@ -429,9 +570,13 @@ where
     // Calculate gas used.
     let mut total_gas: u64 = 0;
     let mut failed = vec![];
+
+    // Collect the outputs of each predicate.
+    let mut outputs = vec![];
+
     while let Some(res) = set.join_next().await {
         let (solution_ix, res) = res?;
-        let g = match res {
+        let (g, data_outputs) = match res {
             Ok(ok) => ok,
             Err(e) => {
                 failed.push((solution_ix, e));
@@ -446,6 +591,12 @@ where
         total_gas = total_gas
             .checked_add(g)
             .ok_or(PredicatesError::GasOverflowed)?;
+
+        let output = DataFromSolution {
+            solution_index: solution_ix,
+            data: data_outputs,
+        };
+        outputs.push(output);
     }
 
     // If any predicates failed, return an error.
@@ -453,7 +604,10 @@ where
         return Err(PredicateErrors(failed).into());
     }
 
-    Ok(total_gas)
+    Ok(Outputs {
+        gas: total_gas,
+        data: outputs,
+    })
 }
 
 /// Checks the predicate of the solution within the given set at the given `solution_index`.
@@ -491,7 +645,7 @@ pub async fn check_predicate<SA, SB>(
     get_program: &impl GetProgram,
     solution_index: SolutionIndex,
     config: &CheckPredicateConfig,
-) -> Result<Gas, PredicateError<SA::Error>>
+) -> Result<(Gas, Vec<DataOutput>), PredicateError<SA::Error>>
 where
     SA: Clone + StateRead + Send + Sync + 'static,
     SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
@@ -559,13 +713,24 @@ where
 
     // Await the successful completion of our programs.
     let mut total_gas: Gas = 0;
+
+    // Collect any data outputs from the programs.
+    let mut data_outputs = Vec::new();
     while let Some(join_res) = program_tasks.join_next().await {
         let (node_ix, prog_res) = join_res?;
         match prog_res {
             Ok((satisfied, gas)) => {
                 // Check for unsatisfied constraints.
-                if let Some(false) = satisfied {
-                    unsatisfied.push(node_ix);
+                match satisfied {
+                    Some(ProgramOutput::Satisfied(false)) => {
+                        unsatisfied.push(node_ix);
+                    }
+                    Some(ProgramOutput::Satisfied(true)) | None => {
+                        // Nothing to do here.
+                    }
+                    Some(ProgramOutput::DataOutput(data_output)) => {
+                        data_outputs.push(data_output);
+                    }
                 }
                 total_gas = total_gas.saturating_add(gas);
             }
@@ -588,7 +753,7 @@ where
         return Err(ConstraintsUnsatisfied(unsatisfied).into());
     }
 
-    Ok(total_gas)
+    Ok((total_gas, data_outputs))
 }
 
 /// Map the given program's bytecode and evaluate it.
@@ -609,7 +774,7 @@ async fn run_program<SA, SB>(
     solution_index: SolutionIndex,
     program: Arc<Program>,
     ctx: ProgramCtx,
-) -> Result<(Option<bool>, Gas), ProgramError<SA::Error>>
+) -> Result<(Option<ProgramOutput>, Gas), ProgramError<SA::Error>>
 where
     SA: StateRead,
     SB: StateRead<Error = SA::Error>,
@@ -681,7 +846,11 @@ where
 
     // If this node is a constraint (has no children), check the stack result.
     let opt_satisfied = if ctx.children.is_empty() {
-        Some(vm.stack[..] == [1])
+        match vm.stack[..] {
+            [2] => Some(ProgramOutput::DataOutput(DataOutput::Memory(vm.memory))),
+            [1] => Some(ProgramOutput::Satisfied(true)),
+            _ => Some(ProgramOutput::Satisfied(false)),
+        }
     } else {
         let output = Arc::new((vm.stack, vm.memory));
         for tx in ctx.children {
