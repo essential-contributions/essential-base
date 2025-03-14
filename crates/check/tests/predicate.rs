@@ -1,6 +1,6 @@
 use essential_check::predicate::{self, InvalidPredicate};
 use essential_types::{
-    predicate::{Node, Predicate, Reads},
+    predicate::{Node, Predicate},
     ContentAddress,
 };
 use util::{empty_predicate, random_keypair};
@@ -44,7 +44,6 @@ fn too_many_nodes() {
         Node {
             edge_start: 0,
             program_address: ContentAddress([0; 32]),
-            reads: Reads::Pre
         };
         usize::from(Predicate::MAX_NODES) + 1
     ];

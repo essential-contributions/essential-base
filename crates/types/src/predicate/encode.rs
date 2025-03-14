@@ -102,7 +102,7 @@ pub fn decode_predicate(bytes: &[u8]) -> Result<Predicate, PredicateDecodeError>
                         node[..2].try_into().expect("safe due to chunks exact"),
                     ),
                     program_address: ContentAddress(
-                        node[2..34].try_into().expect("safe due to chunks exact"),
+                        node[2..].try_into().expect("safe due to chunks exact"),
                     ),
                 })
                 .collect(),
