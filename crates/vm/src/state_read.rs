@@ -1,15 +1,18 @@
 //! State read operation implementations.
 
 use crate::{
-    error::{MemoryError, OpAsyncError, OpAsyncResult, StackError},
-    Vm,
+    error::{
+        MemoryError, OpAsyncError, OpAsyncResult, OpStateSyncError, OpStateSyncResult, StackError,
+        StateReadArgError,
+    },
+    Memory, Stack, Vm,
 };
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
-use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Word};
+use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Value, Word};
 
 /// Read-only access to state required by the VM.
 pub trait StateRead {
@@ -34,6 +37,21 @@ pub trait StateRead {
     /// with the given contract address.
     fn key_range(&self, contract_addr: ContentAddress, key: Key, num_values: usize)
         -> Self::Future;
+}
+
+/// Read-only access to state required by the VM.
+pub trait StateReadSync {
+    /// An error type describing any cases that might occur during state reading.
+    type Error: core::fmt::Debug + core::fmt::Display;
+
+    /// Read the given number of values from state at the given key associated
+    /// with the given contract address.
+    fn key_range(
+        &self,
+        contract_addr: ContentAddress,
+        key: Key,
+        num_values: usize,
+    ) -> Result<Vec<Vec<Word>>, Self::Error>;
 }
 
 /// A future representing the asynchronous `StateRead` (or `StateReadExtern`) operation.
@@ -63,9 +81,13 @@ where
             Poll::Pending => Poll::Pending,
             Poll::Ready(res) => {
                 let mem_addr = self.mem_addr;
-                let res = res
-                    .map_err(OpAsyncError::StateRead)
-                    .and_then(|words| write_values_to_memory(mem_addr, words, self.vm));
+                let res = res.map_err(OpAsyncError::StateRead).and_then(|words| {
+                    Ok(write_values_to_memory(
+                        mem_addr,
+                        words,
+                        &mut self.vm.memory,
+                    )?)
+                });
                 Poll::Ready(res)
             }
         }
@@ -81,14 +103,32 @@ pub fn key_range<'vm, S>(
 where
     S: StateRead,
 {
-    let mem_addr = vm.stack.pop()?;
-    let mem_addr = usize::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
+    let mem_addr = pop_memory_address(&mut vm.stack)?;
     let future = read_key_range(state_read, contract_addr, vm)?;
     Ok(StateReadFuture {
         future,
         mem_addr,
         vm,
     })
+}
+
+// FIXME: Remove this allow when the function is used.
+#[allow(dead_code)]
+/// `StateRead::KeyRange` operation.
+/// Uses a synchronous state read.
+pub fn key_range_sync<S>(
+    state_read: &S,
+    contract_addr: &ContentAddress,
+    stack: &mut Stack,
+    memory: &mut Memory,
+) -> OpStateSyncResult<(), S::Error>
+where
+    S: StateReadSync,
+{
+    let mem_addr = pop_memory_address(stack)?;
+    let values = read_key_range_sync(state_read, contract_addr, stack)?;
+    write_values_to_memory(mem_addr, values, memory)?;
+    Ok(())
 }
 
 /// `StateRead::KeyRangeExtern` operation.
@@ -99,14 +139,31 @@ pub fn key_range_ext<'vm, S>(
 where
     S: StateRead,
 {
-    let mem_addr = vm.stack.pop()?;
-    let mem_addr = usize::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
+    let mem_addr = pop_memory_address(&mut vm.stack)?;
     let future = read_key_range_ext(state_read, vm)?;
     Ok(StateReadFuture {
         future,
         mem_addr,
         vm,
     })
+}
+
+// FIXME: Remove this allow when the function is used.
+#[allow(dead_code)]
+/// `StateRead::KeyRangeExtern` operation.
+/// Uses a synchronous state read.
+pub fn key_range_ext_sync<S>(
+    state_read: &S,
+    stack: &mut Stack,
+    memory: &mut Memory,
+) -> OpStateSyncResult<(), S::Error>
+where
+    S: StateReadSync,
+{
+    let mem_addr = pop_memory_address(stack)?;
+    let values = read_key_range_ext_sync(state_read, stack)?;
+    write_values_to_memory(mem_addr, values, memory)?;
+    Ok(())
 }
 
 /// Read the length and key from the top of the stack and read the associated words from state.
@@ -118,12 +175,24 @@ fn read_key_range<S>(
 where
     S: StateRead,
 {
-    let num_keys = vm.stack.pop()?;
-    let num_keys = usize::try_from(num_keys).map_err(|_| StackError::IndexOutOfBounds)?;
-    let key = vm
-        .stack
-        .pop_len_words::<_, _, StackError>(|words| Ok(words.to_vec()))?;
+    let (key, num_keys) = pop_key_range_args(&mut vm.stack)?;
     Ok(state_read.key_range(contract_addr.clone(), key, num_keys))
+}
+
+/// Read the length and key from the top of the stack and read the associated words from state.
+/// Uses a synchronous state read.
+fn read_key_range_sync<S>(
+    state_read: &S,
+    contract_addr: &ContentAddress,
+    stack: &mut Stack,
+) -> OpStateSyncResult<Vec<Value>, S::Error>
+where
+    S: StateReadSync,
+{
+    let (key, num_keys) = pop_key_range_args(stack)?;
+    state_read
+        .key_range(contract_addr.clone(), key, num_keys)
+        .map_err(OpStateSyncError::StateRead)
 }
 
 /// Read the length, key and external contract address from the top of the stack and
@@ -132,21 +201,49 @@ fn read_key_range_ext<S>(state_read: &S, vm: &mut Vm) -> OpAsyncResult<S::Future
 where
     S: StateRead,
 {
-    let num_keys = vm.stack.pop()?;
-    let num_keys = usize::try_from(num_keys).map_err(|_| StackError::IndexOutOfBounds)?;
-    let key = vm
-        .stack
-        .pop_len_words::<_, _, StackError>(|words| Ok(words.to_vec()))?;
+    let (key, num_keys) = pop_key_range_args(&mut vm.stack)?;
     let contract_addr = ContentAddress(u8_32_from_word_4(vm.stack.pop4()?));
     Ok(state_read.key_range(contract_addr, key, num_keys))
 }
 
+/// Read the length, key and external contract address from the top of the stack and
+/// read the associated words from state.
+/// Uses a synchronous state read.
+fn read_key_range_ext_sync<S>(
+    state_read: &S,
+    stack: &mut Stack,
+) -> OpStateSyncResult<Vec<Value>, S::Error>
+where
+    S: StateReadSync,
+{
+    let (key, num_keys) = pop_key_range_args(stack)?;
+    let contract_addr = ContentAddress(u8_32_from_word_4(stack.pop4()?));
+    state_read
+        .key_range(contract_addr, key, num_keys)
+        .map_err(OpStateSyncError::StateRead)
+}
+
+/// Pop the memory address that the state read will write to from the stack.
+fn pop_memory_address(stack: &mut Stack) -> Result<usize, StateReadArgError> {
+    let mem_addr = stack.pop()?;
+    let mem_addr = usize::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
+    Ok(mem_addr)
+}
+
+/// Pop the key and number of keys from the stack.
+fn pop_key_range_args(stack: &mut Stack) -> Result<(Key, usize), StackError> {
+    let num_keys = stack.pop()?;
+    let num_keys = usize::try_from(num_keys).map_err(|_| StackError::IndexOutOfBounds)?;
+    let key = stack.pop_len_words::<_, _, StackError>(|words| Ok(words.to_vec()))?;
+    Ok((key, num_keys))
+}
+
 /// Write the given values to memory.
-fn write_values_to_memory<E>(
+fn write_values_to_memory(
     mem_addr: usize,
     values: Vec<Vec<Word>>,
-    vm: &mut Vm,
-) -> OpAsyncResult<(), E> {
+    memory: &mut Memory,
+) -> Result<(), MemoryError> {
     let values_len = Word::try_from(values.len()).map_err(|_| MemoryError::Overflow)?;
     let index_len_pairs_len = values_len.checked_mul(2).ok_or(MemoryError::Overflow)?;
     let mut mem_addr = Word::try_from(mem_addr).map_err(|_| MemoryError::IndexOutOfBounds)?;
@@ -156,9 +253,9 @@ fn write_values_to_memory<E>(
     for value in values {
         let value_len = Word::try_from(value.len()).map_err(|_| MemoryError::Overflow)?;
         // Write the [index, len] pair.
-        vm.memory.store_range(mem_addr, &[value_addr, value_len])?;
+        memory.store_range(mem_addr, &[value_addr, value_len])?;
         // Write the value.
-        vm.memory.store_range(value_addr, &value)?;
+        memory.store_range(value_addr, &value)?;
         // No need to check addition here as `store_range` would have failed.
         value_addr += value_len;
         mem_addr += 2;
