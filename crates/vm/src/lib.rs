@@ -89,7 +89,7 @@ pub struct GasLimit {
 
 /// Distinguish between sync and async ops to ease `Future` implementation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub(crate) enum OpKind {
+pub enum OpKind {
     /// Operations that yield immediately.
     Sync(OpSync),
     /// Operations returning a future.
