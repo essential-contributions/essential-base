@@ -1,13 +1,18 @@
 //! Items related to stepping forward VM execution by synchronous operations.
 
+use essential_asm::Op;
+use essential_types::ContentAddress;
+
 use crate::{
     access, alu, asm, crypto,
     error::{
-        EvalSyncError, EvalSyncResult, ExecSyncError, ExecSyncResult, OpSyncError, OpSyncResult,
+        EvalSyncError, EvalSyncResult, ExecSyncError, ExecSyncResult, OpResult, OpStateSyncResult,
+        OpSyncError, OpSyncResult,
     },
     pred, repeat, total_control_flow,
     types::convert::bool_from_word,
-    Access, LazyCache, Memory, OpAccess, OpSync, ProgramControlFlow, Repeat, Stack, Vm,
+    Access, LazyCache, Memory, OpAccess, OpSync, ProgramControlFlow, Repeat, Stack, StateReadSync,
+    Vm,
 };
 
 impl From<asm::Access> for OpSync {
@@ -154,6 +159,61 @@ pub fn step_op(
         OpSync::Stack(op) => step_op_stack(op, pc, stack, repeat),
         OpSync::ControlFlow(op) => step_op_total_control_flow(op, stack, pc),
         OpSync::Memory(op) => step_op_memory(op, stack, memory).map(|_| None),
+    }
+}
+
+/// Step forward execution by the given synchronous operation.
+/// This includes the synchronous state read operation.
+pub fn step_any_op<S>(
+    access: Access,
+    op: Op,
+    vm: &mut Vm,
+    state: &S,
+) -> OpResult<Option<ProgramControlFlow>, S::Error>
+where
+    S: StateReadSync,
+{
+    let r = match op {
+        Op::Access(op) => {
+            step_op_access(access, op, &mut vm.stack, &mut vm.repeat, &vm.cache).map(|_| None)?
+        }
+        Op::Alu(op) => step_op_alu(op, &mut vm.stack).map(|_| None)?,
+        Op::Crypto(op) => step_op_crypto(op, &mut vm.stack).map(|_| None)?,
+        Op::Pred(op) => step_op_pred(op, &mut vm.stack).map(|_| None)?,
+        Op::Stack(op) => step_op_stack(op, vm.pc, &mut vm.stack, &mut vm.repeat)?,
+        Op::TotalControlFlow(op) => step_op_total_control_flow(op, &mut vm.stack, vm.pc)?,
+        Op::Memory(op) => step_op_memory(op, &mut vm.stack, &mut vm.memory).map(|_| None)?,
+        Op::StateRead(op) => step_op_state_read(
+            op,
+            &access.this_solution().predicate_to_solve.contract,
+            state,
+            &mut vm.stack,
+            &mut vm.memory,
+        )
+        .map(|_| None)?,
+    };
+
+    Ok(r)
+}
+
+/// Step forward execution by the given state read operation.
+pub fn step_op_state_read<S>(
+    op: asm::StateRead,
+    contract_addr: &ContentAddress,
+    state: &S,
+    stack: &mut Stack,
+    memory: &mut Memory,
+) -> OpStateSyncResult<(), S::Error>
+where
+    S: StateReadSync,
+{
+    match op {
+        asm::StateRead::KeyRange => {
+            crate::state_read::key_range_sync(state, contract_addr, stack, memory)
+        }
+        asm::StateRead::KeyRangeExtern => {
+            crate::state_read::key_range_ext_sync(state, stack, memory)
+        }
     }
 }
 

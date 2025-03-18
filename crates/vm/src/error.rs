@@ -60,6 +60,9 @@ pub enum OpError<E> {
     /// A synchronous operation failed.
     #[error("synchronous operation failed: {0}")]
     Sync(#[from] OpSyncError),
+    /// A synchronous operation failed.
+    #[error("synchronous operation failed: {0}")]
+    StateSync(#[from] OpStateSyncError<E>),
     /// An asynchronous operation failed.
     #[error("asynchronous operation failed: {0}")]
     Async(#[from] OpAsyncError<E>),
@@ -143,7 +146,7 @@ pub enum OpSyncError {
     Encode(#[from] EncodeError),
 }
 
-/// A synchronous operation failed.
+/// An error occurred during a synchronous state read operation.
 #[derive(Debug, Error)]
 pub enum OpStateSyncError<E> {
     /// A memory access related error occurred.

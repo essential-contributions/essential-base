@@ -4,7 +4,7 @@
 
 use essential_vm::{
     types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
-    Access, StateRead,
+    Access, StateRead, StateReadSync,
 };
 use std::{
     collections::{BTreeMap, HashSet},
@@ -131,5 +131,18 @@ impl StateRead for State {
     type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
     fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
         future::ready(self.key_range(contract_addr, key, num_words))
+    }
+}
+
+impl StateReadSync for State {
+    type Error = InvalidStateRead;
+
+    fn key_range(
+        &self,
+        contract_addr: ContentAddress,
+        key: Key,
+        num_values: usize,
+    ) -> Result<Vec<Vec<Word>>, Self::Error> {
+        self.key_range(contract_addr, key, num_values)
     }
 }

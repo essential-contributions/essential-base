@@ -149,6 +149,20 @@ async fn exec_method_behaviours_match() {
         .await
         .unwrap();
 
+    // Execute the ops using `exec_ops`.
+    let mut vm_sync_ops = Vm::default();
+    let spent_sync_ops = vm_sync_ops
+        .exec_ops_sync(
+            ops,
+            *test_access(),
+            &State::EMPTY,
+            &|_: &Op| 1,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
+    assert_eq!(spent_ops, spent_sync_ops);
+    assert_eq!(vm_ops, vm_sync_ops);
+
     // Execute the same ops but as mapped bytecode.
     let mapped: BytecodeMapped = ops.iter().copied().collect();
     let mut vm_bc = Vm::default();
@@ -162,8 +176,8 @@ async fn exec_method_behaviours_match() {
         )
         .await
         .unwrap();
-    assert_eq!(spent_ops, spent_bc);
-    assert_eq!(vm_ops, vm_bc);
+    assert_eq!(spent_sync_ops, spent_bc);
+    assert_eq!(vm_sync_ops, vm_bc);
 
     // Execute the same ops, but from a bytes iterator.
     let bc_iter = mapped.bytecode().iter().copied();
@@ -261,6 +275,80 @@ async fn read_pre_post_state() {
     assert_eq!(post_state_mem, vec![6, 1, 7, 1, 8, 1, 40, 41, 42]);
 }
 
+#[test]
+fn read_sync_state() {
+    let predicate_addr = TEST_PREDICATE_ADDR;
+
+    // In the pre-state, we have [Some(40), None, Some(42)].
+    let pre_state = State::new(vec![(
+        predicate_addr.contract.clone(),
+        vec![(vec![0, 0, 0, 0], vec![40]), (vec![0, 0, 0, 2], vec![42])],
+    )]);
+
+    // The full solution set that we're checking.
+    let set = SolutionSet {
+        solutions: vec![Solution {
+            predicate_to_solve: predicate_addr.clone(),
+            predicate_data: vec![],
+            // We have one mutation that contracts a missing value to 41.
+            state_mutations: vec![Mutation {
+                key: vec![0, 0, 0, 1],
+                value: vec![41],
+            }],
+        }],
+    };
+
+    // The index of the solution associated with the predicate we're solving.
+    let solution_index = 0;
+
+    let mutable_keys = mut_keys_set(&set, solution_index);
+
+    // Construct access to the necessary solution for the VM.
+    let access = Access::new(&set, solution_index, &mutable_keys);
+
+    // A simple program that reads words directly to memory.
+    let ops = &[
+        PUSH(9), // index, len, index, len, index, len, val, val, val
+        ALOC,
+        PUSH(0), // Key0
+        PUSH(0), // Key1
+        PUSH(0), // Key2
+        PUSH(0), // Key3
+        PUSH(4), // Key length
+        PUSH(3), // Num words
+        PUSH(0), // Slot index
+        KRNG,
+    ];
+
+    // Execute the program.
+    let mut vm = Vm::default();
+    vm.exec_ops_sync(ops, access, &pre_state, &|_: &Op| 1, GasLimit::UNLIMITED)
+        .unwrap();
+
+    // Collect the memory.
+    let pre_state_mem: Vec<_> = vm.memory.into();
+
+    // Apply the state mutations to the state to produce the post state.
+    let mut post_state = pre_state.clone();
+    for solution in &set.solutions {
+        let contract_addr = &solution.predicate_to_solve.contract;
+        for Mutation { key, value } in &solution.state_mutations {
+            post_state.set(contract_addr.clone(), key, value.clone());
+        }
+    }
+
+    // Execute the program with the post state.
+    let mut vm = Vm::default();
+    vm.exec_ops_sync(ops, access, &post_state, &|_: &Op| 1, GasLimit::UNLIMITED)
+        .unwrap();
+
+    // Collect the state slots.
+    let post_state_mem: Vec<_> = vm.memory.into();
+
+    // Memory should have been updated.
+    assert_eq!(pre_state_mem, vec![6, 1, 7, 0, 7, 1, 40, 42, 0]);
+    assert_eq!(post_state_mem, vec![6, 1, 7, 1, 8, 1, 40, 41, 42]);
+}
 // Test that halt is not required to end the vm.
 #[tokio::test]
 async fn test_halt() {
