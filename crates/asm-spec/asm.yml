@@ -309,18 +309,7 @@ Op:
             This operation returns a list of words with a length of 4, representing the contract's hash.
           stack_out: [key]
 
-        # 0x32, 0x33 reserved for potential new Address or related ops
-
-        MutKeys:
-          opcode: 0x34
-          short: MKEYS
-          description: |
-            Push the keys of the proposed state mutations onto the stack.
-
-            Note the order is non-deterministic because this is a set.
-
-            Returns only total length 0 if there are no mutations.
-          stack_out: [key_0, key_0_len, ...key_N, key_N_len, total_length]
+        # 0x32, 0x33, 0x34 reserved for potential new Address or related ops
 
         # 0x35, 0x36, 0x37 reserved for potential keys and/or state-mutations ops
 

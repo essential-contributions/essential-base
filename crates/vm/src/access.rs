@@ -4,15 +4,14 @@ use crate::{
     cached::LazyCache,
     error::{AccessError, MissingAccessArgError, OpResult},
     repeat::Repeat,
-    sets::encode_set,
     types::{
         convert::{bytes_from_word, u8_32_from_word_4, word_4_from_u8_32},
-        solution::{Solution, SolutionIndex, SolutionSet},
-        Key, Value, Word,
+        solution::{Solution, SolutionIndex},
+        Value, Word,
     },
     Stack,
 };
-use std::collections::HashSet;
+use std::sync::Arc;
 
 #[cfg(test)]
 mod dec_vars;
@@ -24,34 +23,27 @@ mod test_utils;
 mod tests;
 
 /// All necessary solution access required to check an individual predicate.
-#[derive(Clone, Copy, Debug)]
-pub struct Access<'a> {
+#[derive(Clone, Debug)]
+pub struct Access {
     /// The set of input data for each predicate being solved within the solution set.
     ///
     /// We require *all* solutions in order to handle checking predicate exists.
-    pub solutions: &'a [Solution],
+    pub solutions: Arc<Vec<Solution>>,
     /// Checking is performed for one solution at a time. This index refers to
     /// the checked predicate's associated solution within the `SolutionSet` slice.
     pub index: usize,
-    /// The keys being proposed for mutation for the predicate.
-    pub mutable_keys: &'a HashSet<&'a [Word]>,
 }
 
-impl<'a> Access<'a> {
+impl Access {
     /// A shorthand for constructing a `SolutionAccess` instance for checking
     /// the predicate at the given index within the given solution.
     ///
     /// This constructor assumes that the given mutable keys contract is correct
     /// for this solution. It is not checked by this function for performance.
-    pub fn new(
-        set: &'a SolutionSet,
-        solution_index: SolutionIndex,
-        mutable_keys: &'a HashSet<&[Word]>,
-    ) -> Self {
+    pub fn new(solutions: Arc<Vec<Solution>>, solution_index: SolutionIndex) -> Self {
         Self {
-            solutions: &set.solutions,
+            solutions,
             index: solution_index.into(),
-            mutable_keys,
         }
     }
 
@@ -63,37 +55,6 @@ impl<'a> Access<'a> {
             .get(self.index)
             .expect("solution index out of range of solutions slice")
     }
-}
-
-/// A helper for collecting all mutable keys that are proposed for mutation for
-/// the predicate at the given index.
-///
-/// Specifically, assists in calculating the `mut_keys_len` for
-/// `SolutionAccess`, as this is equal to the `.count()` of the returned iterator.
-///
-/// **Note:** In the case that the given solution is invalid and contains multiple
-/// mutations to the same key, the same key will be yielded multiple times.
-pub fn mut_keys(set: &SolutionSet, solution_index: SolutionIndex) -> impl Iterator<Item = &Key> {
-    set.solutions[solution_index as usize]
-        .state_mutations
-        .iter()
-        .map(|m| &m.key)
-}
-
-/// Get the mutable keys as slices
-pub fn mut_keys_slices(
-    set: &SolutionSet,
-    solution_index: SolutionIndex,
-) -> impl Iterator<Item = &[Word]> {
-    set.solutions[solution_index as usize]
-        .state_mutations
-        .iter()
-        .map(|m| m.key.as_ref())
-}
-
-/// Get the contract of mutable keys for this predicate.
-pub fn mut_keys_set(solution_set: &SolutionSet, solution_index: SolutionIndex) -> HashSet<&[Word]> {
-    mut_keys_slices(solution_set, solution_index).collect()
 }
 
 /// `Access::PredicateData` implementation.
@@ -131,11 +92,6 @@ pub(crate) fn predicate_data_len(
         .push(w)
         .expect("Can't fail because 1 is popped and 1 is pushed");
     Ok(())
-}
-
-/// `Access::MutKeys` implementation.
-pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> OpResult<()> {
-    encode_set(access.mutable_keys.iter().map(|k| k.iter().copied()), stack)
 }
 
 /// `Access::ThisAddress` implementation.
@@ -198,7 +154,7 @@ pub(crate) fn resolve_predicate_data_len(
 
 pub(crate) fn predicate_exists(
     stack: &mut Stack,
-    solutions: &[Solution],
+    solutions: Arc<Vec<Solution>>,
     cache: &LazyCache,
 ) -> OpResult<()> {
     let hash = u8_32_from_word_4(stack.pop4()?);
@@ -207,24 +163,25 @@ pub(crate) fn predicate_exists(
     Ok(())
 }
 
-pub(crate) fn init_predicate_exists(
-    solutions: &[Solution],
-) -> impl Iterator<Item = essential_types::Hash> + '_ {
-    solutions.iter().map(|d| {
-        let data = d
-            .predicate_data
-            .iter()
-            .flat_map(|slot| {
-                Some(slot.len() as Word)
-                    .into_iter()
-                    .chain(slot.iter().cloned())
-            })
-            .chain(word_4_from_u8_32(d.predicate_to_solve.contract.0))
-            .chain(word_4_from_u8_32(d.predicate_to_solve.predicate.0))
-            .flat_map(bytes_from_word)
-            .collect::<Vec<_>>();
-        sha256(&data)
-    })
+pub(crate) fn init_predicate_exists(solutions: Arc<Vec<Solution>>) -> Vec<essential_types::Hash> {
+    solutions
+        .iter()
+        .map(|d| {
+            let data = d
+                .predicate_data
+                .iter()
+                .flat_map(|slot| {
+                    Some(slot.len() as Word)
+                        .into_iter()
+                        .chain(slot.iter().cloned())
+                })
+                .chain(word_4_from_u8_32(d.predicate_to_solve.contract.0))
+                .chain(word_4_from_u8_32(d.predicate_to_solve.predicate.0))
+                .flat_map(bytes_from_word)
+                .collect::<Vec<_>>();
+            sha256(&data)
+        })
+        .collect()
 }
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {

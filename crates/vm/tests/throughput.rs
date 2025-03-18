@@ -1,9 +1,8 @@
-use std::collections::HashSet;
-
 use asm::short::*;
 use essential_types::{ContentAddress, PredicateAddress, Solution};
 use essential_vm::sync::step_op;
 use essential_vm::{asm, Access, Op, ProgramControlFlow, Vm};
+use std::sync::Arc;
 
 mod util;
 
@@ -40,18 +39,16 @@ fn test_throughput() {
         .unwrap_or("10".to_string())
         .parse()
         .unwrap();
-    let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        solutions: &[Solution {
+        solutions: Arc::new(vec![Solution {
             predicate_to_solve: PredicateAddress {
                 contract: ContentAddress([0; 32]),
                 predicate: ContentAddress([0; 32]),
             },
             predicate_data: vec![vec![2]],
             state_mutations: vec![],
-        }],
+        }]),
         index: 0,
-        mutable_keys: &mutable_keys,
     };
     let mut vm = Vm::default();
 
@@ -61,7 +58,7 @@ fn test_throughput() {
     let s = std::time::Instant::now();
     for _ in 0..short_n {
         for op in &ops {
-            step_op(access, *op, &mut vm, &State::EMPTY).unwrap();
+            step_op(access.clone(), *op, &mut vm, &State::EMPTY).unwrap();
         }
         out &= vm.stack[0] == 1;
         vm.stack.pop().unwrap();
@@ -78,7 +75,7 @@ fn test_throughput() {
     for _ in 0..long_n {
         while vm.pc < ops.len() {
             let op = &ops[vm.pc];
-            let r = step_op(access, *op, &mut vm, &State::EMPTY).unwrap();
+            let r = step_op(access.clone(), *op, &mut vm, &State::EMPTY).unwrap();
             match r {
                 Some(ProgramControlFlow::Pc(p)) => vm.pc = p,
                 Some(ProgramControlFlow::Halt) => break,

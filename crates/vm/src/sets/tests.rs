@@ -1,5 +1,5 @@
 use super::*;
-use crate::error::OpError;
+use crate::{error::OpError, Stack};
 use std::collections::HashSet;
 
 #[test]

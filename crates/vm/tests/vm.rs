@@ -4,10 +4,10 @@ mod util;
 
 use essential_vm::{
     asm::{self, short::*, Op},
-    mut_keys_set,
-    types::solution::{Mutation, Solution, SolutionSet},
+    types::solution::{Mutation, Solution},
     Access, BytecodeMapped, Gas, GasLimit, Vm,
 };
+use std::sync::Arc;
 use util::*;
 
 // A simple sanity test to check basic functionality.
@@ -24,7 +24,7 @@ fn no_yield() {
     let spent = vm
         .exec_ops(
             ops,
-            *test_access(),
+            test_access().clone(),
             &State::EMPTY,
             op_gas_cost,
             GasLimit::UNLIMITED,
@@ -51,7 +51,7 @@ fn continue_execution() {
     let spent = vm
         .exec_ops(
             ops,
-            *test_access(),
+            test_access().clone(),
             &State::EMPTY,
             op_gas_cost,
             GasLimit::UNLIMITED,
@@ -71,7 +71,7 @@ fn continue_execution() {
     let spent = vm
         .exec_ops(
             ops,
-            *test_access(),
+            test_access().clone(),
             &State::EMPTY,
             &op_gas_cost,
             GasLimit::UNLIMITED,
@@ -98,7 +98,7 @@ fn exec_method_behaviours_match() {
     let spent_ops = vm_ops
         .exec_ops(
             ops,
-            *test_access(),
+            test_access().clone(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -110,7 +110,7 @@ fn exec_method_behaviours_match() {
     let spent_sync_ops = vm_sync_ops
         .exec_ops(
             ops,
-            *test_access(),
+            test_access().clone(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -125,7 +125,7 @@ fn exec_method_behaviours_match() {
     let spent_bc = vm_bc
         .exec_bytecode(
             &mapped,
-            *test_access(),
+            test_access().clone(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -140,7 +140,7 @@ fn exec_method_behaviours_match() {
     let spent_bc_iter = vm_bc_iter
         .exec_bytecode_iter(
             bc_iter,
-            *test_access(),
+            test_access().clone(),
             &State::EMPTY,
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
@@ -162,26 +162,22 @@ fn read_pre_post_state() {
         vec![(vec![0, 0, 0, 0], vec![40]), (vec![0, 0, 0, 2], vec![42])],
     )]);
 
-    // The full solution set that we're checking.
-    let set = SolutionSet {
-        solutions: vec![Solution {
-            predicate_to_solve: predicate_addr.clone(),
-            predicate_data: vec![],
-            // We have one mutation that contracts a missing value to 41.
-            state_mutations: vec![Mutation {
-                key: vec![0, 0, 0, 1],
-                value: vec![41],
-            }],
+    // The solutions that we're checking.
+    let solutions = Arc::new(vec![Solution {
+        predicate_to_solve: predicate_addr.clone(),
+        predicate_data: vec![],
+        // We have one mutation that contracts a missing value to 41.
+        state_mutations: vec![Mutation {
+            key: vec![0, 0, 0, 1],
+            value: vec![41],
         }],
-    };
+    }]);
 
     // The index of the solution associated with the predicate we're solving.
     let solution_index = 0;
 
-    let mutable_keys = mut_keys_set(&set, solution_index);
-
     // Construct access to the necessary solution for the VM.
-    let access = Access::new(&set, solution_index, &mutable_keys);
+    let access = Access::new(solutions.clone(), solution_index);
 
     // A simple program that reads words directly to memory.
     let ops = &[
@@ -199,15 +195,21 @@ fn read_pre_post_state() {
 
     // Execute the program.
     let mut vm = Vm::default();
-    vm.exec_ops(ops, access, &pre_state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .unwrap();
+    vm.exec_ops(
+        ops,
+        access.clone(),
+        &pre_state,
+        &|_: &Op| 1,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
 
     // Collect the memory.
     let pre_state_mem: Vec<_> = vm.memory.into();
 
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
-    for solution in &set.solutions {
+    for solution in solutions.iter() {
         let contract_addr = &solution.predicate_to_solve.contract;
         for Mutation { key, value } in &solution.state_mutations {
             post_state.set(contract_addr.clone(), key, value.clone());
@@ -238,25 +240,21 @@ fn read_sync_state() {
     )]);
 
     // The full solution set that we're checking.
-    let set = SolutionSet {
-        solutions: vec![Solution {
-            predicate_to_solve: predicate_addr.clone(),
-            predicate_data: vec![],
-            // We have one mutation that contracts a missing value to 41.
-            state_mutations: vec![Mutation {
-                key: vec![0, 0, 0, 1],
-                value: vec![41],
-            }],
+    let solutions = Arc::new(vec![Solution {
+        predicate_to_solve: predicate_addr.clone(),
+        predicate_data: vec![],
+        // We have one mutation that contracts a missing value to 41.
+        state_mutations: vec![Mutation {
+            key: vec![0, 0, 0, 1],
+            value: vec![41],
         }],
-    };
+    }]);
 
     // The index of the solution associated with the predicate we're solving.
     let solution_index = 0;
 
-    let mutable_keys = mut_keys_set(&set, solution_index);
-
     // Construct access to the necessary solution for the VM.
-    let access = Access::new(&set, solution_index, &mutable_keys);
+    let access = Access::new(solutions.clone(), solution_index);
 
     // A simple program that reads words directly to memory.
     let ops = &[
@@ -274,15 +272,21 @@ fn read_sync_state() {
 
     // Execute the program.
     let mut vm = Vm::default();
-    vm.exec_ops(ops, access, &pre_state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .unwrap();
+    vm.exec_ops(
+        ops,
+        access.clone(),
+        &pre_state,
+        &|_: &Op| 1,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
 
     // Collect the memory.
     let pre_state_mem: Vec<_> = vm.memory.into();
 
     // Apply the state mutations to the state to produce the post state.
     let mut post_state = pre_state.clone();
-    for solution in &set.solutions {
+    for solution in solutions.iter() {
         let contract_addr = &solution.predicate_to_solve.contract;
         for Mutation { key, value } in &solution.state_mutations {
             post_state.set(contract_addr.clone(), key, value.clone());
@@ -313,7 +317,7 @@ fn test_halt() {
     let op_gas_cost = &|_: &Op| 1;
     vm.exec_ops(
         ops,
-        *test_access(),
+        test_access().clone(),
         &State::EMPTY,
         op_gas_cost,
         GasLimit::UNLIMITED,
