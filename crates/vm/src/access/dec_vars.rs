@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     asm,
     error::{ExecSyncError, OpSyncError, OpSyncResult, StackError},
-    sync::{exec_ops, test_util::test_empty_keys},
+    sync::exec_ops,
     types::{ContentAddress, PredicateAddress},
     OpSync,
 };
@@ -154,7 +154,7 @@ fn test_dec_var_len(stack: &[Word], dec_vars: &[&[Word]]) -> OpSyncResult<Vec<Wo
 )]
 fn test_dec_var_ops(ops: Vec<OpSync>, dec_vars: &[&[Word]]) -> OpSyncResult<Vec<Word>> {
     let dec_vars = dec_vars.iter().map(|v| v.to_vec()).collect::<Vec<_>>();
-    let solutions = [Solution {
+    let solutions = vec![Solution {
         predicate_to_solve: PredicateAddress {
             contract: ContentAddress([0; 32]),
             predicate: ContentAddress([0; 32]),
@@ -163,9 +163,8 @@ fn test_dec_var_ops(ops: Vec<OpSync>, dec_vars: &[&[Word]]) -> OpSyncResult<Vec<
         state_mutations: vec![],
     }];
     let access = Access {
-        solutions: &solutions,
+        solutions: Arc::new(solutions),
         index: 0,
-        mutable_keys: test_empty_keys(),
     };
     exec_ops(&ops, access)
         .map_err(|ExecSyncError(_, e)| e)

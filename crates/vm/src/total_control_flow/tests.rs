@@ -6,7 +6,7 @@ use crate::{
 
 #[test]
 fn test_jump_if() {
-    let access = *test_access();
+    let access = test_access();
     let ops = &[
         asm::Stack::Push(1).into(),
         asm::Stack::Push(1).into(),
@@ -19,7 +19,7 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access.clone()).unwrap();
     assert_eq!(&stack[..], &[3]);
 
     let ops = &[
@@ -34,13 +34,13 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access.clone()).unwrap();
     assert_eq!(&stack[..], &[4]);
 }
 
 #[test]
 fn test_halt_if() {
-    let access = *test_access();
+    let access = test_access();
     let ops = &[
         asm::Stack::Push(1).into(),
         asm::Stack::Push(1).into(),
@@ -50,7 +50,7 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access.clone()).unwrap();
     assert_eq!(&stack[..], &[2]);
 
     let ops = &[
@@ -62,7 +62,7 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access.clone()).unwrap();
     assert_eq!(&stack[..], &[3]);
 }
 

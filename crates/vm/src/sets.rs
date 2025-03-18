@@ -1,13 +1,13 @@
-use essential_types::Word;
-
 use crate::{
     error::{DecodeError, EncodeError, OpSyncResult, StackError},
     Stack,
 };
+use essential_types::Word;
 
 #[cfg(test)]
 mod tests;
 
+#[allow(dead_code)]
 /// Encode a set into the stack.
 pub(crate) fn encode_set<S, I>(set: S, stack: &mut Stack) -> OpSyncResult<()>
 where

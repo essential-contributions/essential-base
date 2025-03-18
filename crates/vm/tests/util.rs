@@ -9,6 +9,7 @@ use essential_vm::{
 use std::{
     collections::{BTreeMap, HashSet},
     future::{self, Ready},
+    sync::Arc,
 };
 use thiserror::Error;
 
@@ -30,17 +31,14 @@ pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
     &INSTANCE
 }
 
-pub(crate) fn test_solution_data_arr() -> &'static [Solution] {
-    static INSTANCE: std::sync::LazyLock<[Solution; 1]> =
-        std::sync::LazyLock::new(|| [TEST_SOLUTION]);
-    &*INSTANCE
+pub(crate) fn test_solutions() -> Arc<Vec<Solution>> {
+    Arc::new(vec![TEST_SOLUTION])
 }
 
-pub(crate) fn test_access() -> &'static Access<'static> {
+pub(crate) fn test_access() -> &'static Access {
     static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
-        solutions: test_solution_data_arr(),
+        solutions: test_solutions(),
         index: 0,
-        mutable_keys: test_empty_keys(),
     });
     &INSTANCE
 }

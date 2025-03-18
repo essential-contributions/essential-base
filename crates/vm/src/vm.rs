@@ -37,7 +37,7 @@ impl Vm {
     pub async fn exec_ops<S>(
         &mut self,
         ops: &[Op],
-        access: Access<'_>,
+        access: Access,
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -64,7 +64,7 @@ impl Vm {
     pub async fn exec_bytecode<S, B>(
         &mut self,
         bytecode_mapped: &BytecodeMapped<B>,
-        access: Access<'_>,
+        access: Access,
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -93,7 +93,7 @@ impl Vm {
     pub async fn exec_bytecode_iter<S, I>(
         &mut self,
         bytecode_iter: I,
-        access: Access<'_>,
+        access: Access,
         state_read: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -122,7 +122,7 @@ impl Vm {
     /// - [`Vm::exec_bytecode_iter`]
     pub async fn exec<S, OA>(
         &mut self,
-        access: Access<'_>,
+        access: Access,
         state_read: &S,
         op_access: OA,
         op_gas_cost: &impl OpGasCost,

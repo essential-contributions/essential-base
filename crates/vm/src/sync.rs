@@ -94,7 +94,15 @@ where
     while let Some(res) = op_access.op_access(pc) {
         let op = res.map_err(|err| ExecSyncError(pc, err.into()))?;
 
-        let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat, &cache);
+        let res = step_op(
+            access.clone(),
+            op,
+            &mut stack,
+            &mut memory,
+            pc,
+            &mut repeat,
+            &cache,
+        );
 
         #[cfg(feature = "tracing")]
         crate::trace_op_res(&mut op_access, pc, &stack, &memory, res.as_ref());
@@ -176,7 +184,6 @@ pub fn step_op_access(
         asm::Access::PredicateDataSlots => {
             access::predicate_data_slots(stack, &access.this_solution().predicate_data)
         }
-        asm::Access::MutKeys => access::push_mut_keys(access, stack),
         asm::Access::ThisAddress => access::this_address(access.this_solution(), stack),
         asm::Access::ThisContractAddress => {
             access::this_contract_address(access.this_solution(), stack)
@@ -315,8 +322,7 @@ pub(crate) mod test_util {
         types::{solution::Solution, ContentAddress, PredicateAddress},
         *,
     };
-    use asm::Word;
-    use std::collections::HashSet;
+    use std::sync::Arc;
 
     pub(crate) const TEST_SET_CA: ContentAddress = ContentAddress([0xFF; 32]);
     pub(crate) const TEST_PREDICATE_CA: ContentAddress = ContentAddress([0xAA; 32]);
@@ -330,23 +336,14 @@ pub(crate) mod test_util {
         state_mutations: vec![],
     };
 
-    pub(crate) fn test_empty_keys() -> &'static HashSet<&'static [Word]> {
-        static INSTANCE: std::sync::LazyLock<HashSet<&[Word]>> =
-            std::sync::LazyLock::new(|| HashSet::with_capacity(0));
-        &INSTANCE
+    pub(crate) fn test_solutions() -> Arc<Vec<Solution>> {
+        Arc::new(vec![TEST_SOLUTION])
     }
 
-    pub(crate) fn test_solutions() -> &'static [Solution] {
-        static INSTANCE: std::sync::LazyLock<[Solution; 1]> =
-            std::sync::LazyLock::new(|| [TEST_SOLUTION]);
-        &*INSTANCE
-    }
-
-    pub(crate) fn test_access() -> &'static Access<'static> {
+    pub(crate) fn test_access() -> &'static Access {
         static INSTANCE: std::sync::LazyLock<Access> = std::sync::LazyLock::new(|| Access {
             solutions: test_solutions(),
             index: 0,
-            mutable_keys: test_empty_keys(),
         });
         &INSTANCE
     }
