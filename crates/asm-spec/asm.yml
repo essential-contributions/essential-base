@@ -129,7 +129,7 @@ Op:
           panics:
             - Index is out of range.
           stack_in: [value, index]
-        
+
         Drop:
           opcode: 0x0E
           short: DROP
@@ -547,7 +547,7 @@ Op:
       group:
         Load:
           opcode: 0x7A
-          short: PLOD
+          short: LODP
           description: Load the value at the given index from parent memory onto the stack.
           panics:
             - Not in compute context.
@@ -557,7 +557,7 @@ Op:
 
         LoadRange:
           opcode: 0x7B
-          short: PLODR
+          short: LODPR
           description: Load a range of words starting at the index within parent memory.
           panics:
             - Not in compute context.
