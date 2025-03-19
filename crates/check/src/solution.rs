@@ -15,6 +15,7 @@ use crate::{
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
 use essential_types::{predicate::Program, ContentAddress};
+use essential_vm::StateReadSync;
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -24,6 +25,8 @@ use thiserror::Error;
 use tokio::{sync::oneshot, task::JoinSet};
 #[cfg(feature = "tracing")]
 use tracing::Instrument;
+
+use rayon::prelude::*;
 
 #[cfg(test)]
 mod tests;
@@ -72,6 +75,14 @@ struct ProgramCtx {
     children: Vec<oneshot::Sender<Arc<(Stack, Memory)>>>,
 }
 
+/// The node context in which a `Program` is evaluated (see [`run_program_sync`]).
+struct ProgramCtxSync {
+    /// The outputs from the parent nodes.
+    parents: Vec<Arc<(Stack, Memory)>>,
+    /// If this node is a leaf.
+    leaf: bool,
+}
+
 /// The outputs of checking a solution set.
 #[derive(Debug, PartialEq)]
 pub struct Outputs {
@@ -105,6 +116,33 @@ enum ProgramOutput {
 pub enum DataOutput {
     /// The program output is the memory.
     Memory(Memory),
+}
+
+/// The output of a program depends on
+/// whether it is a leaf or a parent.
+enum Output {
+    /// Leaf nodes output bools or data.
+    Leaf(ProgramOutput),
+    /// Parent nodes output a stack and memory.
+    Parent(Arc<(Stack, Memory)>),
+}
+
+/// Program node with its parents and inputs.
+#[derive(Debug)]
+struct Node {
+    /// Required parents for this node.
+    parents: HashSet<u16>,
+    /// Inputs to this node from parents.
+    inputs: Vec<Arc<(Stack, Memory)>>,
+    /// Program address.
+    program: ContentAddress,
+}
+
+impl Node {
+    /// Node has all its inputs.
+    fn has_all_inputs(&self) -> bool {
+        self.parents.len() == self.inputs.len()
+    }
 }
 
 /// [`check_set`] error.
@@ -425,15 +463,6 @@ where
     SB::Future: Send,
     SA::Error: Send,
 {
-    // Check there are no existing mutations.
-    if solution_set
-        .solutions
-        .iter()
-        .any(|s| !s.state_mutations.is_empty())
-    {
-        return Err(PredicatesError::ExistingMutations);
-    }
-
     // Check the set and gather any outputs.
     let set = Arc::new(solution_set);
     let outputs = check_set_predicates(
@@ -447,11 +476,20 @@ where
     .await?;
 
     // Safe to unwrap the arc here as we have no other references.
-    let mut set = Arc::try_unwrap(set).expect("set should have one reference");
+    let set = Arc::try_unwrap(set).expect("set should have one reference");
 
     // Get the gas
     let gas = outputs.gas;
 
+    let set = decode_mutations(outputs, set)?;
+
+    Ok((gas, set))
+}
+
+fn decode_mutations<E>(
+    outputs: Outputs,
+    mut set: SolutionSet,
+) -> Result<SolutionSet, PredicatesError<E>> {
     // For each output check if there are any state mutations and apply them.
     for output in outputs.data {
         // No two outputs can point to the same solution index.
@@ -490,7 +528,7 @@ where
             }
         }
     }
-    Ok((gas, set))
+    Ok(set)
 }
 
 /// Checks all of a [`SolutionSet`]'s [`Solution`]s against their associated [`Predicate`]s.
@@ -848,4 +886,352 @@ where
     };
 
     Ok((opt_satisfied, gas_spent))
+}
+
+/// Check the given solution set against the given predicates and
+/// and compute the post state mutations for this set.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
+pub fn check_and_compute_solution_set_sync<SA, SB>(
+    pre_state: &SA,
+    post_state: &SB,
+    solution_set: SolutionSet,
+    get_predicate: impl GetPredicate + Sync,
+    get_program: impl 'static + Clone + GetProgram + Send + Sync,
+    config: Arc<CheckPredicateConfig>,
+) -> Result<(Gas, SolutionSet), PredicatesError<SA::Error>>
+where
+    SA: Clone + StateReadSync + Send + Sync + 'static,
+    SB: Clone + StateReadSync<Error = SA::Error> + Send + Sync + 'static,
+    SA::Error: Send,
+{
+    // Check the set and gather any outputs.
+    let set = Arc::new(solution_set);
+    let outputs = check_set_predicates_sync(
+        pre_state,
+        post_state,
+        set.clone(),
+        get_predicate,
+        get_program,
+        config,
+    )?;
+
+    // Safe to unwrap the arc here as we have no other references.
+    let set = Arc::try_unwrap(set).expect("set should have one reference");
+
+    // Get the gas
+    let gas = outputs.gas;
+
+    let set = decode_mutations(outputs, set)?;
+
+    Ok((gas, set))
+}
+
+/// Checks all of a [`SolutionSet`]'s [`Solution`]s against their associated [`Predicate`]s.
+///
+/// For each solution, we load the associated predicate and its programs and execute each
+/// in parallel and in topological order. The leaf nodes are treated as constraints or data outputs and if
+/// any constraint returns `false`, the whole solution set is considered to be invalid.
+///
+/// **NOTE:** This assumes that the given `SolutionSet` and all `Predicate`s have already
+/// been independently validated using [`solution::check_set`][check_set] and
+/// [`predicate::check`][crate::predicate::check] respectively.
+///
+/// ## Arguments
+///
+/// - `pre_state` must provide access to state *prior to* mutations being applied.
+/// - `post_state` must provide access to state *post* mutations being applied.
+///
+/// Returns the total gas spent.
+pub fn check_set_predicates_sync<SA, SB>(
+    pre_state: &SA,
+    post_state: &SB,
+    solution_set: Arc<SolutionSet>,
+    get_predicate: impl GetPredicate + Sync,
+    get_program: impl 'static + Clone + GetProgram + Send + Sync,
+    config: Arc<CheckPredicateConfig>,
+) -> Result<Outputs, PredicatesError<SA::Error>>
+where
+    SA: Clone + StateReadSync + Send + Sync + 'static,
+    SB: Clone + StateReadSync<Error = SA::Error> + Send + Sync + 'static,
+    SA::Error: Send,
+{
+    #[cfg(feature = "tracing")]
+    tracing::trace!("{}", essential_hash::content_addr(&*solution_set));
+
+    // Check each solution in parallel.
+    let (ok, failed): (Vec<_>, Vec<_>) = solution_set
+        .solutions
+        .par_iter()
+        .enumerate()
+        .map(|(solution_index, solution)| {
+            let predicate = get_predicate.get_predicate(&solution.predicate_to_solve);
+            let solution_set = solution_set.clone();
+            let pre_state = pre_state.clone();
+            let post_state = post_state.clone();
+            let config = config.clone();
+            let get_program = get_program.clone();
+
+            let res = check_predicate_sync(
+                &pre_state,
+                &post_state,
+                solution_set,
+                predicate,
+                get_program,
+                solution_index
+                    .try_into()
+                    .expect("solution index already validated"),
+                &config,
+            );
+
+            match res {
+                Ok(ok) => Ok((solution_index as u16, ok)),
+                Err(e) => Err((solution_index as u16, e)),
+            }
+        })
+        .partition(Result::is_ok);
+
+    // If any predicates failed, return an error.
+    if !failed.is_empty() {
+        return Err(PredicateErrors(failed.into_iter().map(Result::unwrap_err).collect()).into());
+    }
+
+    // Calculate gas used.
+    let mut total_gas: u64 = 0;
+    let outputs = ok
+        .into_iter()
+        .map(Result::unwrap)
+        .map(|(solution_index, (gas, data_outputs))| {
+            let output = DataFromSolution {
+                solution_index,
+                data: data_outputs,
+            };
+            total_gas = total_gas.saturating_add(gas);
+            output
+        })
+        .collect();
+
+    Ok(Outputs {
+        gas: total_gas,
+        data: outputs,
+    })
+}
+
+/// Checks the predicate of the solution within the given set at the given `solution_index`.
+///
+/// Spawns a rayon task for each of the predicate's nodes to execute in parallel
+/// once their inputs are ready.
+///
+/// **NOTE:** This assumes that the given `SolutionSet` and `Predicate` have been
+/// independently validated using [`solution::check_set`][check_set]
+/// and [`predicate::check`][crate::predicate::check] respectively.
+///
+/// ## Arguments
+///
+/// - `pre_state` must provide access to state *prior to* mutations being applied.
+/// - `post_state` must provide access to state *post* mutations being applied.
+/// - `solution_index` represents the solution within `solution_set.solutions` that
+///   claims to solve this predicate.
+///
+/// Returns the total gas spent.
+pub fn check_predicate_sync<SA, SB>(
+    pre_state: &SA,
+    post_state: &SB,
+    solution_set: Arc<SolutionSet>,
+    predicate: Arc<Predicate>,
+    get_program: impl GetProgram + Send + Sync + 'static,
+    solution_index: SolutionIndex,
+    config: &CheckPredicateConfig,
+) -> Result<(Gas, Vec<DataOutput>), PredicateError<SA::Error>>
+where
+    SA: Clone + StateReadSync + Send + Sync + 'static,
+    SB: Clone + StateReadSync<Error = SA::Error> + Send + Sync + 'static,
+    SA::Error: Send,
+{
+    // Nodes with their parents and inputs.
+    let mut nodes = HashMap::new();
+
+    // Create new node
+    let new_node = |node_ix: usize| Node {
+        parents: HashSet::new(),
+        inputs: vec![],
+        program: predicate.nodes[node_ix].program_address.clone(),
+    };
+
+    // For each node add it their children's parents set
+    for node_ix in 0..predicate.nodes.len() {
+        // Insert this node incase it's a root
+        nodes
+            .entry(node_ix as u16)
+            .or_insert_with(|| new_node(node_ix));
+
+        // Add any children
+        for edge in predicate
+            .node_edges(node_ix)
+            .ok_or_else(|| PredicateError::InvalidNodeEdges(node_ix))?
+        {
+            // Insert the child if it's not already there and then add this node as a parent
+            nodes
+                .entry(*edge)
+                .or_insert_with(|| new_node(*edge as usize))
+                .parents
+                .insert(node_ix as u16);
+        }
+    }
+
+    // The outputs from a run.
+    let mut failed: Vec<(_, _)> = vec![];
+    let mut total_gas: Gas = 0;
+    let mut unsatisfied = Vec::new();
+    let mut data_outputs = Vec::new();
+
+    // While there are nodes to run
+    while !nodes.is_empty() {
+        // Run all nodes that have all their inputs in parallel
+        let outputs: HashMap<u16, Result<(Output, Gas), _>> = nodes
+            .par_iter()
+            .filter(|(_, n)| n.has_all_inputs())
+            .map(|(ix, node)| {
+                let program = get_program.get_program(&node.program);
+                let ctx = ProgramCtxSync {
+                    parents: node.inputs.clone(),
+                    leaf: predicate
+                        .node_edges(*ix as usize)
+                        .expect("This is already checked")
+                        .is_empty(),
+                };
+                let res = run_program_sync(
+                    pre_state.clone(),
+                    post_state.clone(),
+                    solution_set.clone(),
+                    solution_index,
+                    program,
+                    ctx,
+                );
+                (*ix, res)
+            })
+            .collect();
+
+        // Remove any nodes that have been run
+        for ix in outputs.keys() {
+            nodes.remove(ix);
+        }
+
+        // Go through each output
+        for (output_from, res) in outputs {
+            match res {
+                // Parent output
+                Ok((Output::Parent(o), gas)) => {
+                    // Find any nodes that need this output and add it
+                    for node in nodes
+                        .values_mut()
+                        .filter(|n| n.parents.contains(&output_from))
+                    {
+                        node.inputs.push(o.clone());
+                    }
+
+                    // Add to the total gas
+                    total_gas = total_gas.saturating_add(gas);
+                }
+                // Leaf output
+                Ok((Output::Leaf(o), gas)) => {
+                    match o {
+                        ProgramOutput::Satisfied(false) => {
+                            unsatisfied.push(output_from as usize);
+                        }
+                        ProgramOutput::Satisfied(true) => {
+                            // Nothing to do here.
+                        }
+                        ProgramOutput::DataOutput(data_output) => {
+                            data_outputs.push(data_output);
+                        }
+                    }
+
+                    // Add to the total gas
+                    total_gas = total_gas.saturating_add(gas);
+                }
+                Err(e) => {
+                    failed.push((output_from as usize, e));
+
+                    if !config.collect_all_failures {
+                        return Err(ProgramErrors(failed).into());
+                    }
+                }
+            }
+        }
+    }
+
+    // If there are any failed constraints, return an error.
+    if !failed.is_empty() {
+        return Err(ProgramErrors(failed).into());
+    }
+
+    // If there are any unsatisfied constraints, return an error.
+    if !unsatisfied.is_empty() {
+        return Err(ConstraintsUnsatisfied(unsatisfied).into());
+    }
+
+    Ok((total_gas, data_outputs))
+}
+
+/// Map the given program's bytecode and evaluate it.
+///
+/// If the program is a constraint, returns `Some(bool)` indicating whether or not the constraint
+/// was satisfied, otherwise returns `None`.
+fn run_program_sync<SA, SB>(
+    pre_state: SA,
+    _post_state: SB,
+    solution_set: Arc<SolutionSet>,
+    solution_index: SolutionIndex,
+    program: Arc<Program>,
+    ctx: ProgramCtxSync,
+) -> Result<(Output, Gas), ProgramError<SA::Error>>
+where
+    SA: StateReadSync,
+    SB: StateReadSync<Error = SA::Error>,
+{
+    let ProgramCtxSync { parents, leaf } = ctx;
+
+    // Pull ops into memory.
+    let ops = asm::from_bytes(program.0.iter().copied()).collect::<Result<Vec<_>, _>>()?;
+
+    // Create a new VM.
+    let mut vm = vm::Vm::default();
+
+    // Use the results of the parent execution to initialise our stack and memory.
+    for parent_result in parents {
+        let (parent_stack, parent_memory) = Arc::unwrap_or_clone(parent_result);
+        // Extend the stack.
+        let mut stack: Vec<Word> = std::mem::take(&mut vm.stack).into();
+        stack.append(&mut parent_stack.into());
+        vm.stack = stack.try_into()?;
+
+        // Extend the memory.
+        let mut memory: Vec<Word> = std::mem::take(&mut vm.memory).into();
+        memory.append(&mut parent_memory.into());
+        vm.memory = memory.try_into()?;
+    }
+
+    // Setup solution access for execution.
+    let mut_keys = vm::mut_keys_set(&solution_set, solution_index);
+    let access = Access::new(&solution_set, solution_index, &mut_keys);
+
+    // FIXME: Provide these from Config.
+    let gas_cost = |_: &asm::Op| 1;
+    let gas_limit = GasLimit::UNLIMITED;
+
+    // Read the state into the VM's memory.
+    let gas_spent = vm.exec_ops_sync(&ops, access, &pre_state, &gas_cost, gas_limit)?;
+
+    let out = if leaf {
+        match vm.stack[..] {
+            [2] => Output::Leaf(ProgramOutput::DataOutput(DataOutput::Memory(vm.memory))),
+            [1] => Output::Leaf(ProgramOutput::Satisfied(true)),
+            _ => Output::Leaf(ProgramOutput::Satisfied(false)),
+        }
+    } else {
+        let output = Arc::new((vm.stack, vm.memory));
+        Output::Parent(output)
+    };
+
+    Ok((out, gas_spent))
 }

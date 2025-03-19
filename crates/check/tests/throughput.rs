@@ -5,7 +5,7 @@ use essential_check::{
 use essential_hash::content_addr;
 use essential_types::{
     contract::Contract,
-    predicate::{Edge, Node, Predicate, Program, Reads},
+    predicate::{Edge, Node, Predicate, Program},
     solution::{Solution, SolutionSet},
     ContentAddress, PredicateAddress,
 };
@@ -64,7 +64,6 @@ async fn test_throughput() {
         let node = |program_address, edge_start| Node {
             program_address,
             edge_start,
-            reads: Reads::Pre, // unused for this test.
         };
         let nodes = vec![node(p_ca.clone(), Edge::MAX)];
         let edges = vec![];
