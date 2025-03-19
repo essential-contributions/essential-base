@@ -46,6 +46,8 @@ pub use stack::Stack;
 #[doc(inline)]
 pub use state_read::StateRead;
 #[doc(inline)]
+pub use state_read::StateReadSync;
+#[doc(inline)]
 pub use total_control_flow::ProgramControlFlow;
 #[doc(inline)]
 pub use vm::Vm;

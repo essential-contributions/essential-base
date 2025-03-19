@@ -25,6 +25,9 @@ pub type OpSyncResult<T> = Result<T, OpSyncError>;
 /// Shorthand for a `Result` where the error type is an `OpAsyncError`.
 pub type OpAsyncResult<T, E> = Result<T, OpAsyncError<E>>;
 
+/// Shorthand for a `Result` where the error type is an `OpStateSyncError`.
+pub type OpStateSyncResult<T, E> = Result<T, OpStateSyncError<E>>;
+
 /// Execution failed at the operation at the given index.
 #[derive(Debug, Error)]
 #[error("operation at index {0} failed: {1}")]
@@ -57,6 +60,9 @@ pub enum OpError<E> {
     /// A synchronous operation failed.
     #[error("synchronous operation failed: {0}")]
     Sync(#[from] OpSyncError),
+    /// A synchronous operation failed.
+    #[error("synchronous operation failed: {0}")]
+    StateSync(#[from] OpStateSyncError<E>),
     /// An asynchronous operation failed.
     #[error("asynchronous operation failed: {0}")]
     Async(#[from] OpAsyncError<E>),
@@ -138,6 +144,31 @@ pub enum OpSyncError {
     /// An error occurred while encoding some data.
     #[error("encoding error: {0}")]
     Encode(#[from] EncodeError),
+}
+
+/// An error occurred during a synchronous state read operation.
+#[derive(Debug, Error)]
+pub enum OpStateSyncError<E> {
+    /// A memory access related error occurred.
+    #[error("memory error: {0}")]
+    Memory(#[from] MemoryError),
+    /// An error occurred during a `Stack` operation.
+    #[error("stack operation error: {0}")]
+    Stack(#[from] StackError),
+    /// An error occurred during a `StateRead` operation.
+    #[error("state read operation error: {0}")]
+    StateRead(E),
+}
+
+/// A error occurred while reading state read arguments
+#[derive(Debug, Error)]
+pub enum StateReadArgError {
+    /// A memory access related error occurred.
+    #[error("memory error: {0}")]
+    Memory(#[from] MemoryError),
+    /// An error occurred during a `Stack` operation.
+    #[error("stack operation error: {0}")]
+    Stack(#[from] StackError),
 }
 
 /// Errors occuring during `TotalControlFlow` operation.
@@ -380,5 +411,23 @@ impl From<core::convert::Infallible> for OpSyncError {
 impl<E> From<core::convert::Infallible> for OpError<E> {
     fn from(err: core::convert::Infallible) -> Self {
         match err {}
+    }
+}
+
+impl<E> From<StateReadArgError> for OpAsyncError<E> {
+    fn from(err: StateReadArgError) -> Self {
+        match err {
+            StateReadArgError::Memory(e) => OpAsyncError::Memory(e),
+            StateReadArgError::Stack(e) => OpAsyncError::Stack(e),
+        }
+    }
+}
+
+impl<E> From<StateReadArgError> for OpStateSyncError<E> {
+    fn from(err: StateReadArgError) -> Self {
+        match err {
+            StateReadArgError::Memory(e) => OpStateSyncError::Memory(e),
+            StateReadArgError::Stack(e) => OpStateSyncError::Stack(e),
+        }
     }
 }
