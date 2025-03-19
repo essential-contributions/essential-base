@@ -103,6 +103,8 @@ impl fmt::Display for MutationDecodeError {
             match self {
                 MutationDecodeError::WordsTooShort =>
                     "bytes too short for lengths given for key or value",
+                MutationDecodeError::NegativeKeyLength => "negative key length",
+                MutationDecodeError::NegativeValueLength => "negative value length",
             }
         )
     }
