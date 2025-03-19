@@ -113,6 +113,8 @@ pub enum OpSync {
     Crypto(asm::Crypto),
     /// `[asm::Memory]` operations.
     Memory(asm::Memory),
+    /// `[asm::ParentMemory]` operations.
+    ParentMemory(asm::ParentMemory),
     /// `[asm::Pred]` operations.
     Pred(asm::Pred),
     /// `[asm::Stack]` operations.
@@ -145,6 +147,7 @@ impl From<Op> for OpKind {
             Op::Alu(op) => OpKind::Sync(OpSync::Alu(op)),
             Op::Crypto(op) => OpKind::Sync(OpSync::Crypto(op)),
             Op::Memory(op) => OpKind::Sync(OpSync::Memory(op)),
+            Op::ParentMemory(op) => OpKind::Sync(OpSync::ParentMemory(op)),
             Op::Pred(op) => OpKind::Sync(OpSync::Pred(op)),
             Op::Stack(op) => OpKind::Sync(OpSync::Stack(op)),
             Op::StateRead(op) => OpKind::Async(OpAsync(op)),
