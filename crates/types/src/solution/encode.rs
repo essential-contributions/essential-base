@@ -19,11 +19,9 @@ pub fn encode_mutation_size(mutation: &Mutation) -> usize {
 ///
 /// # Layout
 /// ```text
-/// +-----------------+-----------------+
-/// | key length      | key             |
-/// +-----------------+-----------------+
-/// | value length    | value           |
-/// +-----------------+-----------------+
+/// +-----------------+-----------------+-----------------+-----------------+
+/// | key length      | key             | value length    | value           |
+/// +-----------------+-----------------+-----------------+-----------------+
 /// ```
 pub fn encode_mutation(mutation: &Mutation) -> impl Iterator<Item = Word> + use<'_> {
     // Saturating cast

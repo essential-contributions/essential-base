@@ -13,6 +13,10 @@ mod tests;
 pub enum MutationDecodeError {
     /// The words are too short for the lengths of the key or value.
     WordsTooShort,
+    /// The key length is negative.
+    NegativeKeyLength,
+    /// The value length is negative.
+    NegativeValueLength,
 }
 
 impl std::error::Error for MutationDecodeError {}
@@ -21,29 +25,41 @@ impl std::error::Error for MutationDecodeError {}
 ///
 /// # Layout
 /// ```text
-/// +-----------------+-----------------+
-/// | key length      | key             |
-/// +-----------------+-----------------+
-/// | value length    | value           |
-/// +-----------------+-----------------+
+/// +-----------------+-----------------+-----------------+-----------------+
+/// | key length      | key             | value length    | value           |
+/// +-----------------+-----------------+-----------------+-----------------+
 /// ```
 pub fn decode_mutation(bytes: &[Word]) -> Result<Mutation, MutationDecodeError> {
     if bytes.len() < 2 {
         return Err(MutationDecodeError::WordsTooShort);
     }
+
+    if bytes[0] < 0 {
+        return Err(MutationDecodeError::NegativeKeyLength);
+    }
+
     // Saturating cast
     let key_len: usize = bytes[0].try_into().unwrap_or(usize::MAX);
-    if bytes.len() < 1 + key_len {
+    let key_end = 1usize.saturating_add(key_len);
+    if bytes.len() < key_end {
         return Err(MutationDecodeError::WordsTooShort);
     }
-    let key = bytes[1..1 + key_len].to_vec();
-    // Saturating cast
-    let value_len: usize = bytes[1 + key_len].try_into().unwrap_or(usize::MAX);
+    let key = bytes[1..key_end].to_vec();
 
-    if bytes.len() < 2 + key_len + value_len {
+    if bytes[key_end] < 0 {
+        return Err(MutationDecodeError::NegativeValueLength);
+    }
+
+    // Saturating cast
+    let value_len: usize = bytes[key_end].try_into().unwrap_or(usize::MAX);
+
+    let value_start = 2usize.saturating_add(key_len);
+    let value_end = value_start.saturating_add(value_len);
+
+    if bytes.len() < value_end {
         return Err(MutationDecodeError::WordsTooShort);
     }
-    let value = bytes[2 + key_len..2 + key_len + value_len].to_vec();
+    let value = bytes[value_start..value_end].to_vec();
     Ok(Mutation { key, value })
 }
 
@@ -59,8 +75,14 @@ pub fn decode_mutations(bytes: &[Word]) -> Result<Vec<Mutation>, MutationDecodeE
     if bytes.is_empty() {
         return Err(MutationDecodeError::WordsTooShort);
     }
+    if bytes[0] < 0 {
+        return Err(MutationDecodeError::NegativeValueLength);
+    }
+
     // Saturating cast
     let len: usize = bytes[0].try_into().unwrap_or(usize::MAX);
+
+    // FIXME: Do a max size check to avoid a DoS attack that allocates too much memory.
     let mut mutations = Vec::with_capacity(len);
     if len == 0 {
         return Ok(mutations);
