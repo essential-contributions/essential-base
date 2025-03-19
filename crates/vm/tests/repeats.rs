@@ -1,25 +1,22 @@
-use std::collections::HashSet;
-
 use essential_asm as asm;
 use essential_types::{solution::Solution, ContentAddress, PredicateAddress};
 use essential_vm::{sync::eval_ops, Access};
+use std::sync::Arc;
 
 #[test]
 fn test_forall_in_asm() {
     #[cfg(feature = "tracing")]
     let _ = tracing_subscriber::fmt::try_init();
-    let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        solutions: &[Solution {
+        solutions: Arc::new(vec![Solution {
             predicate_to_solve: PredicateAddress {
                 contract: ContentAddress([0; 32]),
                 predicate: ContentAddress([0; 32]),
             },
             predicate_data: vec![vec![2], vec![4, 6], vec![8, 12]],
             state_mutations: vec![],
-        }],
+        }]),
         index: 0,
-        mutable_keys: &mutable_keys,
     };
 
     // let len: int;
@@ -64,18 +61,16 @@ fn test_forall_in_asm() {
 
 #[test]
 fn test_fold_filter_in_asm() {
-    let mutable_keys = HashSet::with_capacity(0);
     let access = Access {
-        solutions: &[Solution {
+        solutions: Arc::new(vec![Solution {
             predicate_to_solve: PredicateAddress {
                 contract: ContentAddress([0; 32]),
                 predicate: ContentAddress([0; 32]),
             },
             predicate_data: vec![],
             state_mutations: vec![],
-        }],
+        }]),
         index: 0,
-        mutable_keys: &mutable_keys,
     };
 
     // let list: int[3] = [1, 2, 3];
@@ -123,7 +118,7 @@ fn test_fold_filter_in_asm() {
         asm::Memory::Load.into(),
         asm::Pred::Eq.into(),
     ];
-    let res = eval_ops(ops, access).unwrap();
+    let res = eval_ops(ops, access.clone()).unwrap();
     assert!(res);
 
     // constraint {

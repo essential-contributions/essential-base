@@ -68,7 +68,7 @@ where
     S: StateRead,
 {
     /// Access to solution data.
-    access: Access<'a>,
+    access: Access,
     /// Access to state reading.
     state_read: &'a S,
     /// Access to operations.
@@ -215,7 +215,7 @@ where
             };
 
             let res = match OpKind::from(op) {
-                OpKind::Sync(op) => step_op_sync(op, self.access, vm),
+                OpKind::Sync(op) => step_op_sync(op, self.access.clone(), vm), // do not clone?
                 OpKind::Async(op) => {
                     // Async op takes ownership of the VM and returns it upon future completion.
                     let contract_addr = self
@@ -305,7 +305,7 @@ where
 /// Creates the VM execution future.
 pub(crate) fn exec<'a, S, OA, OG>(
     vm: &'a mut Vm,
-    access: Access<'a>,
+    access: Access,
     state_read: &'a S,
     op_access: OA,
     op_gas_cost: &'a OG,

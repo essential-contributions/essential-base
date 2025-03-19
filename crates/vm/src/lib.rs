@@ -27,7 +27,7 @@
 //! [`ExecFuture`] docs for further details on the implementation.
 #![deny(missing_docs, unsafe_code)]
 
-pub use access::{mut_keys, mut_keys_set, mut_keys_slices, Access};
+pub use access::Access;
 pub use cached::LazyCache;
 #[doc(inline)]
 pub use essential_asm::{self as asm, Op};
