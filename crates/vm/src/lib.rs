@@ -54,6 +54,7 @@ mod access;
 mod alu;
 pub mod bytecode;
 mod cached;
+mod compute;
 mod crypto;
 pub mod error;
 mod future;
@@ -98,7 +99,12 @@ pub(crate) enum OpKind {
 
 /// The set of operations that are performed asynchronously.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct OpAsync(asm::StateRead);
+pub enum OpAsync {
+    /// `[asm::StateRead]` operations.
+    StateRead(asm::StateRead),
+    /// `[asm::Compute]` operations.
+    Compute(asm::Compute),
+}
 
 /// The set of operations that are performed synchronously.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -147,8 +153,9 @@ impl From<Op> for OpKind {
             Op::Memory(op) => OpKind::Sync(OpSync::Memory(op)),
             Op::Pred(op) => OpKind::Sync(OpSync::Pred(op)),
             Op::Stack(op) => OpKind::Sync(OpSync::Stack(op)),
-            Op::StateRead(op) => OpKind::Async(OpAsync(op)),
             Op::TotalControlFlow(op) => OpKind::Sync(OpSync::ControlFlow(op)),
+            Op::StateRead(op) => OpKind::Async(OpAsync::StateRead(op)),
+            Op::Compute(op) => OpKind::Async(OpAsync::Compute(op)),
         }
     }
 }
