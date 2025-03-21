@@ -10,8 +10,16 @@ repository.workspace = true
 
 [dependencies]
 hex = { workspace = true, features = ["serde"] }
+proptest = { workspace = true, optional = true }
+proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde.workspace = true
 
+[dev-dependencies]
+proptest = { workspace = true }
+proptest-derive = { workspace = true }
+
 [features]
+default = ["fuzz"] # TODO: temporarily
 schema = ["dep:schemars"]
+fuzz = ["dep:proptest", "dep:proptest-derive"]
