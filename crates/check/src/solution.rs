@@ -14,10 +14,7 @@ use crate::{
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
-use essential_types::{
-    predicate::{Program, Reads},
-    ContentAddress,
-};
+use essential_types::{predicate::Program, ContentAddress};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -73,7 +70,6 @@ struct ProgramCtx {
     /// Results in the `Vec` are assumed to be in order of the adjacency list.
     parents: Vec<oneshot::Receiver<Arc<(Stack, Memory)>>>,
     children: Vec<oneshot::Sender<Arc<(Stack, Memory)>>>,
-    reads: Reads,
 }
 
 /// The outputs of checking a solution set.
@@ -693,7 +689,6 @@ where
                 ProgramCtx {
                     parents,
                     children: txs,
-                    reads: node.reads,
                 },
             );
 
@@ -763,13 +758,13 @@ where
 #[cfg_attr(
     feature = "tracing",
     tracing::instrument(
-        fields(CA = %format!("{}:{:?}", &format!("{}", content_addr(&*program))[0..8], ctx.reads)),
+        fields(CA = %format!("{:?}", &format!("{}", content_addr(&*program))[0..8])),
         skip_all,
     ),
 )]
 async fn run_program<SA, SB>(
     pre_state: SA,
-    post_state: SB,
+    _post_state: SB,
     solution_set: Arc<SolutionSet>,
     solution_index: SolutionIndex,
     program: Arc<Program>,
@@ -833,16 +828,9 @@ where
     let gas_limit = GasLimit::UNLIMITED;
 
     // Read the state into the VM's memory.
-    let gas_spent = match ctx.reads {
-        Reads::Pre => {
-            vm.exec_bytecode(&program_mapped, access, &pre_state, &gas_cost, gas_limit)
-                .await?
-        }
-        Reads::Post => {
-            vm.exec_bytecode(&program_mapped, access, &post_state, &gas_cost, gas_limit)
-                .await?
-        }
-    };
+    let gas_spent = vm
+        .exec_bytecode(&program_mapped, access, &pre_state, &gas_cost, gas_limit)
+        .await?;
 
     // If this node is a constraint (has no children), check the stack result.
     let opt_satisfied = if ctx.children.is_empty() {

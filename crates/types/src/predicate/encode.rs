@@ -5,7 +5,7 @@
 //! | Field | Size (bytes) | Description |
 //! | --- | --- | --- |
 //! | number_of_nodes | 2 | The number of nodes in the predicate. |
-//! | nodes | 35 * number_of_nodes | The nodes in the predicate. |
+//! | nodes | 34 * number_of_nodes | The nodes in the predicate. |
 //! | number_of_edges | 2 | The number of edges in the predicate. |
 //! | edges | 2 * number_of_edges | The edges in the predicate. |
 //!
@@ -14,7 +14,6 @@
 //! | --- | --- | --- |
 //! | edge_start | 2 | The index of the first edge in the edge list. |
 //! | program_address | 32 | The address of the program. |
-//! | reads | 1 | The type of state this program has access to. |
 //!
 //! ## Edge
 //! | Field | Size (bytes) | Description |
@@ -26,7 +25,7 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
-const NODE_SIZE_BYTES: usize = 35;
+const NODE_SIZE_BYTES: usize = 34;
 const EDGE_SIZE_BYTES: usize = core::mem::size_of::<u16>();
 const LEN_SIZE_BYTES: usize = core::mem::size_of::<u16>();
 
@@ -72,7 +71,6 @@ pub fn encode_predicate(
                 .to_be_bytes()
                 .into_iter()
                 .chain(node.program_address.0.iter().copied())
-                .chain(Some(node.reads as u8))
         }))
         .chain(num_edges.to_be_bytes())
         .chain(predicate.edges.iter().flat_map(|edge| edge.to_be_bytes()));
@@ -104,9 +102,8 @@ pub fn decode_predicate(bytes: &[u8]) -> Result<Predicate, PredicateDecodeError>
                         node[..2].try_into().expect("safe due to chunks exact"),
                     ),
                     program_address: ContentAddress(
-                        node[2..34].try_into().expect("safe due to chunks exact"),
+                        node[2..].try_into().expect("safe due to chunks exact"),
                     ),
-                    reads: Reads::from(node[34]),
                 })
                 .collect(),
             None => return Err(PredicateDecodeError::BytesTooShort),
@@ -135,14 +132,4 @@ pub fn decode_predicate(bytes: &[u8]) -> Result<Predicate, PredicateDecodeError>
             None => return Err(PredicateDecodeError::BytesTooShort),
         };
     Ok(Predicate { nodes, edges })
-}
-
-impl Reads {
-    fn from(byte: u8) -> Self {
-        match byte % (Self::Post as u8 + 1) {
-            0 => Self::Pre,
-            1 => Self::Post,
-            _ => unreachable!(),
-        }
-    }
 }

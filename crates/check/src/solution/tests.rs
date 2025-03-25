@@ -81,7 +81,6 @@ fn empty_prgm_ctx() -> ProgramCtx {
     ProgramCtx {
         parents: vec![],
         children: vec![],
-        reads: Default::default(),
     }
 }
 
