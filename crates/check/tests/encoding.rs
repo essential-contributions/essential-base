@@ -94,8 +94,7 @@ fn test_encoding_sig_and_pub_key() {
 
     // Run the check, and ensure it returns ok.
     essential_check::solution::check_set_predicates(
-        &pre_state,
-        &post_state,
+        &(pre_state, post_state),
         Arc::new(solution),
         get_predicate,
         get_program,

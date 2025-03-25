@@ -17,7 +17,7 @@ fn test_check_predicate_sync_inner() {
             )),
         )
     };
-    let res = check_predicate_sync_inner(run, predicate, &Default::default());
+    let res = check_predicate_inner(run, predicate, &Default::default());
     assert_eq!((0, vec![]), res.unwrap());
 
     let predicate = Predicate {
@@ -37,7 +37,7 @@ fn test_check_predicate_sync_inner() {
             )),
         )
     };
-    let res = check_predicate_sync_inner(run, predicate, &Default::default());
+    let res = check_predicate_inner(run, predicate, &Default::default());
     assert_eq!((0, vec![]), res.unwrap());
 
     let predicate = Predicate {
@@ -57,6 +57,6 @@ fn test_check_predicate_sync_inner() {
             )),
         )
     };
-    let res = check_predicate_sync_inner(run, predicate, &Default::default());
+    let res = check_predicate_inner(run, predicate, &Default::default());
     assert_eq!((0, vec![]), res.unwrap());
 }

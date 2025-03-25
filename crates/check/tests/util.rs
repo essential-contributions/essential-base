@@ -7,6 +7,7 @@ use essential_types::{
     contract::{self, Contract},
     predicate::Predicate,
 };
+use essential_vm::StateReads;
 use std::collections::BTreeMap;
 use thiserror::Error;
 
@@ -117,6 +118,18 @@ impl StateRead for State {
         num_words: usize,
     ) -> Result<Vec<Vec<Word>>, Self::Error> {
         self.key_range(contract_addr, key, num_words)
+    }
+}
+
+impl StateReads for State {
+    type Error = InvalidStateRead;
+    type Pre = Self;
+    type Post = Self;
+    fn pre(&self) -> &Self::Pre {
+        self
+    }
+    fn post(&self) -> &Self::Post {
+        self
     }
 }
 

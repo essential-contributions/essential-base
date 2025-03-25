@@ -4,7 +4,7 @@ use crate::{
     error::{ExecError, OpError, OutOfGasError},
     sync::step_op,
     Access, BytecodeMapped, BytecodeMappedLazy, Gas, GasLimit, LazyCache, Memory, Op, OpAccess,
-    OpGasCost, ProgramControlFlow, Repeat, Stack, StateRead,
+    OpGasCost, ProgramControlFlow, Repeat, Stack, StateReads,
 };
 
 /// The operation execution state of the VM.
@@ -47,7 +47,7 @@ impl Vm {
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
     where
-        S: StateRead,
+        S: StateReads,
     {
         self.exec(access, state_read, ops, op_gas_cost, gas_limit)
     }
@@ -76,7 +76,7 @@ impl Vm {
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
     where
-        S: StateRead,
+        S: StateReads,
         B: core::ops::Deref<Target = [u8]>,
     {
         self.exec(access, state_read, bytecode_mapped, op_gas_cost, gas_limit)
@@ -107,7 +107,7 @@ impl Vm {
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
     where
-        S: StateRead,
+        S: StateReads,
         I: IntoIterator<Item = u8>,
         I::IntoIter: Unpin,
     {
@@ -132,7 +132,7 @@ impl Vm {
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
     where
-        S: StateRead,
+        S: StateReads,
         OA: OpAccess<Op = Op>,
         OA::Error: Into<OpError<S::Error>>,
     {
@@ -167,13 +167,7 @@ impl Vm {
             let res = step_op(access, op, self, state_read);
 
             #[cfg(feature = "tracing")]
-            crate::trace_op_res(
-                &mut op_access,
-                self.pc,
-                &self.stack,
-                &self.memory,
-                res.as_ref(),
-            );
+            crate::trace_op_res(&mut op_access, self.pc, &self.stack, &self.memory, &res);
 
             // Handle the result of the operation.
             let update = match res {

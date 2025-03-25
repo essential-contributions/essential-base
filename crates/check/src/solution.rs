@@ -9,12 +9,13 @@ use crate::{
     vm::{
         self,
         asm::{self, FromBytesError},
-        Access, Gas, GasLimit, Memory, Stack, StateRead,
+        Access, Gas, GasLimit, Memory, Stack,
     },
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
 use essential_types::{predicate::Program, ContentAddress};
+use essential_vm::StateReads;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt,
@@ -468,29 +469,20 @@ fn decode_mutations<E>(
 /// Check the given solution set against the given predicates and
 /// and compute the post state mutations for this set.
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
-pub fn check_and_compute_solution_set<SA, SB>(
-    pre_state: &SA,
-    post_state: &SB,
+pub fn check_and_compute_solution_set<S>(
+    state: &S,
     solution_set: SolutionSet,
     get_predicate: impl GetPredicate + Sync,
     get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
-) -> Result<(Gas, SolutionSet), PredicatesError<SA::Error>>
+) -> Result<(Gas, SolutionSet), PredicatesError<S::Error>>
 where
-    SA: Clone + StateRead + Send + Sync + 'static,
-    SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
-    SA::Error: Send,
+    S: Clone + StateReads + Send + Sync + 'static,
+    S::Error: Send,
 {
     // Check the set and gather any outputs.
     let set = Arc::new(solution_set);
-    let outputs = check_set_predicates(
-        pre_state,
-        post_state,
-        set.clone(),
-        get_predicate,
-        get_program,
-        config,
-    )?;
+    let outputs = check_set_predicates(state, set.clone(), get_predicate, get_program, config)?;
 
     // Safe to unwrap the arc here as we have no other references.
     let set = Arc::try_unwrap(set).expect("set should have one reference");
@@ -519,18 +511,16 @@ where
 /// - `post_state` must provide access to state *post* mutations being applied.
 ///
 /// Returns the total gas spent.
-pub fn check_set_predicates<SA, SB>(
-    pre_state: &SA,
-    post_state: &SB,
+pub fn check_set_predicates<S>(
+    state: &S,
     solution_set: Arc<SolutionSet>,
     get_predicate: impl GetPredicate + Sync,
     get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
-) -> Result<Outputs, PredicatesError<SA::Error>>
+) -> Result<Outputs, PredicatesError<S::Error>>
 where
-    SA: Clone + StateRead + Send + Sync + 'static,
-    SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
-    SA::Error: Send,
+    S: Clone + StateReads + Send + Sync + 'static,
+    S::Error: Send,
 {
     #[cfg(feature = "tracing")]
     tracing::trace!("{}", essential_hash::content_addr(&*solution_set));
@@ -543,14 +533,12 @@ where
         .map(|(solution_index, solution)| {
             let predicate = get_predicate.get_predicate(&solution.predicate_to_solve);
             let solution_set = solution_set.clone();
-            let pre_state = pre_state.clone();
-            let post_state = post_state.clone();
+            let state = state.clone();
             let config = config.clone();
             let get_program = get_program.clone();
 
             let res = check_predicate(
-                &pre_state,
-                &post_state,
+                &state,
                 solution_set,
                 predicate,
                 get_program,
@@ -610,19 +598,17 @@ where
 ///   claims to solve this predicate.
 ///
 /// Returns the total gas spent.
-pub fn check_predicate<SA, SB>(
-    pre_state: &SA,
-    post_state: &SB,
+pub fn check_predicate<S>(
+    state: &S,
     solution_set: Arc<SolutionSet>,
     predicate: Arc<Predicate>,
     get_program: impl GetProgram + Send + Sync + 'static,
     solution_index: SolutionIndex,
     config: &CheckPredicateConfig,
-) -> Result<(Gas, Vec<DataOutput>), PredicateError<SA::Error>>
+) -> Result<(Gas, Vec<DataOutput>), PredicateError<S::Error>>
 where
-    SA: Clone + StateRead + Send + Sync + 'static,
-    SB: Clone + StateRead<Error = SA::Error> + Send + Sync + 'static,
-    SA::Error: Send,
+    S: Clone + StateReads + Send + Sync + 'static,
+    S::Error: Send,
 {
     let p = predicate.clone();
 
@@ -637,8 +623,7 @@ where
                 .is_empty(),
         };
         let res = run_program(
-            pre_state.clone(),
-            post_state.clone(),
+            state.clone(),
             solution_set.clone(),
             solution_index,
             program,
@@ -647,10 +632,10 @@ where
         (*ix, res)
     };
 
-    check_predicate_sync_inner(run, p, config)
+    check_predicate_inner(run, p, config)
 }
 
-fn check_predicate_sync_inner<F, E>(
+fn check_predicate_inner<F, E>(
     run: F,
     predicate: Arc<Predicate>,
     config: &CheckPredicateConfig,
@@ -777,17 +762,15 @@ where
 ///
 /// If the program is a constraint, returns `Some(bool)` indicating whether or not the constraint
 /// was satisfied, otherwise returns `None`.
-fn run_program<SA, SB>(
-    pre_state: SA,
-    _post_state: SB,
+fn run_program<S>(
+    state: S,
     solution_set: Arc<SolutionSet>,
     solution_index: SolutionIndex,
     program: Arc<Program>,
     ctx: ProgramCtx,
-) -> Result<(Output, Gas), ProgramError<SA::Error>>
+) -> Result<(Output, Gas), ProgramError<S::Error>>
 where
-    SA: StateRead,
-    SB: StateRead<Error = SA::Error>,
+    S: StateReads,
 {
     let ProgramCtx { parents, leaf } = ctx;
 
@@ -820,7 +803,7 @@ where
     let gas_limit = GasLimit::UNLIMITED;
 
     // Read the state into the VM's memory.
-    let gas_spent = vm.exec_ops(&ops, access, &pre_state, &gas_cost, gas_limit)?;
+    let gas_spent = vm.exec_ops(&ops, access, &state, &gas_cost, gas_limit)?;
 
     let out = if leaf {
         match vm.stack[..] {
