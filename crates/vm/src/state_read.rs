@@ -1,16 +1,8 @@
 //! State read operation implementations.
 
 use crate::{
-    error::{
-        MemoryError, OpAsyncError, OpAsyncResult, OpStateSyncError, OpStateSyncResult, StackError,
-        StateReadArgError,
-    },
-    Memory, Stack, Vm,
-};
-use core::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
+    error::{MemoryError, OpError, OpResult, StackError, StateReadArgError},
+    Memory, Stack,
 };
 use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Value, Word};
 
@@ -19,31 +11,6 @@ mod tests;
 
 /// Read-only access to state required by the VM.
 pub trait StateRead {
-    /// An error type describing any cases that might occur during state reading.
-    type Error: core::fmt::Debug + core::fmt::Display;
-    /// The future type returned from the `key_range` method.
-    ///
-    /// ## Unpin
-    ///
-    /// This `Future` must be `Unpin` in order for the `Vm`'s `ExecFuture`
-    /// to remain zero-allocation by default. Implementers may decide on
-    /// whether they require dynamic allocation as a part of their `StateRead`
-    /// implementation.
-    ///
-    /// It is likely that in-memory implementations may be `Unpin` by default
-    /// using `std::future::Ready`, however more involved implementations that
-    /// require calling `async` functions with anonymised return types may
-    /// require using a `Box` in order to name the anonymised type.
-    type Future: Future<Output = Result<Vec<Vec<Word>>, Self::Error>> + Unpin;
-
-    /// Read the given number of values from state at the given key associated
-    /// with the given contract address.
-    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_values: usize)
-        -> Self::Future;
-}
-
-/// Read-only access to state required by the VM.
-pub trait StateReadSync {
     /// An error type describing any cases that might occur during state reading.
     type Error: core::fmt::Debug + core::fmt::Display;
 
@@ -57,169 +24,67 @@ pub trait StateReadSync {
     ) -> Result<Vec<Vec<Word>>, Self::Error>;
 }
 
-/// A future representing the asynchronous `StateRead` (or `StateReadExtern`) operation.
-///
-/// Performs the state read and then writes the result to memory.
-pub(crate) struct StateReadFuture<'vm, S>
-where
-    S: StateRead,
-{
-    /// The future produced by the `StateRead::key_range` implementation.
-    future: S::Future,
-    /// The memory address at which this should start writing into.
-    mem_addr: usize,
-    /// Access to the `Vm` so that the result of the future can be written to memory.
-    pub(crate) vm: &'vm mut Vm,
-}
-
-impl<S> Future for StateReadFuture<'_, S>
-where
-    S: StateRead,
-{
-    /// Returns a `Result` representing whether or not the state was read and
-    /// written to memory successfully.
-    type Output = OpAsyncResult<(), S::Error>;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        match Pin::new(&mut self.future).poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(res) => {
-                let mem_addr = self.mem_addr;
-                let res = res.map_err(OpAsyncError::StateRead).and_then(|words| {
-                    Ok(write_values_to_memory(
-                        mem_addr,
-                        words,
-                        &mut self.vm.memory,
-                    )?)
-                });
-                Poll::Ready(res)
-            }
-        }
-    }
-}
-
-/// `StateRead::KeyRange` operation.
-pub fn key_range<'vm, S>(
-    state_read: &S,
-    contract_addr: &ContentAddress,
-    vm: &'vm mut Vm,
-) -> OpAsyncResult<StateReadFuture<'vm, S>, S::Error>
-where
-    S: StateRead,
-{
-    let mem_addr = pop_memory_address(&mut vm.stack)?;
-    let future = read_key_range(state_read, contract_addr, vm)?;
-    Ok(StateReadFuture {
-        future,
-        mem_addr,
-        vm,
-    })
-}
-
 /// `StateRead::KeyRange` operation.
 /// Uses a synchronous state read.
-pub fn key_range_sync<S>(
+pub fn key_range<S>(
     state_read: &S,
     contract_addr: &ContentAddress,
     stack: &mut Stack,
     memory: &mut Memory,
-) -> OpStateSyncResult<(), S::Error>
+) -> OpResult<(), S::Error>
 where
-    S: StateReadSync,
+    S: StateRead,
 {
     let mem_addr = pop_memory_address(stack)?;
-    let values = read_key_range_sync(state_read, contract_addr, stack)?;
+    let values = read_key_range(state_read, contract_addr, stack)?;
     write_values_to_memory(mem_addr, values, memory)?;
     Ok(())
 }
 
 /// `StateRead::KeyRangeExtern` operation.
-pub fn key_range_ext<'vm, S>(
-    state_read: &S,
-    vm: &'vm mut Vm,
-) -> OpAsyncResult<StateReadFuture<'vm, S>, S::Error>
-where
-    S: StateRead,
-{
-    let mem_addr = pop_memory_address(&mut vm.stack)?;
-    let future = read_key_range_ext(state_read, vm)?;
-    Ok(StateReadFuture {
-        future,
-        mem_addr,
-        vm,
-    })
-}
-
-/// `StateRead::KeyRangeExtern` operation.
 /// Uses a synchronous state read.
-pub fn key_range_ext_sync<S>(
+pub fn key_range_ext<S>(
     state_read: &S,
     stack: &mut Stack,
     memory: &mut Memory,
-) -> OpStateSyncResult<(), S::Error>
+) -> OpResult<(), S::Error>
 where
-    S: StateReadSync,
+    S: StateRead,
 {
     let mem_addr = pop_memory_address(stack)?;
-    let values = read_key_range_ext_sync(state_read, stack)?;
+    let values = read_key_range_ext(state_read, stack)?;
     write_values_to_memory(mem_addr, values, memory)?;
     Ok(())
 }
 
 /// Read the length and key from the top of the stack and read the associated words from state.
+/// Uses a synchronous state read.
 fn read_key_range<S>(
     state_read: &S,
     contract_addr: &ContentAddress,
-    vm: &mut Vm,
-) -> OpAsyncResult<S::Future, S::Error>
+    stack: &mut Stack,
+) -> OpResult<Vec<Value>, S::Error>
 where
     S: StateRead,
-{
-    let (key, num_keys) = pop_key_range_args(&mut vm.stack)?;
-    Ok(state_read.key_range(contract_addr.clone(), key, num_keys))
-}
-
-/// Read the length and key from the top of the stack and read the associated words from state.
-/// Uses a synchronous state read.
-fn read_key_range_sync<S>(
-    state_read: &S,
-    contract_addr: &ContentAddress,
-    stack: &mut Stack,
-) -> OpStateSyncResult<Vec<Value>, S::Error>
-where
-    S: StateReadSync,
 {
     let (key, num_keys) = pop_key_range_args(stack)?;
     state_read
         .key_range(contract_addr.clone(), key, num_keys)
-        .map_err(OpStateSyncError::StateRead)
-}
-
-/// Read the length, key and external contract address from the top of the stack and
-/// read the associated words from state.
-fn read_key_range_ext<S>(state_read: &S, vm: &mut Vm) -> OpAsyncResult<S::Future, S::Error>
-where
-    S: StateRead,
-{
-    let (key, num_keys) = pop_key_range_args(&mut vm.stack)?;
-    let contract_addr = ContentAddress(u8_32_from_word_4(vm.stack.pop4()?));
-    Ok(state_read.key_range(contract_addr, key, num_keys))
+        .map_err(OpError::StateRead)
 }
 
 /// Read the length, key and external contract address from the top of the stack and
 /// read the associated words from state.
 /// Uses a synchronous state read.
-fn read_key_range_ext_sync<S>(
-    state_read: &S,
-    stack: &mut Stack,
-) -> OpStateSyncResult<Vec<Value>, S::Error>
+fn read_key_range_ext<S>(state_read: &S, stack: &mut Stack) -> OpResult<Vec<Value>, S::Error>
 where
-    S: StateReadSync,
+    S: StateRead,
 {
     let (key, num_keys) = pop_key_range_args(stack)?;
     let contract_addr = ContentAddress(u8_32_from_word_4(stack.pop4()?));
     state_read
         .key_range(contract_addr, key, num_keys)
-        .map_err(OpStateSyncError::StateRead)
+        .map_err(OpError::StateRead)
 }
 
 /// Pop the memory address that the state read will write to from the stack.

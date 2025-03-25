@@ -12,8 +12,8 @@ use util::State;
 
 pub mod util;
 
-#[tokio::test]
-async fn test_encoding_sig_and_pub_key() {
+#[test]
+fn test_encoding_sig_and_pub_key() {
     tracing_subscriber::fmt::init();
     let program = Arc::new(Program(
         vm::asm::to_bytes([
@@ -101,6 +101,5 @@ async fn test_encoding_sig_and_pub_key() {
         get_program,
         Default::default(),
     )
-    .await
     .unwrap();
 }

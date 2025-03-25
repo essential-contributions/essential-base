@@ -2,7 +2,7 @@
 
 use crate::{
     cached::LazyCache,
-    error::{AccessError, MissingAccessArgError, OpSyncResult},
+    error::{AccessError, MissingAccessArgError, OpResult},
     repeat::Repeat,
     sets::encode_set,
     types::{
@@ -97,7 +97,7 @@ pub fn mut_keys_set(solution_set: &SolutionSet, solution_index: SolutionIndex) -
 }
 
 /// `Access::PredicateData` implementation.
-pub(crate) fn predicate_data(this_predicate_data: &[Value], stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn predicate_data(this_predicate_data: &[Value], stack: &mut Stack) -> OpResult<()> {
     let len = stack
         .pop()
         .map_err(|_| AccessError::MissingArg(MissingAccessArgError::PredDataLen))?;
@@ -134,34 +134,31 @@ pub(crate) fn predicate_data_len(
 }
 
 /// `Access::MutKeys` implementation.
-pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn push_mut_keys(access: Access, stack: &mut Stack) -> OpResult<()> {
     encode_set(access.mutable_keys.iter().map(|k| k.iter().copied()), stack)
 }
 
 /// `Access::ThisAddress` implementation.
-pub(crate) fn this_address(solution: &Solution, stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn this_address(solution: &Solution, stack: &mut Stack) -> OpResult<()> {
     let words = word_4_from_u8_32(solution.predicate_to_solve.predicate.0);
     stack.extend(words)?;
     Ok(())
 }
 
 /// `Access::ThisContractAddress` implementation.
-pub(crate) fn this_contract_address(solution: &Solution, stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn this_contract_address(solution: &Solution, stack: &mut Stack) -> OpResult<()> {
     let words = word_4_from_u8_32(solution.predicate_to_solve.contract.0);
     stack.extend(words)?;
     Ok(())
 }
 
-pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpSyncResult<()> {
+pub(crate) fn repeat_counter(stack: &mut Stack, repeat: &Repeat) -> OpResult<()> {
     let counter = repeat.counter()?;
     Ok(stack.push(counter)?)
 }
 
 /// Implementation of the `Access::NumSlots` operation.
-pub(crate) fn predicate_data_slots(
-    stack: &mut Stack,
-    predicate_data: &[Value],
-) -> OpSyncResult<()> {
+pub(crate) fn predicate_data_slots(stack: &mut Stack, predicate_data: &[Value]) -> OpResult<()> {
     let num_slots = Word::try_from(predicate_data.len())
         .map_err(|_| AccessError::SlotsLengthTooLarge(predicate_data.len()))?;
     stack.push(num_slots)?;
@@ -203,7 +200,7 @@ pub(crate) fn predicate_exists(
     stack: &mut Stack,
     solutions: &[Solution],
     cache: &LazyCache,
-) -> OpSyncResult<()> {
+) -> OpResult<()> {
     let hash = u8_32_from_word_4(stack.pop4()?);
     let found = cache.get_pred_data_hashes(solutions).contains(&hash);
     stack.push(found as Word)?;

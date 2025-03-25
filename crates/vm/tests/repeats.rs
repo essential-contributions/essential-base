@@ -4,6 +4,9 @@ use essential_asm as asm;
 use essential_types::{solution::Solution, ContentAddress, PredicateAddress};
 use essential_vm::{sync::eval_ops, Access};
 
+mod util;
+use util::*;
+
 #[test]
 fn test_forall_in_asm() {
     #[cfg(feature = "tracing")]
@@ -58,7 +61,7 @@ fn test_forall_in_asm() {
         asm::Pred::And.into(),
         asm::Stack::RepeatEnd.into(),
     ];
-    let res = eval_ops(ops, access).unwrap();
+    let res = eval_ops(ops, access, &State::EMPTY).unwrap();
     assert!(res)
 }
 
@@ -123,7 +126,7 @@ fn test_fold_filter_in_asm() {
         asm::Memory::Load.into(),
         asm::Pred::Eq.into(),
     ];
-    let res = eval_ops(ops, access).unwrap();
+    let res = eval_ops(ops, access, &State::EMPTY).unwrap();
     assert!(res);
 
     // constraint {
@@ -217,6 +220,6 @@ fn test_fold_filter_in_asm() {
         asm::Pred::Eq.into(),
         asm::Pred::And.into(),
     ];
-    let res = eval_ops(ops, access).unwrap();
+    let res = eval_ops(ops, access, &State::EMPTY).unwrap();
     assert!(res)
 }

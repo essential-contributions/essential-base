@@ -1,12 +1,13 @@
 use super::*;
 use crate::{
     asm,
-    error::{AccessError, ExecSyncError, OpSyncError},
+    error::{AccessError, ExecError, OpError},
     sync::{exec_ops, test_util::*},
     types::{
         solution::{Mutation, Solution},
         ContentAddress, PredicateAddress,
     },
+    utils::EmptyState,
 };
 
 macro_rules! check_dec_var {
@@ -23,7 +24,7 @@ fn test_predicate_data() {
     let mut stack = Stack::default();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+        OpError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
     ));
 
     // Slot out-of-bounds.
@@ -31,7 +32,7 @@ fn test_predicate_data() {
     stack.push(1).unwrap();
     assert!(matches!(
         check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::MissingArg(
+        OpError::Access(AccessError::MissingArg(
             MissingAccessArgError::PredDataValueIx
         ))
     ));
@@ -44,7 +45,7 @@ fn test_predicate_data() {
     stack.push(1).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(0, 1))
+        OpError::Access(AccessError::PredicateDataValueRangeOutOfBounds(0, 1))
     ));
 
     // Slot index in-bounds and value is not empty
@@ -83,7 +84,7 @@ fn test_predicate_data_at() {
     let mut stack = Stack::default();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+        OpError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
     ));
 
     // Missing value index
@@ -91,7 +92,7 @@ fn test_predicate_data_at() {
     stack.push(0).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::MissingArg(
+        OpError::Access(AccessError::MissingArg(
             MissingAccessArgError::PredDataValueIx
         ))
     ));
@@ -102,7 +103,7 @@ fn test_predicate_data_at() {
     stack.push(0).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::MissingArg(
+        OpError::Access(AccessError::MissingArg(
             MissingAccessArgError::PredDataSlotIx
         ))
     ));
@@ -114,7 +115,7 @@ fn test_predicate_data_at() {
     stack.push(1).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
+        OpError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
     ));
 
     // Index out-of-bounds.
@@ -124,7 +125,7 @@ fn test_predicate_data_at() {
     stack.push(1).unwrap();
     assert!(matches!(
         check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+        OpError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
     ));
 
     // Value range out of bounds.
@@ -135,7 +136,7 @@ fn test_predicate_data_at() {
     stack.push(1).unwrap();
     assert!(matches!(
         check_dec_var!(d, &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+        OpError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
     ));
 
     // Slot index in-bounds, value is empty and length is 0
@@ -183,7 +184,7 @@ fn test_predicate_data_range() {
     let mut stack = Stack::default();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
+        OpError::Access(AccessError::MissingArg(MissingAccessArgError::PredDataLen))
     ));
 
     // Slot out-of-bounds.
@@ -193,7 +194,7 @@ fn test_predicate_data_range() {
     stack.push(0).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
+        OpError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_))
     ));
 
     // Value range out-of-bounds.
@@ -203,7 +204,7 @@ fn test_predicate_data_range() {
     stack.push(1).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+        OpError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
     ));
 
     // Length out-of-bounds.
@@ -213,7 +214,7 @@ fn test_predicate_data_range() {
     stack.push(3).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+        OpError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
     ));
 
     // Slot index in-bounds but value is empty
@@ -224,7 +225,7 @@ fn test_predicate_data_range() {
     stack.push(1).unwrap();
     assert!(matches!(
         check_dec_var!(d.clone(), &mut stack, predicate_data).unwrap_err(),
-        OpSyncError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
+        OpError::Access(AccessError::PredicateDataValueRangeOutOfBounds(_, _))
     ));
 
     // Slot index in-bounds and value is not empty
@@ -314,7 +315,7 @@ fn predicate_data_single_word_ops() {
         asm::Stack::Push(1).into(), // Length.
         asm::Access::PredicateData.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &EmptyState).unwrap();
     assert_eq!(&stack[..], &[42]);
 }
 
@@ -335,7 +336,7 @@ fn predicate_data_ops() {
         asm::Stack::Push(3).into(), // Range length.
         asm::Access::PredicateData.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &EmptyState).unwrap();
     assert_eq!(&stack[..], &[7, 8, 9]);
 }
 
@@ -356,12 +357,9 @@ fn predicate_data_slot_oob_ops() {
         asm::Stack::Push(1).into(),
         asm::Access::PredicateData.into(),
     ];
-    let res = exec_ops(ops, access);
+    let res = exec_ops(ops, access, &EmptyState);
     match res {
-        Err(ExecSyncError(
-            _,
-            OpSyncError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_)),
-        )) => {}
+        Err(ExecError(_, OpError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_)))) => {}
         _ => panic!("expected predicate data slot out-of-bounds error, got {res:?}"),
     }
 }
@@ -438,14 +436,14 @@ fn mut_keys_push_eq() {
 
     ops.push(asm::Access::MutKeys.into());
     ops.push(asm::Pred::EqSet.into());
-    let stack = exec_ops(&ops, access).unwrap();
+    let stack = exec_ops(&ops, access, &EmptyState).unwrap();
     assert_eq!(&stack[..], &[1]);
 }
 
 #[test]
 fn this_address() {
     let ops = &[asm::Access::ThisAddress.into()];
-    let stack = exec_ops(ops, *test_access()).unwrap();
+    let stack = exec_ops(ops, *test_access(), &EmptyState).unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.predicate.0);
     assert_eq!(&stack[..], expected_words);
 }
@@ -453,7 +451,7 @@ fn this_address() {
 #[test]
 fn this_contract_address() {
     let ops = &[asm::Access::ThisContractAddress.into()];
-    let stack = exec_ops(ops, *test_access()).unwrap();
+    let stack = exec_ops(ops, *test_access(), &EmptyState).unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.contract.0);
     assert_eq!(&stack[..], expected_words);
 }

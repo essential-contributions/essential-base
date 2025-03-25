@@ -32,9 +32,6 @@ pub use cached::LazyCache;
 #[doc(inline)]
 pub use essential_asm::{self as asm, Op};
 pub use essential_types as types;
-use essential_types::ContentAddress;
-#[doc(inline)]
-pub use future::ExecFuture;
 #[doc(inline)]
 pub use memory::Memory;
 #[doc(inline)]
@@ -46,8 +43,6 @@ pub use stack::Stack;
 #[doc(inline)]
 pub use state_read::StateRead;
 #[doc(inline)]
-pub use state_read::StateReadSync;
-#[doc(inline)]
 pub use total_control_flow::ProgramControlFlow;
 #[doc(inline)]
 pub use vm::Vm;
@@ -58,7 +53,6 @@ pub mod bytecode;
 mod cached;
 mod crypto;
 pub mod error;
-mod future;
 mod memory;
 mod op_access;
 mod pred;
@@ -69,6 +63,25 @@ mod state_read;
 pub mod sync;
 mod total_control_flow;
 mod vm;
+
+#[cfg(test)]
+pub(crate) mod utils {
+    use crate::StateRead;
+
+    pub struct EmptyState;
+    impl StateRead for EmptyState {
+        type Error = String;
+
+        fn key_range(
+            &self,
+            _contract_addr: essential_types::ContentAddress,
+            _key: essential_types::Key,
+            _num_values: usize,
+        ) -> Result<Vec<Vec<essential_asm::Word>>, Self::Error> {
+            Ok(vec![])
+        }
+    }
+}
 
 /// Shorthand for the `BytecodeMapped` type representing a mapping to/from [`Op`]s.
 pub type BytecodeMapped<Bytes = Vec<u8>> = bytecode::BytecodeMapped<Op, Bytes>;
@@ -89,38 +102,6 @@ pub struct GasLimit {
     pub total: Gas,
 }
 
-/// Distinguish between sync and async ops to ease `Future` implementation.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub enum OpKind {
-    /// Operations that yield immediately.
-    Sync(OpSync),
-    /// Operations returning a future.
-    Async(OpAsync),
-}
-
-/// The set of operations that are performed asynchronously.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct OpAsync(asm::StateRead);
-
-/// The set of operations that are performed synchronously.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub enum OpSync {
-    /// `[asm::Access]` operations.
-    Access(asm::Access),
-    /// `[asm::Alu]` operations.
-    Alu(asm::Alu),
-    /// `[asm::TotalControlFlow]` operations.
-    ControlFlow(asm::TotalControlFlow),
-    /// `[asm::Crypto]` operations.
-    Crypto(asm::Crypto),
-    /// `[asm::Memory]` operations.
-    Memory(asm::Memory),
-    /// `[asm::Pred]` operations.
-    Pred(asm::Pred),
-    /// `[asm::Stack]` operations.
-    Stack(asm::Stack),
-}
-
 /// A mapping from an operation to its gas cost.
 pub trait OpGasCost {
     /// The gas cost associated with the given op.
@@ -138,21 +119,6 @@ impl GasLimit {
         per_yield: Self::DEFAULT_PER_YIELD,
         total: Gas::MAX,
     };
-}
-
-impl From<Op> for OpKind {
-    fn from(op: Op) -> Self {
-        match op {
-            Op::Access(op) => OpKind::Sync(OpSync::Access(op)),
-            Op::Alu(op) => OpKind::Sync(OpSync::Alu(op)),
-            Op::Crypto(op) => OpKind::Sync(OpSync::Crypto(op)),
-            Op::Memory(op) => OpKind::Sync(OpSync::Memory(op)),
-            Op::Pred(op) => OpKind::Sync(OpSync::Pred(op)),
-            Op::Stack(op) => OpKind::Sync(OpSync::Stack(op)),
-            Op::StateRead(op) => OpKind::Async(OpAsync(op)),
-            Op::TotalControlFlow(op) => OpKind::Sync(OpSync::ControlFlow(op)),
-        }
-    }
 }
 
 impl<F> OpGasCost for F

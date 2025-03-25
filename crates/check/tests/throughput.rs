@@ -14,8 +14,8 @@ use util::State;
 
 pub mod util;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_throughput() {
+#[test]
+fn test_throughput() {
     use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
 
@@ -104,7 +104,6 @@ async fn test_throughput() {
                 get_program.clone(),
                 config.clone(),
             )
-            .await
             .unwrap();
             assert!(outputs.gas > 0);
             gas += outputs.gas;

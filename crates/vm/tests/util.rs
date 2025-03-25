@@ -4,12 +4,9 @@
 
 use essential_vm::{
     types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
-    Access, StateRead, StateReadSync,
+    Access, StateRead,
 };
-use std::{
-    collections::{BTreeMap, HashSet},
-    future::{self, Ready},
-};
+use std::collections::{BTreeMap, HashSet};
 use thiserror::Error;
 
 pub const TEST_SET_CA: ContentAddress = ContentAddress([0xFF; 32]);
@@ -127,14 +124,6 @@ impl core::ops::Deref for State {
 }
 
 impl StateRead for State {
-    type Error = InvalidStateRead;
-    type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
-    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
-        future::ready(self.key_range(contract_addr, key, num_words))
-    }
-}
-
-impl StateReadSync for State {
     type Error = InvalidStateRead;
 
     fn key_range(

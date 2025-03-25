@@ -1,7 +1,7 @@
 use essential_types::convert::bool_from_word;
 
 use crate::{
-    error::{OpSyncError, OpSyncResult, StackError, TotalControlFlowError},
+    error::{OpError, OpResult, StackError, TotalControlFlowError},
     Stack,
 };
 
@@ -17,7 +17,7 @@ pub enum ProgramControlFlow {
     Halt,
 }
 
-pub fn jump_if(stack: &mut Stack, pc: usize) -> OpSyncResult<Option<ProgramControlFlow>> {
+pub fn jump_if(stack: &mut Stack, pc: usize) -> OpResult<Option<ProgramControlFlow>> {
     let [dist, cond] = stack.pop2()?;
     let cond = bool_from_word(cond).ok_or(TotalControlFlowError::InvalidJumpForwardIfCondition)?;
     if cond {
@@ -27,10 +27,10 @@ pub fn jump_if(stack: &mut Stack, pc: usize) -> OpSyncResult<Option<ProgramContr
             return Err(TotalControlFlowError::JumpedToSelf.into());
         }
         if neg {
-            let pc = pc.checked_sub(dist).ok_or(OpSyncError::PcOverflow)?;
+            let pc = pc.checked_sub(dist).ok_or(OpError::PcOverflow)?;
             Ok(Some(ProgramControlFlow::Pc(pc)))
         } else {
-            let pc = pc.checked_add(dist).ok_or(OpSyncError::PcOverflow)?;
+            let pc = pc.checked_add(dist).ok_or(OpError::PcOverflow)?;
             Ok(Some(ProgramControlFlow::Pc(pc)))
         }
     } else {
@@ -38,7 +38,7 @@ pub fn jump_if(stack: &mut Stack, pc: usize) -> OpSyncResult<Option<ProgramContr
     }
 }
 
-pub fn halt_if(stack: &mut Stack) -> OpSyncResult<Option<ProgramControlFlow>> {
+pub fn halt_if(stack: &mut Stack) -> OpResult<Option<ProgramControlFlow>> {
     let cond = stack.pop()?;
     let cond = bool_from_word(cond).ok_or(TotalControlFlowError::InvalidHaltIfCondition)?;
     if cond {
@@ -49,7 +49,7 @@ pub fn halt_if(stack: &mut Stack) -> OpSyncResult<Option<ProgramControlFlow>> {
 }
 
 /// Implementation of the `PanicIf` operation.
-pub fn panic_if(stack: &mut Stack) -> OpSyncResult<()> {
+pub fn panic_if(stack: &mut Stack) -> OpResult<()> {
     let cond = stack.pop()?;
     let cond = bool_from_word(cond).ok_or(TotalControlFlowError::InvalidPanicIfCondition)?;
     if cond {

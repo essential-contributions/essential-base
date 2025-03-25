@@ -8,8 +8,8 @@ use util::*;
 
 mod util;
 
-#[tokio::test]
-async fn state_read_3_42s() {
+#[test]
+fn state_read_3_42s() {
     let access = *test_access();
     let state = State::new(vec![(
         access.this_solution().predicate_to_solve.contract.clone(),
@@ -37,14 +37,13 @@ async fn state_read_3_42s() {
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
         .unwrap();
     assert_eq!(vm.memory[..].len(), mem_len as usize);
     assert_eq!(&vm.memory[..], &[6, 1, 7, 1, 8, 1, 42, 42, 42]);
 }
 
-#[tokio::test]
-async fn state_read_some_none_some() {
+#[test]
+fn state_read_some_none_some() {
     let access = *test_access();
     let state = State::new(vec![(
         access.this_solution().predicate_to_solve.contract.clone(),
@@ -68,14 +67,13 @@ async fn state_read_some_none_some() {
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
         .unwrap();
     assert_eq!(vm.memory[..].len(), mem_len as usize);
     assert_eq!(&vm.memory[..], &[6, 1, 7, 0, 7, 1, 42, 42]);
 }
 
-#[tokio::test]
-async fn state_read_ext() {
+#[test]
+fn state_read_ext() {
     let ext_contract_addr = ContentAddress([0x12; 32]);
     let state = State::new(vec![(
         ext_contract_addr.clone(),
@@ -114,14 +112,13 @@ async fn state_read_ext() {
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
     )
-    .await
     .unwrap();
     assert_eq!(vm.memory[..].len(), mem_len as usize);
     assert_eq!(&vm.memory[..], &[6, 1, 7, 1, 8, 1, 40, 41, 42]);
 }
 
-#[tokio::test]
-async fn state_read_ext_nones() {
+#[test]
+fn state_read_ext_nones() {
     let ext_contract_addr = ContentAddress([0x12; 32]);
     let state = State::new(vec![(ext_contract_addr.clone(), vec![])]);
     let mut vm = Vm::default();
@@ -153,14 +150,13 @@ async fn state_read_ext_nones() {
         &|_: &Op| 1,
         GasLimit::UNLIMITED,
     )
-    .await
     .unwrap();
     assert_eq!(vm.memory[..].len(), mem_len as usize);
     assert_eq!(&vm.memory[..], &[6, 0, 6, 0, 6, 0]);
 }
 
-#[tokio::test]
-async fn state_read_various_size_values() {
+#[test]
+fn state_read_various_size_values() {
     let access = *test_access();
     let state = State::new(vec![(
         access.this_solution().predicate_to_solve.contract.clone(),
@@ -189,7 +185,6 @@ async fn state_read_various_size_values() {
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
         .unwrap();
     assert_eq!(vm.memory[..].len(), mem_len as usize);
     let mut expected = vec![10, 2, 12, 22, 34, 14, 48, 0, 48, 12]; // [index, len]s
@@ -200,8 +195,8 @@ async fn state_read_various_size_values() {
     assert_eq!(Vec::from(vm.memory), expected);
 }
 
-#[tokio::test]
-async fn state_read_various_key_sizes() {
+#[test]
+fn state_read_various_key_sizes() {
     let access = *test_access();
     let kv_pairs = vec![
         (vec![0], vec![0; 2]),
@@ -246,7 +241,6 @@ async fn state_read_various_key_sizes() {
         asm::TotalControlFlow::Halt.into(),
     ];
     vm.exec_ops(ops, access, &state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
         .unwrap();
     // First `KeyRange` result.
     let mut expected = vec![6, 2, 8, 22, 30, 0];

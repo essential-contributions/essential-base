@@ -1,5 +1,7 @@
 //! The types of errors that might occur throughout execution.
 
+use core::convert::Infallible;
+
 #[doc(inline)]
 use crate::{
     asm::{self, Word},
@@ -11,22 +13,10 @@ use thiserror::Error;
 pub type ExecResult<T, E> = Result<T, ExecError<E>>;
 
 /// Shorthand for a `Result` where the error type is a `EvalSyncError`.
-pub type EvalSyncResult<T> = Result<T, EvalSyncError>;
-
-/// Shorthand for a `Result` where the error type is a `ExecSyncError`.
-pub type ExecSyncResult<T> = Result<T, ExecSyncError>;
+pub type EvalResult<T, E> = Result<T, EvalError<E>>;
 
 /// Shorthand for a `Result` where the error type is an `OpError`.
-pub type OpResult<T, E> = Result<T, OpError<E>>;
-
-/// Shorthand for a `Result` where the error type is an `OpSyncError`.
-pub type OpSyncResult<T> = Result<T, OpSyncError>;
-
-/// Shorthand for a `Result` where the error type is an `OpAsyncError`.
-pub type OpAsyncResult<T, E> = Result<T, OpAsyncError<E>>;
-
-/// Shorthand for a `Result` where the error type is an `OpStateSyncError`.
-pub type OpStateSyncResult<T, E> = Result<T, OpStateSyncError<E>>;
+pub type OpResult<T, E = Infallible> = Result<T, OpError<E>>;
 
 /// Execution failed at the operation at the given index.
 #[derive(Debug, Error)]
@@ -35,10 +25,10 @@ pub struct ExecError<E>(pub usize, pub OpError<E>);
 
 /// Errors that might occur during synchronous evaluation.
 #[derive(Debug, Error)]
-pub enum EvalSyncError {
+pub enum EvalError<E> {
     /// An error occurred during execution.
     #[error("{0}")]
-    Exec(#[from] ExecSyncError),
+    Exec(#[from] ExecError<E>),
     /// Evaluation should have resulted with a `0` (false) or `1` (true) at the
     /// top of the stack, but did not.
     #[error(
@@ -49,23 +39,42 @@ pub enum EvalSyncError {
     InvalidEvaluation(crate::Stack),
 }
 
-/// Synchronous execution failed at the operation at the given index.
-#[derive(Debug, Error)]
-#[error("operation at index {0} failed: {1}")]
-pub struct ExecSyncError(pub usize, pub OpSyncError);
-
 /// An individual operation failed during execution.
 #[derive(Debug, Error)]
-pub enum OpError<E> {
-    /// A synchronous operation failed.
-    #[error("synchronous operation failed: {0}")]
-    Sync(#[from] OpSyncError),
-    /// A synchronous operation failed.
-    #[error("synchronous operation failed: {0}")]
-    StateSync(#[from] OpStateSyncError<E>),
-    /// An asynchronous operation failed.
-    #[error("asynchronous operation failed: {0}")]
-    Async(#[from] OpAsyncError<E>),
+pub enum OpError<E = Infallible> {
+    /// An error occurred during an `Access` operation.
+    #[error("access operation error: {0}")]
+    Access(#[from] AccessError),
+    /// An error occurred during an `Alu` operation.
+    #[error("ALU operation error: {0}")]
+    Alu(#[from] AluError),
+    /// An error occurred during a `Crypto` operation.
+    #[error("crypto operation error: {0}")]
+    Crypto(#[from] CryptoError),
+    /// An error occurred during a `Stack` operation.
+    #[error("stack operation error: {0}")]
+    Stack(#[from] StackError),
+    /// An error occurred during a `Repeat` operation.
+    #[error("repeat operation error: {0}")]
+    Repeat(#[from] RepeatError),
+    /// An error occurred during a `TotalControlFlow` operation.
+    #[error("total control flow operation error: {0}")]
+    TotalControlFlow(#[from] TotalControlFlowError),
+    /// An error occurred during a `Memory` operation.
+    #[error("temporary operation error: {0}")]
+    Memory(#[from] MemoryError),
+    /// Pc counter overflowed.
+    #[error("PC counter overflowed")]
+    PcOverflow,
+    /// An error occurred while decoding some data.
+    #[error("decoding error: {0}")]
+    Decode(#[from] DecodeError),
+    /// An error occurred while encoding some data.
+    #[error("encoding error: {0}")]
+    Encode(#[from] EncodeError),
+    /// An error occurred during a `StateRead` operation.
+    #[error("state read operation error: {0}")]
+    StateRead(E),
     /// An error occurred while parsing an operation from bytes.
     #[error("bytecode error: {0}")]
     FromBytes(#[from] asm::FromBytesError),
@@ -89,75 +98,6 @@ pub struct OutOfGasError {
     pub op_gas: Gas,
     /// The total gas limit that would be exceeded.
     pub limit: Gas,
-}
-
-/// An asynchronous operation failed.
-#[derive(Debug, Error)]
-pub enum OpAsyncError<E> {
-    /// An error occurred during a `StateRead` operation.
-    #[error("state read operation error: {0}")]
-    StateRead(E),
-    /// A memory access related error occurred.
-    #[error("memory error: {0}")]
-    Memory(#[from] MemoryError),
-    /// An error occurred during a `Stack` operation.
-    #[error("stack operation error: {0}")]
-    Stack(#[from] StackError),
-    /// The next program counter would overflow.
-    #[error("the next program counter would overflow")]
-    PcOverflow,
-}
-
-/// A synchronous operation failed.
-#[derive(Debug, Error)]
-pub enum OpSyncError {
-    /// An error occurred during an `Access` operation.
-    #[error("access operation error: {0}")]
-    Access(#[from] AccessError),
-    /// An error occurred during an `Alu` operation.
-    #[error("ALU operation error: {0}")]
-    Alu(#[from] AluError),
-    /// An error occurred during a `Crypto` operation.
-    #[error("crypto operation error: {0}")]
-    Crypto(#[from] CryptoError),
-    /// An error occurred during a `Stack` operation.
-    #[error("stack operation error: {0}")]
-    Stack(#[from] StackError),
-    /// An error occurred during a `Repeat` operation.
-    #[error("repeat operation error: {0}")]
-    Repeat(#[from] RepeatError),
-    /// An error occurred during a `TotalControlFlow` operation.
-    #[error("total control flow operation error: {0}")]
-    TotalControlFlow(#[from] TotalControlFlowError),
-    /// An error occurred during a `Memory` operation.
-    #[error("temporary operation error: {0}")]
-    Memory(#[from] MemoryError),
-    /// An error occurred while parsing an operation from bytes.
-    #[error("bytecode error: {0}")]
-    FromBytes(#[from] asm::FromBytesError),
-    /// Pc counter overflowed.
-    #[error("PC counter overflowed")]
-    PcOverflow,
-    /// An error occurred while decoding some data.
-    #[error("decoding error: {0}")]
-    Decode(#[from] DecodeError),
-    /// An error occurred while encoding some data.
-    #[error("encoding error: {0}")]
-    Encode(#[from] EncodeError),
-}
-
-/// An error occurred during a synchronous state read operation.
-#[derive(Debug, Error)]
-pub enum OpStateSyncError<E> {
-    /// A memory access related error occurred.
-    #[error("memory error: {0}")]
-    Memory(#[from] MemoryError),
-    /// An error occurred during a `Stack` operation.
-    #[error("stack operation error: {0}")]
-    Stack(#[from] StackError),
-    /// An error occurred during a `StateRead` operation.
-    #[error("state read operation error: {0}")]
-    StateRead(E),
 }
 
 /// A error occurred while reading state read arguments
@@ -402,32 +342,40 @@ pub enum EncodeError {
     ItemLengthTooLarge(usize),
 }
 
-impl From<core::convert::Infallible> for OpSyncError {
-    fn from(err: core::convert::Infallible) -> Self {
-        match err {}
-    }
-}
-
 impl<E> From<core::convert::Infallible> for OpError<E> {
     fn from(err: core::convert::Infallible) -> Self {
         match err {}
     }
 }
 
-impl<E> From<StateReadArgError> for OpAsyncError<E> {
+impl<E> From<StateReadArgError> for OpError<E> {
     fn from(err: StateReadArgError) -> Self {
         match err {
-            StateReadArgError::Memory(e) => OpAsyncError::Memory(e),
-            StateReadArgError::Stack(e) => OpAsyncError::Stack(e),
+            StateReadArgError::Memory(e) => OpError::Memory(e),
+            StateReadArgError::Stack(e) => OpError::Stack(e),
         }
     }
 }
 
-impl<E> From<StateReadArgError> for OpStateSyncError<E> {
-    fn from(err: StateReadArgError) -> Self {
-        match err {
-            StateReadArgError::Memory(e) => OpStateSyncError::Memory(e),
-            StateReadArgError::Stack(e) => OpStateSyncError::Stack(e),
+impl<E> OpError<E> {
+    /// Convert an op error that doesn't contain a state read a generic op error.
+    pub fn from_infallible(value: OpError<Infallible>) -> Self {
+        match value {
+            OpError::Access(access_error) => OpError::Access(access_error),
+            OpError::Alu(alu_error) => OpError::Alu(alu_error),
+            OpError::Crypto(crypto_error) => OpError::Crypto(crypto_error),
+            OpError::Stack(stack_error) => OpError::Stack(stack_error),
+            OpError::Repeat(repeat_error) => OpError::Repeat(repeat_error),
+            OpError::TotalControlFlow(total_control_flow_error) => {
+                OpError::TotalControlFlow(total_control_flow_error)
+            }
+            OpError::Memory(memory_error) => OpError::Memory(memory_error),
+            OpError::PcOverflow => OpError::PcOverflow,
+            OpError::Decode(decode_error) => OpError::Decode(decode_error),
+            OpError::Encode(encode_error) => OpError::Encode(encode_error),
+            OpError::StateRead(_) => unreachable!(),
+            OpError::FromBytes(from_bytes_error) => OpError::FromBytes(from_bytes_error),
+            OpError::OutOfGas(out_of_gas_error) => OpError::OutOfGas(out_of_gas_error),
         }
     }
 }

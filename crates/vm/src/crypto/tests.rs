@@ -1,21 +1,22 @@
 use crate::{
     asm::{Crypto, Stack, Word},
     crypto::{bytes_from_words, recover_secp256k1},
-    error::{CryptoError, ExecSyncError, OpSyncError},
+    error::{CryptoError, ExecError, OpError},
     sync::{eval_ops, exec_ops, test_util::*},
     types::{
         convert::{bytes_from_word, word_4_from_u8_32, word_8_from_u8_64},
         Hash,
     },
-    OpSync,
+    utils::EmptyState,
 };
+use essential_asm::Op;
 use essential_types::convert::{u8_32_from_word_4, word_from_bytes_slice};
 use sha2::Digest;
 
 use super::pop_bytes;
 
-fn exec_ops_sha256(ops: &[OpSync]) -> Hash {
-    let stack = exec_ops(ops, *test_access()).unwrap();
+fn exec_ops_sha256(ops: &[Op]) -> Hash {
+    let stack = exec_ops(ops, *test_access(), &EmptyState).unwrap();
     assert_eq!(stack.len(), 4);
     let bytes: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
     bytes.try_into().unwrap()
@@ -116,7 +117,7 @@ fn test_sha256_bytes() {
 }
 
 // Generate some test operations for a successful ed25519 verification.
-fn test_ed25519_ops(num_bytes: usize) -> Vec<OpSync> {
+fn test_ed25519_ops(num_bytes: usize) -> Vec<Op> {
     use ed25519_dalek::{Signer, SigningKey};
     use rand::{Rng, SeedableRng};
 
@@ -145,7 +146,7 @@ fn test_ed25519_ops(num_bytes: usize) -> Vec<OpSync> {
         .chain(word_8_from_u8_64(signature_bytes))
         .chain(word_4_from_u8_32(pubkey_bytes))
         .map(Stack::Push)
-        .map(OpSync::from)
+        .map(Op::from)
         .chain(Some(Crypto::VerifyEd25519.into()))
         .collect()
 }
@@ -153,20 +154,20 @@ fn test_ed25519_ops(num_bytes: usize) -> Vec<OpSync> {
 #[test]
 fn verify_ed25519_true() {
     let ops = test_ed25519_ops(8 * 4);
-    assert!(eval_ops(&ops, *test_access()).unwrap());
+    assert!(eval_ops(&ops, *test_access(), &EmptyState).unwrap());
 }
 
 #[test]
 fn verify_ed25519_bytes_true() {
     let ops = test_ed25519_ops(8 * 3 + 2);
-    assert!(eval_ops(&ops, *test_access()).unwrap());
+    assert!(eval_ops(&ops, *test_access(), &EmptyState).unwrap());
 }
 
 #[test]
 fn verify_ed25519_false() {
     let mut ops = test_ed25519_ops(8 * 4);
     ops[0] = Stack::Push(0).into(); // Invalidate data.
-    assert!(!eval_ops(&ops, *test_access()).unwrap());
+    assert!(!eval_ops(&ops, *test_access(), &EmptyState).unwrap());
 }
 
 #[test]
@@ -178,9 +179,9 @@ fn ed25519_error() {
     ops[key_ix + 1] = Stack::Push(1).into();
     ops[key_ix + 2] = Stack::Push(1).into();
     ops[key_ix + 3] = Stack::Push(1).into();
-    let res = exec_ops(&ops, *test_access());
+    let res = exec_ops(&ops, *test_access(), &EmptyState);
     match res {
-        Err(ExecSyncError(_, OpSyncError::Crypto(CryptoError::Ed25519(_err)))) => (),
+        Err(ExecError(_, OpError::Crypto(CryptoError::Ed25519(_err)))) => (),
         _ => panic!("expected ed25519 error, got {res:?}"),
     }
 }

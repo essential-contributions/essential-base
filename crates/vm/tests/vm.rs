@@ -11,8 +11,8 @@ use essential_vm::{
 use util::*;
 
 // A simple sanity test to check basic functionality.
-#[tokio::test]
-async fn no_yield() {
+#[test]
+fn no_yield() {
     let mut vm = Vm::default();
     let ops = &[
         asm::Stack::Push(6).into(),
@@ -29,56 +29,15 @@ async fn no_yield() {
             op_gas_cost,
             GasLimit::UNLIMITED,
         )
-        .await
         .unwrap();
     assert_eq!(spent, ops.iter().map(op_gas_cost).sum::<Gas>());
     assert_eq!(vm.pc, ops.len() - 1);
     assert_eq!(&vm.stack[..], &[42]);
 }
 
-// Test that we get expected results when yielding due to gas limits.
-#[tokio::test]
-async fn yield_per_op() {
-    let mut vm = Vm::default();
-    let ops = &[
-        asm::Stack::Push(6).into(),
-        asm::Stack::Push(7).into(),
-        asm::Alu::Mul.into(),
-        asm::TotalControlFlow::Halt.into(),
-    ];
-    // Force the VM to yield after every op to test behaviour.
-    let op_gas_cost = |_op: &_| GasLimit::DEFAULT_PER_YIELD;
-
-    let state = State::EMPTY;
-    let mut future = vm.exec_ops(
-        ops,
-        *test_access(),
-        &state,
-        &op_gas_cost,
-        GasLimit::UNLIMITED,
-    );
-
-    // Test that we yield once per op before reaching `Halt`.
-    let mut yield_count = 0;
-    let spent = {
-        let mut future = std::pin::pin!(future);
-        loop {
-            match futures::poll!(&mut future) {
-                std::task::Poll::Pending => yield_count += 1,
-                std::task::Poll::Ready(res) => break res.unwrap(),
-            }
-        }
-    };
-
-    assert_eq!(yield_count, ops.len() - 1);
-    assert_eq!(spent, ops.iter().map(op_gas_cost).sum::<Gas>());
-    assert_eq!(vm.pc, ops.len() - 1);
-    assert_eq!(&vm.stack[..], &[42]);
-}
-
 // Test VM behaves as expected when continuing execution over more operations.
-#[tokio::test]
-async fn continue_execution() {
+#[test]
+fn continue_execution() {
     let mut vm = Vm::default();
 
     // Execute first contract of ops.
@@ -97,7 +56,6 @@ async fn continue_execution() {
             op_gas_cost,
             GasLimit::UNLIMITED,
         )
-        .await
         .unwrap();
     assert_eq!(spent, ops.iter().map(op_gas_cost).sum::<Gas>());
     assert_eq!(vm.pc, ops.len() - 1);
@@ -118,7 +76,6 @@ async fn continue_execution() {
             &op_gas_cost,
             GasLimit::UNLIMITED,
         )
-        .await
         .unwrap();
     assert_eq!(spent, ops.iter().map(op_gas_cost).sum::<Gas>());
     assert_eq!(vm.pc, ops.len() - 1);
@@ -126,8 +83,8 @@ async fn continue_execution() {
 }
 
 // Ensure basic programs evaluate to the same thing
-#[tokio::test]
-async fn exec_method_behaviours_match() {
+#[test]
+fn exec_method_behaviours_match() {
     // The operations of the test program.
     let ops: &[Op] = &[
         asm::Stack::Push(6).into(),
@@ -146,13 +103,12 @@ async fn exec_method_behaviours_match() {
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
         )
-        .await
         .unwrap();
 
     // Execute the ops using `exec_ops`.
     let mut vm_sync_ops = Vm::default();
     let spent_sync_ops = vm_sync_ops
-        .exec_ops_sync(
+        .exec_ops(
             ops,
             *test_access(),
             &State::EMPTY,
@@ -174,7 +130,6 @@ async fn exec_method_behaviours_match() {
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
         )
-        .await
         .unwrap();
     assert_eq!(spent_sync_ops, spent_bc);
     assert_eq!(vm_sync_ops, vm_bc);
@@ -190,7 +145,6 @@ async fn exec_method_behaviours_match() {
             &|_: &Op| 1,
             GasLimit::UNLIMITED,
         )
-        .await
         .unwrap();
     assert_eq!(spent_ops, spent_bc_iter);
     assert_eq!(vm_ops, vm_bc_iter);
@@ -198,8 +152,8 @@ async fn exec_method_behaviours_match() {
 
 // Emulate the process of reading pre state, applying mutations to produce
 // post state, and checking the constraints afterwards.
-#[tokio::test]
-async fn read_pre_post_state() {
+#[test]
+fn read_pre_post_state() {
     let predicate_addr = TEST_PREDICATE_ADDR;
 
     // In the pre-state, we have [Some(40), None, Some(42)].
@@ -246,7 +200,6 @@ async fn read_pre_post_state() {
     // Execute the program.
     let mut vm = Vm::default();
     vm.exec_ops(ops, access, &pre_state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
         .unwrap();
 
     // Collect the memory.
@@ -264,7 +217,6 @@ async fn read_pre_post_state() {
     // Execute the program with the post state.
     let mut vm = Vm::default();
     vm.exec_ops(ops, access, &post_state, &|_: &Op| 1, GasLimit::UNLIMITED)
-        .await
         .unwrap();
 
     // Collect the state slots.
@@ -322,7 +274,7 @@ fn read_sync_state() {
 
     // Execute the program.
     let mut vm = Vm::default();
-    vm.exec_ops_sync(ops, access, &pre_state, &|_: &Op| 1, GasLimit::UNLIMITED)
+    vm.exec_ops(ops, access, &pre_state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .unwrap();
 
     // Collect the memory.
@@ -339,7 +291,7 @@ fn read_sync_state() {
 
     // Execute the program with the post state.
     let mut vm = Vm::default();
-    vm.exec_ops_sync(ops, access, &post_state, &|_: &Op| 1, GasLimit::UNLIMITED)
+    vm.exec_ops(ops, access, &post_state, &|_: &Op| 1, GasLimit::UNLIMITED)
         .unwrap();
 
     // Collect the state slots.
@@ -350,8 +302,8 @@ fn read_sync_state() {
     assert_eq!(post_state_mem, vec![6, 1, 7, 1, 8, 1, 40, 41, 42]);
 }
 // Test that halt is not required to end the vm.
-#[tokio::test]
-async fn test_halt() {
+#[test]
+fn test_halt() {
     let mut vm = Vm::default();
     let ops = &[
         asm::Stack::Push(6).into(),
@@ -366,7 +318,6 @@ async fn test_halt() {
         op_gas_cost,
         GasLimit::UNLIMITED,
     )
-    .await
     .unwrap();
     assert_eq!(&vm.stack[..], &[42]);
 }

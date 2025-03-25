@@ -2,7 +2,7 @@
 
 use crate::{
     asm::Word,
-    error::{CryptoError, OpSyncResult, StackError},
+    error::{CryptoError, OpResult, StackError},
     Stack,
 };
 use essential_types::convert::{
@@ -13,7 +13,7 @@ use essential_types::convert::{
 mod tests;
 
 /// `Crypto::Sha256` implementation.
-pub(crate) fn sha256(stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn sha256(stack: &mut Stack) -> OpResult<()> {
     use sha2::Digest;
 
     let data = pop_bytes(stack)?;
@@ -28,7 +28,7 @@ pub(crate) fn sha256(stack: &mut Stack) -> OpSyncResult<()> {
 
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
 /// `Crypto::VerifyEd25519` implementation.
-pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpResult<()> {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
     let pubkey_words = stack.pop4()?;
     let signature_words = stack.pop8()?;
@@ -50,7 +50,7 @@ pub(crate) fn verify_ed25519(stack: &mut Stack) -> OpSyncResult<()> {
 }
 
 #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
-pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn recover_secp256k1(stack: &mut Stack) -> OpResult<()> {
     use secp256k1::{
         ecdsa::{RecoverableSignature, RecoveryId},
         Message, Secp256k1,

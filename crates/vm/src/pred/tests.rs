@@ -93,19 +93,19 @@ fn test_eq_set() {
     stack.extend(set_err).unwrap();
     stack.extend(set_a).unwrap();
     let e = eq_set(&mut stack).unwrap_err();
-    assert!(matches!(e, OpSyncError::Decode(DecodeError::Set(s)) if s == set_err[..10]));
+    assert!(matches!(e, OpError::Decode(DecodeError::Set(s)) if s == set_err[..10]));
 
     // Decode error rhs.
     let set_err = [0, 1, 2, 3, 3, 4, 5, 9, 6, 1, 10];
     stack.extend(set_a).unwrap();
     stack.extend(set_err).unwrap();
     let e = eq_set(&mut stack).unwrap_err();
-    assert!(matches!(e, OpSyncError::Decode(DecodeError::Set(s)) if s == set_err[..10]));
+    assert!(matches!(e, OpError::Decode(DecodeError::Set(s)) if s == set_err[..10]));
 
     // Decode error both.
     let set_err = [0, 1, 2, 3, 3, 4, 5, 9, 6, 1, 10];
     stack.extend(set_err).unwrap();
     stack.extend(set_err).unwrap();
     let e = eq_set(&mut stack).unwrap_err();
-    assert!(matches!(e, OpSyncError::Decode(DecodeError::Set(s)) if s == set_err[..10]));
+    assert!(matches!(e, OpError::Decode(DecodeError::Set(s)) if s == set_err[..10]));
 }

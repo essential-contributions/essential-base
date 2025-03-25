@@ -55,14 +55,14 @@ fn test_write_values_to_memory() {
 }
 
 #[test]
-fn test_read_key_range_sync() {
+fn test_read_key_range() {
     let mut state = State::default();
     let mut stack = Stack::default();
     let mut memory = Memory::default();
     let contract_addr = ContentAddress([1; 32]);
 
     stack.extend([42, 43, 2, 2, 0]).unwrap();
-    key_range_sync(&state, &contract_addr, &mut stack, &mut memory).unwrap();
+    key_range(&state, &contract_addr, &mut stack, &mut memory).unwrap();
     let expected: &[i64] = &[];
     assert_eq!(memory.get(..).unwrap(), expected);
 
@@ -73,13 +73,13 @@ fn test_read_key_range_sync() {
     );
 
     stack.extend([42, 43, 2, 2, 0]).unwrap();
-    key_range_sync(&state, &contract_addr, &mut stack, &mut memory).unwrap();
+    key_range(&state, &contract_addr, &mut stack, &mut memory).unwrap();
     let expected: &[i64] = &[2, 2, 1, 2];
     assert_eq!(memory.get(..).unwrap(), expected);
 }
 
 #[test]
-fn test_read_key_range_ext_sync() {
+fn test_read_key_range_ext() {
     let mut state = State::default();
     let mut stack = Stack::default();
     let mut memory = Memory::default();
@@ -88,7 +88,7 @@ fn test_read_key_range_ext_sync() {
 
     stack.extend(contract_words).unwrap();
     stack.extend([42, 43, 2, 2, 0]).unwrap();
-    key_range_ext_sync(&state, &mut stack, &mut memory).unwrap();
+    key_range_ext(&state, &mut stack, &mut memory).unwrap();
     let expected: &[i64] = &[];
     assert_eq!(memory.get(..).unwrap(), expected);
 
@@ -100,7 +100,7 @@ fn test_read_key_range_ext_sync() {
 
     stack.extend(contract_words).unwrap();
     stack.extend([42, 43, 2, 2, 0]).unwrap();
-    key_range_ext_sync(&state, &mut stack, &mut memory).unwrap();
+    key_range_ext(&state, &mut stack, &mut memory).unwrap();
     let expected: &[i64] = &[2, 2, 1, 2];
     assert_eq!(memory.get(..).unwrap(), expected);
 }
@@ -110,7 +110,7 @@ struct State {
     contracts: HashMap<ContentAddress, HashMap<Key, Value>>,
 }
 
-impl StateReadSync for State {
+impl StateRead for State {
     type Error = String;
 
     fn key_range(

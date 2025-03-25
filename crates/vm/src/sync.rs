@@ -5,184 +5,108 @@ use essential_types::ContentAddress;
 
 use crate::{
     access, alu, asm, crypto,
-    error::{
-        EvalSyncError, EvalSyncResult, ExecSyncError, ExecSyncResult, OpResult, OpStateSyncResult,
-        OpSyncError, OpSyncResult,
-    },
+    error::{EvalError, EvalResult, ExecError, ExecResult, OpError, OpResult},
     pred, repeat, total_control_flow,
     types::convert::bool_from_word,
-    Access, LazyCache, Memory, OpAccess, OpSync, ProgramControlFlow, Repeat, Stack, StateReadSync,
-    Vm,
+    Access, LazyCache, Memory, OpAccess, ProgramControlFlow, Repeat, Stack, StateRead, Vm,
 };
-
-impl From<asm::Access> for OpSync {
-    fn from(op: asm::Access) -> Self {
-        Self::Access(op)
-    }
-}
-
-impl From<asm::Alu> for OpSync {
-    fn from(op: asm::Alu) -> Self {
-        Self::Alu(op)
-    }
-}
-
-impl From<asm::TotalControlFlow> for OpSync {
-    fn from(op: asm::TotalControlFlow) -> Self {
-        Self::ControlFlow(op)
-    }
-}
-
-impl From<asm::Crypto> for OpSync {
-    fn from(op: asm::Crypto) -> Self {
-        Self::Crypto(op)
-    }
-}
-
-impl From<asm::Memory> for OpSync {
-    fn from(op: asm::Memory) -> Self {
-        Self::Memory(op)
-    }
-}
-
-impl From<asm::Pred> for OpSync {
-    fn from(op: asm::Pred) -> Self {
-        Self::Pred(op)
-    }
-}
-
-impl From<asm::Stack> for OpSync {
-    fn from(op: asm::Stack) -> Self {
-        Self::Stack(op)
-    }
-}
 
 /// Evaluate a slice of synchronous operations and return their boolean result.
 ///
 /// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
-pub fn eval_ops(ops: &[OpSync], access: Access) -> EvalSyncResult<bool> {
-    eval(ops, access)
+pub fn eval_ops<S>(ops: &[Op], access: Access, state: &S) -> EvalResult<bool, S::Error>
+where
+    S: StateRead,
+{
+    eval(ops, access, state)
 }
 
 /// Evaluate the operations of a single synchronous program and return its boolean result.
 ///
 /// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
-pub fn eval<OA>(op_access: OA, access: Access) -> EvalSyncResult<bool>
+pub fn eval<OA, S>(op_access: OA, access: Access, state: &S) -> EvalResult<bool, S::Error>
 where
-    OA: OpAccess<Op = OpSync>,
-    OA::Error: Into<OpSyncError>,
+    OA: OpAccess<Op = Op>,
+    OA::Error: Into<OpError<S::Error>>,
+    S: StateRead,
 {
-    let stack = exec(op_access, access)?;
+    let stack = exec(op_access, access, state)?;
     let word = match stack.last() {
         Some(&w) => w,
-        None => return Err(EvalSyncError::InvalidEvaluation(stack)),
+        None => return Err(EvalError::InvalidEvaluation(stack)),
     };
-    bool_from_word(word).ok_or_else(|| EvalSyncError::InvalidEvaluation(stack))
+    bool_from_word(word).ok_or_else(|| EvalError::InvalidEvaluation(stack))
 }
 
 /// Execute a slice of synchronous operations and return the resulting stack.
-pub fn exec_ops(ops: &[OpSync], access: Access) -> ExecSyncResult<Stack> {
-    exec(ops, access)
+pub fn exec_ops<S>(ops: &[Op], access: Access, state: &S) -> ExecResult<Stack, S::Error>
+where
+    S: StateRead,
+{
+    exec(ops, access, state)
 }
 
 /// Execute the given synchronous operations and return the resulting stack.
-pub fn exec<OA>(mut op_access: OA, access: Access) -> ExecSyncResult<Stack>
+pub fn exec<OA, S>(mut op_access: OA, access: Access, state: &S) -> ExecResult<Stack, S::Error>
 where
-    OA: OpAccess<Op = OpSync>,
-    OA::Error: Into<OpSyncError>,
+    OA: OpAccess<Op = Op>,
+    OA::Error: Into<OpError<S::Error>>,
+    S: StateRead,
 {
-    let mut pc = 0;
-    let mut stack = Stack::default();
-    let mut memory = Memory::new();
-    let mut repeat = Repeat::new();
-    let cache = LazyCache::new();
-    while let Some(res) = op_access.op_access(pc) {
-        let op = res.map_err(|err| ExecSyncError(pc, err.into()))?;
+    let mut vm = Vm::default();
+    while let Some(res) = op_access.op_access(vm.pc) {
+        let op = res.map_err(|err| ExecError(vm.pc, err.into()))?;
 
-        let res = step_op(access, op, &mut stack, &mut memory, pc, &mut repeat, &cache);
+        let res = step_op(access, op, &mut vm, state);
 
         #[cfg(feature = "tracing")]
-        crate::trace_op_res(&mut op_access, pc, &stack, &memory, res.as_ref());
+        crate::trace_op_res(&mut op_access, vm.pc, &vm.stack, &vm.memory, res.as_ref());
 
         let update = match res {
             Ok(update) => update,
-            Err(err) => return Err(ExecSyncError(pc, err)),
+            Err(err) => return Err(ExecError(vm.pc, err)),
         };
 
         match update {
-            Some(ProgramControlFlow::Pc(new_pc)) => pc = new_pc,
+            Some(ProgramControlFlow::Pc(new_pc)) => vm.pc = new_pc,
             Some(ProgramControlFlow::Halt) => break,
-            None => pc += 1,
+            None => vm.pc += 1,
         }
     }
-    Ok(stack)
-}
-
-/// Step forward the VM by a single synchronous operation.
-///
-/// Returns a `Some(usize)` representing the new program counter resulting from
-/// this step, or `None` in the case that execution has halted.
-pub fn step_op_sync(op: OpSync, access: Access, vm: &mut Vm) -> OpSyncResult<Option<usize>> {
-    let Vm {
-        stack,
-        repeat,
-        pc,
-        memory,
-        cache,
-        ..
-    } = vm;
-    match step_op(access, op, stack, memory, *pc, repeat, cache)? {
-        Some(ProgramControlFlow::Pc(pc)) => return Ok(Some(pc)),
-        Some(ProgramControlFlow::Halt) => return Ok(None),
-        None => (),
-    }
-    // Every operation besides control flow steps forward program counter by 1.
-    let new_pc = vm.pc.checked_add(1).ok_or(OpSyncError::PcOverflow)?;
-    Ok(Some(new_pc))
-}
-
-/// Step forward execution by the given synchronous operation.
-pub fn step_op(
-    access: Access,
-    op: OpSync,
-    stack: &mut Stack,
-    memory: &mut Memory,
-    pc: usize,
-    repeat: &mut Repeat,
-    cache: &LazyCache,
-) -> OpSyncResult<Option<ProgramControlFlow>> {
-    match op {
-        OpSync::Access(op) => step_op_access(access, op, stack, repeat, cache).map(|_| None),
-        OpSync::Alu(op) => step_op_alu(op, stack).map(|_| None),
-        OpSync::Crypto(op) => step_op_crypto(op, stack).map(|_| None),
-        OpSync::Pred(op) => step_op_pred(op, stack).map(|_| None),
-        OpSync::Stack(op) => step_op_stack(op, pc, stack, repeat),
-        OpSync::ControlFlow(op) => step_op_total_control_flow(op, stack, pc),
-        OpSync::Memory(op) => step_op_memory(op, stack, memory).map(|_| None),
-    }
+    Ok(vm.stack)
 }
 
 /// Step forward execution by the given synchronous operation.
 /// This includes the synchronous state read operation.
-pub fn step_any_op<S>(
+pub fn step_op<S>(
     access: Access,
     op: Op,
     vm: &mut Vm,
     state: &S,
 ) -> OpResult<Option<ProgramControlFlow>, S::Error>
 where
-    S: StateReadSync,
+    S: StateRead,
 {
     let r = match op {
-        Op::Access(op) => {
-            step_op_access(access, op, &mut vm.stack, &mut vm.repeat, &vm.cache).map(|_| None)?
-        }
-        Op::Alu(op) => step_op_alu(op, &mut vm.stack).map(|_| None)?,
-        Op::Crypto(op) => step_op_crypto(op, &mut vm.stack).map(|_| None)?,
-        Op::Pred(op) => step_op_pred(op, &mut vm.stack).map(|_| None)?,
-        Op::Stack(op) => step_op_stack(op, vm.pc, &mut vm.stack, &mut vm.repeat)?,
-        Op::TotalControlFlow(op) => step_op_total_control_flow(op, &mut vm.stack, vm.pc)?,
-        Op::Memory(op) => step_op_memory(op, &mut vm.stack, &mut vm.memory).map(|_| None)?,
+        Op::Access(op) => step_op_access(access, op, &mut vm.stack, &mut vm.repeat, &vm.cache)
+            .map(|_| None)
+            .map_err(OpError::from_infallible)?,
+        Op::Alu(op) => step_op_alu(op, &mut vm.stack)
+            .map(|_| None)
+            .map_err(OpError::from_infallible)?,
+        Op::Crypto(op) => step_op_crypto(op, &mut vm.stack)
+            .map(|_| None)
+            .map_err(OpError::from_infallible)?,
+        Op::Pred(op) => step_op_pred(op, &mut vm.stack)
+            .map(|_| None)
+            .map_err(OpError::from_infallible)?,
+        Op::Stack(op) => step_op_stack(op, vm.pc, &mut vm.stack, &mut vm.repeat)
+            .map_err(OpError::from_infallible)?,
+        Op::TotalControlFlow(op) => step_op_total_control_flow(op, &mut vm.stack, vm.pc)
+            .map_err(OpError::from_infallible)?,
+        Op::Memory(op) => step_op_memory(op, &mut vm.stack, &mut vm.memory)
+            .map(|_| None)
+            .map_err(OpError::from_infallible)?,
         Op::StateRead(op) => step_op_state_read(
             op,
             &access.this_solution().predicate_to_solve.contract,
@@ -203,17 +127,15 @@ pub fn step_op_state_read<S>(
     state: &S,
     stack: &mut Stack,
     memory: &mut Memory,
-) -> OpStateSyncResult<(), S::Error>
+) -> OpResult<(), S::Error>
 where
-    S: StateReadSync,
+    S: StateRead,
 {
     match op {
         asm::StateRead::KeyRange => {
-            crate::state_read::key_range_sync(state, contract_addr, stack, memory)
+            crate::state_read::key_range(state, contract_addr, stack, memory)
         }
-        asm::StateRead::KeyRangeExtern => {
-            crate::state_read::key_range_ext_sync(state, stack, memory)
-        }
+        asm::StateRead::KeyRangeExtern => crate::state_read::key_range_ext(state, stack, memory),
     }
 }
 
@@ -224,7 +146,7 @@ pub fn step_op_access(
     stack: &mut Stack,
     repeat: &mut Repeat,
     cache: &LazyCache,
-) -> OpSyncResult<()> {
+) -> OpResult<()> {
     match op {
         asm::Access::PredicateData => {
             access::predicate_data(&access.this_solution().predicate_data, stack)
@@ -247,7 +169,7 @@ pub fn step_op_access(
 }
 
 /// Step forward execution by the given ALU operation.
-pub fn step_op_alu(op: asm::Alu, stack: &mut Stack) -> OpSyncResult<()> {
+pub fn step_op_alu(op: asm::Alu, stack: &mut Stack) -> OpResult<()> {
     match op {
         asm::Alu::Add => stack.pop2_push1(alu::add),
         asm::Alu::Sub => stack.pop2_push1(alu::sub),
@@ -261,7 +183,7 @@ pub fn step_op_alu(op: asm::Alu, stack: &mut Stack) -> OpSyncResult<()> {
 }
 
 /// Step forward execution by the given crypto operation.
-pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> OpSyncResult<()> {
+pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> OpResult<()> {
     match op {
         asm::Crypto::Sha256 => crypto::sha256(stack),
         asm::Crypto::VerifyEd25519 => crypto::verify_ed25519(stack),
@@ -270,7 +192,7 @@ pub fn step_op_crypto(op: asm::Crypto, stack: &mut Stack) -> OpSyncResult<()> {
 }
 
 /// Step forward execution by the given predicate operation.
-pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpSyncResult<()> {
+pub fn step_op_pred(op: asm::Pred, stack: &mut Stack) -> OpResult<()> {
     match op {
         asm::Pred::Eq => stack.pop2_push1(|a, b| Ok((a == b).into())),
         asm::Pred::EqRange => pred::eq_range(stack),
@@ -293,7 +215,7 @@ pub fn step_op_stack(
     pc: usize,
     stack: &mut Stack,
     repeat: &mut Repeat,
-) -> OpSyncResult<Option<ProgramControlFlow>> {
+) -> OpResult<Option<ProgramControlFlow>> {
     if let asm::Stack::RepeatEnd = op {
         return Ok(repeat.repeat()?.map(ProgramControlFlow::Pc));
     }
@@ -321,7 +243,7 @@ pub fn step_op_total_control_flow(
     op: asm::TotalControlFlow,
     stack: &mut Stack,
     pc: usize,
-) -> OpSyncResult<Option<ProgramControlFlow>> {
+) -> OpResult<Option<ProgramControlFlow>> {
     match op {
         asm::TotalControlFlow::JumpIf => total_control_flow::jump_if(stack, pc),
         asm::TotalControlFlow::HaltIf => total_control_flow::halt_if(stack),
@@ -331,7 +253,7 @@ pub fn step_op_total_control_flow(
 }
 
 /// Step forward execution by the given memory operation.
-pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -> OpSyncResult<()> {
+pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -> OpResult<()> {
     match op {
         asm::Memory::Alloc => {
             let w = stack.pop()?;
@@ -362,7 +284,7 @@ pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -
             let addr = stack.pop()?;
             stack.pop_len_words(|words| {
                 memory.store_range(addr, words)?;
-                Ok::<_, OpSyncError>(())
+                Ok::<_, OpError>(())
             })?;
             Ok(())
         }

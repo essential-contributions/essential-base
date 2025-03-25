@@ -1,5 +1,5 @@
 use crate::{
-    error::{OpSyncError, OpSyncResult, StackError},
+    error::{OpError, OpResult, StackError},
     sets::decode_set,
     Stack,
 };
@@ -10,7 +10,7 @@ use std::collections::HashSet;
 mod tests;
 
 /// `Pred::EqRange` implementation.
-pub(crate) fn eq_range(stack: &mut Stack) -> OpSyncResult<()> {
+pub(crate) fn eq_range(stack: &mut Stack) -> OpResult<()> {
     // Pop the length off the stack.
     let len = stack.pop()?;
 
@@ -25,7 +25,7 @@ pub(crate) fn eq_range(stack: &mut Stack) -> OpSyncResult<()> {
 
     stack.push(double)?;
 
-    let eq = stack.pop_len_words::<_, _, OpSyncError>(|words| {
+    let eq = stack.pop_len_words::<_, _, OpError>(|words| {
         let (a, b) = words.split_at(len);
         Ok(a == b)
     })?;
@@ -37,8 +37,8 @@ pub(crate) fn eq_range(stack: &mut Stack) -> OpSyncResult<()> {
 }
 
 /// `Pred::EqSet` implementation.
-pub(crate) fn eq_set(stack: &mut Stack) -> OpSyncResult<()> {
-    let eq = stack.pop_len_words2::<_, _, OpSyncError>(|lhs, rhs| {
+pub(crate) fn eq_set(stack: &mut Stack) -> OpResult<()> {
+    let eq = stack.pop_len_words2::<_, _, OpError>(|lhs, rhs| {
         let lhs = decode_set(lhs).collect::<Result<HashSet<&[Word]>, _>>()?;
         let rhs = decode_set(rhs).collect::<Result<HashSet<&[Word]>, _>>()?;
         Ok(lhs == rhs)
@@ -52,6 +52,7 @@ mod pred_tests {
     use crate::{
         asm::{Pred, Stack},
         sync::{eval_ops, test_util::*},
+        utils::EmptyState,
     };
 
     #[test]
@@ -61,7 +62,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Eq.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -71,7 +72,7 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::Eq.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -81,7 +82,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gt.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -91,7 +92,7 @@ mod pred_tests {
             Stack::Push(6).into(),
             Pred::Gt.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -101,7 +102,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lt.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -111,7 +112,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lt.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -121,7 +122,7 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -131,13 +132,13 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
         let ops = &[
             Stack::Push(8).into(),
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -147,7 +148,7 @@ mod pred_tests {
             Stack::Push(6).into(),
             Pred::Lte.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -157,13 +158,13 @@ mod pred_tests {
             Stack::Push(7).into(),
             Pred::Lte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
         let ops = &[
             Stack::Push(7).into(),
             Stack::Push(8).into(),
             Pred::Lte.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -173,7 +174,7 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::And.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -183,13 +184,13 @@ mod pred_tests {
             Stack::Push(0).into(),
             Pred::And.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(0).into(),
             Pred::And.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -199,19 +200,19 @@ mod pred_tests {
             Stack::Push(42).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(42).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
         let ops = &[
             Stack::Push(42).into(),
             Stack::Push(0).into(),
             Pred::Or.into(),
         ];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
@@ -221,18 +222,18 @@ mod pred_tests {
             Stack::Push(0).into(),
             Pred::Or.into(),
         ];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
     fn pred_not_true() {
         let ops = &[Stack::Push(0).into(), Pred::Not.into()];
-        assert!(eval_ops(ops, *test_access()).unwrap());
+        assert!(eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 
     #[test]
     fn pred_not_false() {
         let ops = &[Stack::Push(42).into(), Pred::Not.into()];
-        assert!(!eval_ops(ops, *test_access()).unwrap());
+        assert!(!eval_ops(ops, *test_access(), &EmptyState).unwrap());
     }
 }

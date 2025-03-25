@@ -124,8 +124,8 @@ fn multiple_mutations_for_slot() {
 //    v
 //    c
 // ```
-#[tokio::test]
-async fn predicate_graph_stack_passing() {
+#[test]
+fn predicate_graph_stack_passing() {
     use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
     let a = Program(asm::to_bytes([PUSH(1), PUSH(2), PUSH(3), HLT]).collect());
@@ -205,7 +205,6 @@ async fn predicate_graph_stack_passing() {
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
     )
-    .await
     .unwrap();
 
     assert!(outputs.gas > 0);
@@ -220,8 +219,8 @@ async fn predicate_graph_stack_passing() {
 //    v
 //    c
 // ```
-#[tokio::test]
-async fn predicate_graph_memory_passing() {
+#[test]
+fn predicate_graph_memory_passing() {
     use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
     // Store `[1, 2, 3]` at the start of memory.
@@ -346,7 +345,6 @@ async fn predicate_graph_memory_passing() {
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
     )
-    .await
     .unwrap();
 
     assert!(outputs.gas > 0);
@@ -378,10 +376,10 @@ async fn predicate_graph_memory_passing() {
 //         v
 //         c
 // ```
-#[tokio::test]
+#[test]
 #[ignore]
 // FIX: Ignored until seperate read ops introduced
-async fn predicate_graph_state_read() {
+fn predicate_graph_state_read() {
     use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
 
@@ -497,14 +495,13 @@ async fn predicate_graph_state_read() {
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
     )
-    .await
     .unwrap();
 
     assert!(outputs.gas > 0);
 }
 
-#[tokio::test]
-async fn solution_outputs() {
+#[test]
+fn solution_outputs() {
     use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
     let bool_only = Program(asm::to_bytes([PUSH(1)]).collect());
@@ -591,7 +588,6 @@ async fn solution_outputs() {
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
     )
-    .await
     .unwrap();
 
     assert!(outputs.gas > 0);
@@ -615,8 +611,8 @@ async fn solution_outputs() {
     );
 }
 
-#[tokio::test]
-async fn solution_compute_mutations() {
+#[test]
+fn solution_compute_mutations() {
     use essential_vm::asm::short::*;
     let _ = tracing_subscriber::fmt::try_init();
     let mutations_0 = vec![Mutation {
@@ -731,7 +727,6 @@ async fn solution_compute_mutations() {
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
     )
-    .await
     .unwrap();
 
     let expected = [mutations_0, mutations_1].concat();

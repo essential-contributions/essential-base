@@ -1,7 +1,8 @@
 use crate::{
     asm,
-    error::{OpSyncError, TotalControlFlowError},
+    error::{OpError, TotalControlFlowError},
     sync::{exec_ops, test_util::test_access},
+    utils::EmptyState,
 };
 
 #[test]
@@ -19,7 +20,7 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &EmptyState).unwrap();
     assert_eq!(&stack[..], &[3]);
 
     let ops = &[
@@ -34,7 +35,7 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &EmptyState).unwrap();
     assert_eq!(&stack[..], &[4]);
 }
 
@@ -50,7 +51,7 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &EmptyState).unwrap();
     assert_eq!(&stack[..], &[2]);
 
     let ops = &[
@@ -62,7 +63,7 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access).unwrap();
+    let stack = exec_ops(ops, access, &EmptyState).unwrap();
     assert_eq!(&stack[..], &[3]);
 }
 
@@ -76,7 +77,7 @@ fn test_panic_if() {
     let err = super::panic_if(&mut stack).unwrap_err();
     assert!(err.to_string().ends_with("[42, 43]"),);
     assert!(
-        matches!(err, OpSyncError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s == vec![42, 43])
+        matches!(err, OpError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s == vec![42, 43])
     );
 
     let mut stack = crate::Stack::default();
@@ -85,7 +86,7 @@ fn test_panic_if() {
     let err = super::panic_if(&mut stack).unwrap_err();
     assert!(err.to_string().ends_with("[]"),);
     assert!(
-        matches!(err, OpSyncError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s.is_empty())
+        matches!(err, OpError::TotalControlFlow(TotalControlFlowError::Panic(s)) if s.is_empty())
     );
 
     let mut stack = crate::Stack::default();
@@ -104,6 +105,6 @@ fn test_panic_if() {
     let err = super::panic_if(&mut stack).unwrap_err();
     assert!(matches!(
         err,
-        OpSyncError::TotalControlFlow(TotalControlFlowError::InvalidPanicIfCondition)
+        OpError::TotalControlFlow(TotalControlFlowError::InvalidPanicIfCondition)
     ));
 }

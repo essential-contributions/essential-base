@@ -102,7 +102,7 @@ fn test_predicate_exists() {
     check(&mut stack, &data, &cache).unwrap_err();
 }
 
-fn check(stack: &mut Stack, data: &[Solution], cache: &LazyCache) -> OpSyncResult<bool> {
+fn check(stack: &mut Stack, data: &[Solution], cache: &LazyCache) -> OpResult<bool> {
     predicate_exists(stack, data, cache)?;
     let s = stack.iter().cloned().collect::<Vec<_>>();
     assert_eq!(s.len(), 1);

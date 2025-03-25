@@ -15,7 +15,6 @@ essential-types = { workspace = true }
 essential-vm = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -24,7 +23,6 @@ essential-hash = { workspace = true }
 rand = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand", "std"] }
 sha2 = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread", "rt"] }
 tracing-subscriber.workspace = true
 
 [features]

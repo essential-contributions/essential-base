@@ -7,10 +7,7 @@ use essential_types::{
     contract::{self, Contract},
     predicate::Predicate,
 };
-use std::{
-    collections::BTreeMap,
-    future::{self, Ready},
-};
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 // A test `StateRead` implementation represented using a map.
@@ -113,9 +110,13 @@ impl core::ops::Deref for State {
 
 impl StateRead for State {
     type Error = InvalidStateRead;
-    type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
-    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
-        future::ready(self.key_range(contract_addr, key, num_words))
+    fn key_range(
+        &self,
+        contract_addr: ContentAddress,
+        key: Key,
+        num_words: usize,
+    ) -> Result<Vec<Vec<Word>>, Self::Error> {
+        self.key_range(contract_addr, key, num_words)
     }
 }
 
