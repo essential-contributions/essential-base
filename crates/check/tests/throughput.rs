@@ -98,9 +98,8 @@ fn test_throughput() {
         for _ in 0..n {
             let outputs = solution::check_set_predicates(
                 &State::EMPTY,
-                &State::EMPTY,
                 set.clone(),
-                &get_predicate,
+                get_predicate,
                 get_program.clone(),
                 config.clone(),
             )

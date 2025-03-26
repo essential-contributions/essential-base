@@ -199,7 +199,6 @@ fn predicate_graph_stack_passing() {
     // Run the check, and ensure ok and gas aren't 0.
     let outputs = solution::check_set_predicates(
         &State::EMPTY,
-        &State::EMPTY,
         Arc::new(set),
         get_predicate,
         get_program,
@@ -338,7 +337,6 @@ fn predicate_graph_memory_passing() {
 
     // Run the check, and ensure ok and gas aren't 0.
     let outputs = solution::check_set_predicates(
-        &State::EMPTY,
         &State::EMPTY,
         Arc::new(set),
         get_predicate,
@@ -488,8 +486,7 @@ fn predicate_graph_state_read() {
 
     // Run the check, and ensure ok and gas aren't 0.
     let outputs = solution::check_set_predicates(
-        &pre_state,
-        &post_state,
+        &(pre_state, post_state),
         Arc::new(set),
         get_predicate,
         get_program,
@@ -581,7 +578,6 @@ fn solution_outputs() {
 
     // Run the check, and ensure ok and gas aren't 0.
     let outputs = solution::check_set_predicates(
-        &State::EMPTY,
         &State::EMPTY,
         Arc::new(set),
         get_predicate,
@@ -720,7 +716,6 @@ fn solution_compute_mutations() {
     let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
 
     let set = solution::check_and_compute_solution_set(
-        &State::EMPTY,
         &State::EMPTY,
         set,
         get_predicate,

@@ -43,6 +43,8 @@ pub use stack::Stack;
 #[doc(inline)]
 pub use state_read::StateRead;
 #[doc(inline)]
+pub use state_read::StateReads;
+#[doc(inline)]
 pub use total_control_flow::ProgramControlFlow;
 #[doc(inline)]
 pub use vm::Vm;
@@ -66,7 +68,7 @@ mod vm;
 
 #[cfg(test)]
 pub(crate) mod utils {
-    use crate::StateRead;
+    use crate::{StateRead, StateReads};
 
     pub struct EmptyState;
     impl StateRead for EmptyState {
@@ -79,6 +81,20 @@ pub(crate) mod utils {
             _num_values: usize,
         ) -> Result<Vec<Vec<essential_asm::Word>>, Self::Error> {
             Ok(vec![])
+        }
+    }
+
+    impl StateReads for EmptyState {
+        type Error = String;
+        type Pre = Self;
+        type Post = Self;
+
+        fn pre(&self) -> &Self::Pre {
+            self
+        }
+
+        fn post(&self) -> &Self::Post {
+            self
         }
     }
 }
@@ -141,7 +157,7 @@ pub(crate) fn trace_op_res<OA, T, E>(
     pc: usize,
     stack: &Stack,
     memory: &Memory,
-    op_res: Result<T, E>,
+    op_res: &Result<T, E>,
 ) where
     OA: OpAccess,
     OA::Op: core::fmt::Debug,

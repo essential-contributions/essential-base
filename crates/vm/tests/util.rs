@@ -4,7 +4,7 @@
 
 use essential_vm::{
     types::{solution::Solution, ContentAddress, Key, PredicateAddress, Word},
-    Access, StateRead,
+    Access, StateRead, StateReads,
 };
 use std::collections::{BTreeMap, HashSet};
 use thiserror::Error;
@@ -133,5 +133,19 @@ impl StateRead for State {
         num_values: usize,
     ) -> Result<Vec<Vec<Word>>, Self::Error> {
         self.key_range(contract_addr, key, num_values)
+    }
+}
+
+impl StateReads for State {
+    type Error = InvalidStateRead;
+    type Pre = Self;
+    type Post = Self;
+
+    fn pre(&self) -> &Self::Pre {
+        self
+    }
+
+    fn post(&self) -> &Self::Post {
+        self
     }
 }

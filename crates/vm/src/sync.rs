@@ -8,7 +8,7 @@ use crate::{
     error::{EvalError, EvalResult, ExecError, ExecResult, OpError, OpResult, ParentMemoryError},
     pred, repeat, total_control_flow,
     types::convert::bool_from_word,
-    Access, LazyCache, Memory, OpAccess, ProgramControlFlow, Repeat, Stack, StateRead, Vm,
+    Access, LazyCache, Memory, OpAccess, ProgramControlFlow, Repeat, Stack, StateReads, Vm,
 };
 use std::sync::Arc;
 
@@ -17,7 +17,7 @@ use std::sync::Arc;
 /// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
 pub fn eval_ops<S>(ops: &[Op], access: Access, state: &S) -> EvalResult<bool, S::Error>
 where
-    S: StateRead,
+    S: StateReads,
 {
     eval(ops, access, state)
 }
@@ -29,7 +29,7 @@ pub fn eval<OA, S>(op_access: OA, access: Access, state: &S) -> EvalResult<bool,
 where
     OA: OpAccess<Op = Op>,
     OA::Error: Into<OpError<S::Error>>,
-    S: StateRead,
+    S: StateReads,
 {
     let stack = exec(op_access, access, state)?;
     let word = match stack.last() {
@@ -42,7 +42,7 @@ where
 /// Execute a slice of synchronous operations and return the resulting stack.
 pub fn exec_ops<S>(ops: &[Op], access: Access, state: &S) -> ExecResult<Stack, S::Error>
 where
-    S: StateRead,
+    S: StateReads,
 {
     exec(ops, access, state)
 }
@@ -52,7 +52,7 @@ pub fn exec<OA, S>(mut op_access: OA, access: Access, state: &S) -> ExecResult<S
 where
     OA: OpAccess<Op = Op>,
     OA::Error: Into<OpError<S::Error>>,
-    S: StateRead,
+    S: StateReads,
 {
     let mut vm = Vm::default();
     while let Some(res) = op_access.op_access(vm.pc) {
@@ -60,7 +60,7 @@ where
         let res = step_op(access, op, &mut vm, state);
 
         #[cfg(feature = "tracing")]
-        crate::trace_op_res(&mut op_access, vm.pc, &vm.stack, &vm.memory, res.as_ref());
+        crate::trace_op_res(&mut op_access, vm.pc, &vm.stack, &vm.memory, &res);
 
         let update = match res {
             Ok(update) => update,
@@ -85,7 +85,7 @@ pub fn step_op<S>(
     state: &S,
 ) -> OpResult<Option<ProgramControlFlow>, S::Error>
 where
-    S: StateRead,
+    S: StateReads,
 {
     let r = match op {
         Op::Access(op) => step_op_access(access, op, &mut vm.stack, &mut vm.repeat, &vm.cache)
@@ -132,13 +132,21 @@ pub fn step_op_state_read<S>(
     memory: &mut Memory,
 ) -> OpResult<(), S::Error>
 where
-    S: StateRead,
+    S: StateReads,
 {
     match op {
         asm::StateRead::KeyRange => {
-            crate::state_read::key_range(state, contract_addr, stack, memory)
+            crate::state_read::key_range(state.pre(), contract_addr, stack, memory)
         }
-        asm::StateRead::KeyRangeExtern => crate::state_read::key_range_ext(state, stack, memory),
+        asm::StateRead::KeyRangeExtern => {
+            crate::state_read::key_range_ext(state.pre(), stack, memory)
+        }
+        essential_asm::StateRead::PostKeyRange => {
+            crate::state_read::key_range(state.post(), contract_addr, stack, memory)
+        }
+        essential_asm::StateRead::PostKeyRangeExtern => {
+            crate::state_read::key_range_ext(state.post(), stack, memory)
+        }
     }
 }
 

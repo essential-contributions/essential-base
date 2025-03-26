@@ -24,6 +24,43 @@ pub trait StateRead {
     ) -> Result<Vec<Vec<Word>>, Self::Error>;
 }
 
+/// Pre and post sync state reads.
+pub trait StateReads {
+    /// Common error type
+    type Error: core::fmt::Debug + core::fmt::Display;
+
+    /// Pre state read
+    type Pre: StateRead<Error = Self::Error>;
+
+    /// Post state read
+    type Post: StateRead<Error = Self::Error>;
+
+    /// Get the pre state read
+    fn pre(&self) -> &Self::Pre;
+
+    /// Get the post state read
+    fn post(&self) -> &Self::Post;
+}
+
+impl<S, P> StateReads for (S, P)
+where
+    S: StateRead,
+    P: StateRead<Error = S::Error>,
+{
+    type Error = S::Error;
+
+    type Pre = S;
+
+    type Post = P;
+
+    fn pre(&self) -> &Self::Pre {
+        &self.0
+    }
+
+    fn post(&self) -> &Self::Post {
+        &self.1
+    }
+}
 /// `StateRead::KeyRange` operation.
 /// Uses a synchronous state read.
 pub fn key_range<S>(
