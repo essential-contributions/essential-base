@@ -9,6 +9,13 @@ fn test_decode_mutation() {
 
     let words = vec![4, 1, 2, 3, 2, 4, 5];
     decode_mutation(&words).expect_err("Value length too short");
+
+    // Negative lengths
+    let words = vec![-1, 1, 2, 3, 2, 4, 5];
+    decode_mutation(&words).expect_err("Negative key length");
+
+    let words = vec![3, 1, 2, 3, -2, 4, 5];
+    decode_mutation(&words).expect_err("Negative value length");
 }
 
 #[test]
@@ -20,4 +27,8 @@ fn test_decode_mutations() {
     assert_eq!(m[0].value, vec![4, 5]);
     assert_eq!(m[1].key, vec![6, 7]);
     assert_eq!(m[1].value, vec![8, 9, 10]);
+
+    // Negative lengths
+    let words = vec![-2, 3, 1, 2, 3, 2, 4, 5, 2, 6, 7, 3, 8, 9, 10];
+    decode_mutations(&words).unwrap_err();
 }
