@@ -97,7 +97,7 @@ where
         Op::Crypto(op) => step_op_crypto(op, &mut vm.stack)
             .map(|_| None)
             .map_err(OpError::from_infallible)?,
-        Op::ParentMemory(op) => step_op_parent_memory(op, &mut vm.stack, &mut vm.parent_memory)
+        Op::ParentMemory(op) => step_op_parent_memory(op, &mut vm.stack, &vm.parent_memory)
             .map(|_| None)
             .map_err(OpError::from_infallible)?,
         Op::Pred(op) => step_op_pred(op, &mut vm.stack)
