@@ -5,11 +5,12 @@ use essential_types::ContentAddress;
 
 use crate::{
     access, alu, asm, crypto,
-    error::{EvalError, EvalResult, ExecError, ExecResult, OpError, OpResult},
+    error::{EvalError, EvalResult, ExecError, ExecResult, OpError, OpResult, ParentMemoryError},
     pred, repeat, total_control_flow,
     types::convert::bool_from_word,
     Access, LazyCache, Memory, OpAccess, ProgramControlFlow, Repeat, Stack, StateRead, Vm,
 };
+use std::sync::Arc;
 
 /// Evaluate a slice of synchronous operations and return their boolean result.
 ///
@@ -56,7 +57,6 @@ where
     let mut vm = Vm::default();
     while let Some(res) = op_access.op_access(vm.pc) {
         let op = res.map_err(|err| ExecError(vm.pc, err.into()))?;
-
         let res = step_op(access, op, &mut vm, state);
 
         #[cfg(feature = "tracing")]
@@ -95,6 +95,9 @@ where
             .map(|_| None)
             .map_err(OpError::from_infallible)?,
         Op::Crypto(op) => step_op_crypto(op, &mut vm.stack)
+            .map(|_| None)
+            .map_err(OpError::from_infallible)?,
+        Op::ParentMemory(op) => step_op_parent_memory(op, &mut vm.stack, &vm.parent_memory)
             .map(|_| None)
             .map_err(OpError::from_infallible)?,
         Op::Pred(op) => step_op_pred(op, &mut vm.stack)
@@ -287,6 +290,28 @@ pub fn step_op_memory(op: asm::Memory, stack: &mut Stack, memory: &mut Memory) -
                 Ok::<_, OpError>(())
             })?;
             Ok(())
+        }
+    }
+}
+
+/// Step forward execution by the given parent memory operation.
+pub fn step_op_parent_memory(
+    op: asm::ParentMemory,
+    stack: &mut Stack,
+    parent_memory: &[Arc<Memory>],
+) -> OpResult<()> {
+    let Some(memory) = parent_memory.last() else {
+        return Err(ParentMemoryError::NoParent.into());
+    };
+    match op {
+        asm::ParentMemory::Load => stack.pop1_push1(|addr| {
+            let w = memory.load(addr)?;
+            Ok(w)
+        }),
+        asm::ParentMemory::LoadRange => {
+            let [addr, size] = stack.pop2()?;
+            let words = memory.load_range(addr, size)?;
+            Ok(stack.extend(words)?)
         }
     }
 }

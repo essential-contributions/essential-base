@@ -41,7 +41,7 @@ impl Memory {
     }
 
     /// Load a word from the given address.
-    pub fn load(&mut self, address: Word) -> Result<Word, MemoryError> {
+    pub fn load(&self, address: Word) -> Result<Word, MemoryError> {
         let index = usize::try_from(address).map_err(|_| MemoryError::IndexOutOfBounds)?;
         Ok(*self.0.get(index).ok_or(MemoryError::IndexOutOfBounds)?)
     }
@@ -60,7 +60,7 @@ impl Memory {
     }
 
     /// Load a range of words starting at the given address.
-    pub fn load_range(&mut self, address: Word, size: Word) -> Result<Vec<Word>, MemoryError> {
+    pub fn load_range(&self, address: Word, size: Word) -> Result<Vec<Word>, MemoryError> {
         let address = usize::try_from(address).map_err(|_| MemoryError::IndexOutOfBounds)?;
         let size = usize::try_from(size).map_err(|_| MemoryError::Overflow)?;
         let end = address.checked_add(size).ok_or(MemoryError::Overflow)?;
