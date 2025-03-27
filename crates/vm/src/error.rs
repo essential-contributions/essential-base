@@ -1,12 +1,11 @@
 //! The types of errors that might occur throughout execution.
 
-use core::convert::Infallible;
-
 #[doc(inline)]
 use crate::{
     asm::{self, Word},
     Gas,
 };
+use core::convert::Infallible;
 use thiserror::Error;
 
 /// Shorthand for a `Result` where the error type is a `ExecError`.
@@ -78,6 +77,9 @@ pub enum OpError<E = Infallible> {
     /// An error occurred during a `StateRead` operation.
     #[error("state read operation error: {0}")]
     StateRead(E),
+    /// An error occurred during a `Compute` operation.
+    #[error("compute operation error: {0}")]
+    Compute(#[from] ComputeError),
     /// An error occurred while parsing an operation from bytes.
     #[error("bytecode error: {0}")]
     FromBytes(#[from] asm::FromBytesError),
@@ -337,6 +339,17 @@ pub enum ParentMemoryError {
     Memory(#[from] MemoryError),
 }
 
+/// Shorthand for a `Result` where the error type is a `ComputeError`.
+pub type ComputeResult<T> = Result<T, ComputeError>;
+
+/// Compute operation error.
+#[derive(Debug, Error)]
+pub enum ComputeError {
+    /// Placeholder error for dev. TODO: remove.
+    #[error("placeholder error")]
+    Placeholder,
+}
+
 /// Decode error.
 #[derive(Debug, Error)]
 pub enum DecodeError {
@@ -391,6 +404,7 @@ impl<E> OpError<E> {
             OpError::StateRead(_) => unreachable!(),
             OpError::FromBytes(from_bytes_error) => OpError::FromBytes(from_bytes_error),
             OpError::OutOfGas(out_of_gas_error) => OpError::OutOfGas(out_of_gas_error),
+            OpError::Compute(compute_error) => OpError::Compute(compute_error),
         }
     }
 }
