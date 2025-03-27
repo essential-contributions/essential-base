@@ -99,6 +99,8 @@ fn test_encoding_sig_and_pub_key() {
         get_predicate,
         get_program,
         Default::default(),
+        Default::default(),
+        &mut Default::default(),
     )
     .unwrap();
 }
