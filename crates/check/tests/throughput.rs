@@ -102,6 +102,8 @@ fn test_throughput() {
                 get_predicate,
                 get_program.clone(),
                 config.clone(),
+                Default::default(),
+                &mut Default::default(),
             )
             .unwrap();
             assert!(outputs.gas > 0);

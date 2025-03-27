@@ -203,6 +203,8 @@ fn predicate_graph_stack_passing() {
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
+        Default::default(),
+        &mut Default::default(),
     )
     .unwrap();
 
@@ -342,6 +344,8 @@ fn predicate_graph_memory_passing() {
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
+        Default::default(),
+        &mut Default::default(),
     )
     .unwrap();
 
@@ -491,6 +495,8 @@ fn predicate_graph_state_read() {
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
+        Default::default(),
+        &mut Default::default(),
     )
     .unwrap();
 
@@ -583,6 +589,8 @@ fn solution_outputs() {
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
+        Default::default(),
+        &mut Default::default(),
     )
     .unwrap();
 
@@ -721,6 +729,8 @@ fn solution_compute_mutations() {
         get_predicate,
         get_program,
         Arc::new(solution::CheckPredicateConfig::default()),
+        Default::default(),
+        &mut Default::default(),
     )
     .unwrap();
 

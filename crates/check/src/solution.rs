@@ -27,6 +27,10 @@ use rayon::prelude::*;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod test_graph_ops;
+
 /// Configuration options passed to [`check_predicate`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct CheckPredicateConfig {
@@ -61,6 +65,18 @@ pub trait GetProgram {
     /// validated ahead of time.
     fn get_program(&self, ca: &ContentAddress) -> Arc<Program>;
 }
+
+#[derive(Debug)]
+/// Context for checking a predicate
+pub struct Ctx<'a> {
+    /// The mode the check is running in.
+    pub run_mode: RunMode,
+    /// The global cache of outputs, indexed by node index.
+    pub cache: &'a mut Cache,
+}
+
+/// Cache of parent outputs, indexed by node index for a predicate.
+pub type Cache = HashMap<u16, Arc<(Stack, Memory)>>;
 
 /// The node context in which a `Program` is evaluated (see [`run_program`]).
 struct ProgramCtx {
@@ -114,20 +130,14 @@ enum Output {
     Parent(Arc<(Stack, Memory)>),
 }
 
-/// Program node with its parents and inputs.
-#[derive(Debug)]
-struct Node {
-    /// Required parents for this node.
-    parents: BTreeMap<u16, Option<Arc<(Stack, Memory)>>>,
-    /// Program address.
-    program: ContentAddress,
-}
-
-impl Node {
-    /// Node has all its inputs.
-    fn has_all_inputs(&self) -> bool {
-        self.parents.iter().all(|(_, v)| v.is_some())
-    }
+/// The mode the check is running in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum RunMode {
+    /// Generating outputs
+    #[default]
+    Outputs,
+    /// Checking outputs
+    Checks,
 }
 
 /// [`check_set`] error.
@@ -475,6 +485,8 @@ pub fn check_and_compute_solution_set<S>(
     get_predicate: impl GetPredicate + Sync,
     get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
+    run_mode: RunMode,
+    cache: &mut HashMap<SolutionIndex, Cache>,
 ) -> Result<(Gas, SolutionSet), PredicatesError<S::Error>>
 where
     S: Clone + StateReads + Send + Sync + 'static,
@@ -482,7 +494,15 @@ where
 {
     // Check the set and gather any outputs.
     let set = Arc::new(solution_set);
-    let outputs = check_set_predicates(state, set.clone(), get_predicate, get_program, config)?;
+    let outputs = check_set_predicates(
+        state,
+        set.clone(),
+        get_predicate,
+        get_program,
+        config,
+        run_mode,
+        cache,
+    )?;
 
     // Safe to unwrap the arc here as we have no other references.
     let set = Arc::try_unwrap(set).expect("set should have one reference");
@@ -517,6 +537,8 @@ pub fn check_set_predicates<S>(
     get_predicate: impl GetPredicate + Sync,
     get_program: impl 'static + Clone + GetProgram + Send + Sync,
     config: Arc<CheckPredicateConfig>,
+    run_mode: RunMode,
+    cache: &mut HashMap<SolutionIndex, Cache>,
 ) -> Result<Outputs, PredicatesError<S::Error>>
 where
     S: Clone + StateReads + Send + Sync + 'static,
@@ -525,12 +547,19 @@ where
     #[cfg(feature = "tracing")]
     tracing::trace!("{}", essential_hash::content_addr(&*solution_set));
 
+    let caches: Vec<_> = (0..solution_set.solutions.len())
+        .map(|i| {
+            let cache = cache.entry(i as u16).or_default();
+            core::mem::take(cache)
+        })
+        .collect();
     // Check each solution in parallel.
     let (ok, failed): (Vec<_>, Vec<_>) = solution_set
         .solutions
         .par_iter()
+        .zip(caches)
         .enumerate()
-        .map(|(solution_index, solution)| {
+        .map(|(solution_index, (solution, mut cache))| {
             let predicate = get_predicate.get_predicate(&solution.predicate_to_solve);
             let solution_set = solution_set.clone();
             let state = state.clone();
@@ -546,10 +575,14 @@ where
                     .try_into()
                     .expect("solution index already validated"),
                 &config,
+                Ctx {
+                    run_mode,
+                    cache: &mut cache,
+                },
             );
 
             match res {
-                Ok(ok) => Ok((solution_index as u16, ok)),
+                Ok(ok) => Ok((solution_index as u16, ok, cache)),
                 Err(e) => Err((solution_index as u16, e)),
             }
         })
@@ -565,12 +598,13 @@ where
     let outputs = ok
         .into_iter()
         .map(Result::unwrap)
-        .map(|(solution_index, (gas, data_outputs))| {
+        .map(|(solution_index, (gas, data_outputs), c)| {
             let output = DataFromSolution {
                 solution_index,
                 data: data_outputs,
             };
             total_gas = total_gas.saturating_add(gas);
+            *cache.get_mut(&solution_index).expect("cache should exist") = c;
             output
         })
         .collect();
@@ -605,6 +639,7 @@ pub fn check_predicate<S>(
     get_program: impl GetProgram + Send + Sync + 'static,
     solution_index: SolutionIndex,
     config: &CheckPredicateConfig,
+    ctx: Ctx,
 ) -> Result<(Gas, Vec<DataOutput>), PredicateError<S::Error>>
 where
     S: Clone + StateReads + Send + Sync + 'static,
@@ -613,12 +648,12 @@ where
     let p = predicate.clone();
 
     // Run all nodes that have all their inputs in parallel
-    let run = |(ix, node): (&u16, &Node)| {
-        let program = get_program.get_program(&node.program);
+    let run = |ix: u16, parents: Vec<Arc<(Stack, Memory)>>| {
+        let program = get_program.get_program(&predicate.nodes[ix as usize].program_address);
         let ctx = ProgramCtx {
-            parents: node.parents.values().cloned().map(Option::unwrap).collect(),
+            parents,
             leaf: predicate
-                .node_edges(*ix as usize)
+                .node_edges(ix as usize)
                 .expect("This is already checked")
                 .is_empty(),
         };
@@ -629,36 +664,21 @@ where
             program,
             ctx,
         );
-        (*ix, res)
+        (ix, res)
     };
 
-    check_predicate_inner(run, p, config)
+    check_predicate_inner(run, p, config, &get_program, ctx)
 }
 
-fn check_predicate_inner<F, E>(
-    run: F,
-    predicate: Arc<Predicate>,
-    config: &CheckPredicateConfig,
-) -> Result<(Gas, Vec<DataOutput>), PredicateError<E>>
-where
-    F: Fn((&u16, &Node)) -> (u16, Result<(Output, u64), ProgramError<E>>) + Send + Sync + Copy,
-    E: Send,
-{
-    // Nodes with their parents and inputs.
-    let mut nodes = BTreeMap::new();
-
-    // Create new node
-    let new_node = |node_ix: usize| Node {
-        parents: BTreeMap::new(),
-        program: predicate.nodes[node_ix].program_address.clone(),
-    };
-
+/// Includes nodes with no parents
+fn create_parent_map<E>(
+    predicate: &Predicate,
+) -> Result<BTreeMap<u16, Vec<u16>>, PredicateError<E>> {
+    let mut nodes: BTreeMap<u16, Vec<u16>> = BTreeMap::new();
     // For each node add it their children's parents set
     for node_ix in 0..predicate.nodes.len() {
         // Insert this node incase it's a root
-        nodes
-            .entry(node_ix as u16)
-            .or_insert_with(|| new_node(node_ix));
+        nodes.entry(node_ix as u16).or_default();
 
         // Add any children
         for edge in predicate
@@ -666,13 +686,195 @@ where
             .ok_or_else(|| PredicateError::InvalidNodeEdges(node_ix))?
         {
             // Insert the child if it's not already there and then add this node as a parent
-            nodes
-                .entry(*edge)
-                .or_insert_with(|| new_node(*edge as usize))
-                .parents
-                .insert(node_ix as u16, None);
+            nodes.entry(*edge).or_default().push(node_ix as u16);
         }
     }
+    Ok(nodes)
+}
+
+fn in_degrees(num_nodes: usize, parent_map: &BTreeMap<u16, Vec<u16>>) -> BTreeMap<u16, usize> {
+    let mut in_degrees = BTreeMap::new();
+    for node in 0..num_nodes {
+        in_degrees.insert(
+            node as u16,
+            parent_map.get(&(node as u16)).map_or(0, |v| v.len()),
+        );
+    }
+
+    in_degrees
+}
+
+fn reduce_in_degrees(in_degrees: &mut BTreeMap<u16, usize>, children: &[u16]) {
+    for child in children {
+        if let Some(in_degree) = in_degrees.get_mut(child) {
+            *in_degree = in_degree.saturating_sub(1);
+        }
+    }
+}
+
+fn find_nodes_with_no_parents(in_degrees: &BTreeMap<u16, usize>) -> Vec<u16> {
+    in_degrees
+        .iter()
+        .filter_map(
+            |(node, in_degree)| {
+                if *in_degree == 0 {
+                    Some(*node)
+                } else {
+                    None
+                }
+            },
+        )
+        .collect()
+}
+
+/// Sorts the nodes in parallel topological order.
+///
+/// ## Note
+/// This is not a perfect ordering as the following:
+/// ```text
+///   A
+///  / \
+/// B   C
+/// |   |
+/// D   E
+///  \ /
+///   F
+/// ```
+/// Results in:
+/// ```text
+/// [[A], [B, C], [D, E], [F]]
+/// ```
+/// If `B` or `C` finish first then they could start on
+/// `D` or `E` respectively but this sort doesn't allow that.
+fn parallel_topo_sort<E>(
+    predicate: &Predicate,
+    parent_map: &BTreeMap<u16, Vec<u16>>,
+) -> Result<Vec<Vec<u16>>, PredicateError<E>> {
+    let mut in_degrees = in_degrees(predicate.nodes.len(), parent_map);
+
+    let mut out = Vec::new();
+    while !in_degrees.is_empty() {
+        let current_level = find_nodes_with_no_parents(&in_degrees);
+        if current_level.is_empty() {
+            // Cycle detected
+            // TODO: Change error
+            return Err(PredicateError::InvalidNodeEdges(0));
+        }
+
+        out.push(current_level.clone());
+
+        for node in current_level {
+            let children = predicate
+                .node_edges(node as usize)
+                .ok_or_else(|| PredicateError::InvalidNodeEdges(node as usize))?;
+            reduce_in_degrees(&mut in_degrees, children);
+            in_degrees.remove(&node);
+        }
+    }
+
+    Ok(out)
+}
+
+fn find_deferred<F>(predicate: &Predicate, is_deferred: F) -> HashSet<u16>
+where
+    F: Fn(&essential_types::predicate::Node) -> bool,
+{
+    let mut deferred = HashSet::new();
+    for (ix, node) in predicate.nodes.iter().enumerate() {
+        if is_deferred(node) {
+            deferred.insert(ix as u16);
+        }
+        if deferred.contains(&(ix as u16)) {
+            for child in predicate.node_edges(ix).expect("Already checked") {
+                deferred.insert(*child);
+            }
+        }
+    }
+    deferred
+}
+
+fn should_cache(node: u16, predicate: &Predicate, deferred: &HashSet<u16>) -> bool {
+    !deferred.contains(&node)
+        && predicate
+            .node_edges(node as usize)
+            .expect("Already checked")
+            .iter()
+            .any(|child| deferred.contains(child))
+}
+
+fn remove_deferred(nodes: Vec<Vec<u16>>, deferred: &HashSet<u16>) -> Vec<Vec<u16>> {
+    nodes
+        .into_iter()
+        .map(|level| {
+            level
+                .into_iter()
+                .filter(|node| !deferred.contains(node))
+                .collect::<Vec<_>>()
+        })
+        .filter(|level| !level.is_empty())
+        .collect()
+}
+
+fn remove_not_deferred(nodes: Vec<Vec<u16>>, deferred: &HashSet<u16>) -> Vec<Vec<u16>> {
+    nodes
+        .into_iter()
+        .map(|level| {
+            level
+                .into_iter()
+                .filter(|node| deferred.contains(node))
+                .collect::<Vec<_>>()
+        })
+        .filter(|level| !level.is_empty())
+        .collect()
+}
+
+/// Handles the checking of a predicate.
+/// - Sorts the nodes into parallel topological order.
+/// - Sets up for the run type.
+/// - Runs the programs in parallel where appropriate.
+/// - Collects the outputs and gas.
+fn check_predicate_inner<F, E>(
+    run: F,
+    predicate: Arc<Predicate>,
+    config: &CheckPredicateConfig,
+    get_program: &(impl GetProgram + Send + Sync + 'static),
+    ctx: Ctx<'_>,
+) -> Result<(Gas, Vec<DataOutput>), PredicateError<E>>
+where
+    F: Fn(u16, Vec<Arc<(Stack, Memory)>>) -> (u16, Result<(Output, u64), ProgramError<E>>)
+        + Send
+        + Sync
+        + Copy,
+    E: Send,
+{
+    // Get the mode we are running and the global cache.
+    let Ctx { run_mode, cache } = ctx;
+
+    // Create the parent map
+    let parent_map = create_parent_map(&predicate)?;
+
+    // Create a parallel topological sort of the nodes
+    let sorted_nodes = parallel_topo_sort(&predicate, &parent_map)?;
+
+    // Filter for which nodes are deferred. This is nodes with a post state read.
+    let deferred_filter = |node: &essential_types::predicate::Node| -> bool {
+        asm::effects::bytes_contains_any(
+            &get_program.get_program(&node.program_address).0,
+            asm::effects::Effects::PostKeyRange | asm::effects::Effects::PostKeyRangeExtern,
+        )
+    };
+
+    // Get the set of deferred nodes.
+    let deferred = find_deferred(&predicate, deferred_filter);
+
+    // Depending on the run mode remove the deferred nodes or other nodes.
+    let sorted_nodes = match run_mode {
+        RunMode::Outputs => remove_deferred(sorted_nodes, &deferred),
+        RunMode::Checks => remove_not_deferred(sorted_nodes, &deferred),
+    };
+
+    // Setup a local cache for the outputs.
+    let mut local_cache = Cache::new();
 
     // The outputs from a run.
     let mut failed: Vec<(_, _)> = vec![];
@@ -680,48 +882,68 @@ where
     let mut unsatisfied = Vec::new();
     let mut data_outputs = Vec::new();
 
-    // While there are nodes to run
-    while !nodes.is_empty() {
-        let outputs: BTreeMap<u16, Result<(Output, Gas), _>> = if nodes.len() == 1 {
-            nodes
-                .iter()
-                .filter(|(_, n)| n.has_all_inputs())
-                .map(run)
-                .collect()
-        } else {
-            nodes
-                .par_iter()
-                .filter(|(_, n)| n.has_all_inputs())
-                .map(run)
-                .collect()
-        };
+    // Run each set of parallel nodes.
+    for parallel_nodes in sorted_nodes {
+        // Run 1 or no length in serial to avoid overhead.
+        let outputs: BTreeMap<u16, Result<(Output, Gas), _>> =
+            if parallel_nodes.len() == 1 || parallel_nodes.is_empty() {
+                parallel_nodes
+                    .into_iter()
+                    .map(|ix| {
+                        // Check global cache then local cache
+                        // for parent inputs.
+                        let inputs = parent_map[&ix]
+                            .iter()
+                            .filter_map(|parent_ix| {
+                                cache
+                                    .get(parent_ix)
+                                    .cloned()
+                                    .or_else(|| local_cache.get(parent_ix).cloned())
+                            })
+                            .collect();
 
-        // Remove any nodes that have been run
-        for ix in outputs.keys() {
-            nodes.remove(ix);
-        }
+                        // Run the program.
+                        run(ix, inputs)
+                    })
+                    .collect()
+            } else {
+                parallel_nodes
+                    .into_par_iter()
+                    .map(|ix| {
+                        // Check global cache then local cache
+                        // for parent inputs.
+                        let inputs = parent_map[&ix]
+                            .iter()
+                            .filter_map(|parent_ix| {
+                                cache
+                                    .get(parent_ix)
+                                    .cloned()
+                                    .or_else(|| local_cache.get(parent_ix).cloned())
+                            })
+                            .collect();
 
-        // Go through each output
-        for (output_from, res) in outputs {
+                        // Run the program.
+                        run(ix, inputs)
+                    })
+                    .collect()
+            };
+        for (node, res) in outputs {
             match res {
-                // Parent output
                 Ok((Output::Parent(o), gas)) => {
-                    // Find any nodes that need this output and add it
-                    for node in nodes
-                        .values_mut()
-                        .filter(|n| n.parents.contains_key(&output_from))
-                    {
-                        node.parents.insert(output_from, Some(o.clone()));
+                    // Check if we should add this output to the global or local cache.
+                    if should_cache(node, &predicate, &deferred) {
+                        cache.insert(node, o.clone());
+                    } else {
+                        local_cache.insert(node, o.clone());
                     }
 
                     // Add to the total gas
                     total_gas = total_gas.saturating_add(gas);
                 }
-                // Leaf output
                 Ok((Output::Leaf(o), gas)) => {
                     match o {
                         ProgramOutput::Satisfied(false) => {
-                            unsatisfied.push(output_from as usize);
+                            unsatisfied.push(node as usize);
                         }
                         ProgramOutput::Satisfied(true) => {
                             // Nothing to do here.
@@ -735,7 +957,7 @@ where
                     total_gas = total_gas.saturating_add(gas);
                 }
                 Err(e) => {
-                    failed.push((output_from as usize, e));
+                    failed.push((node as usize, e));
 
                     if !config.collect_all_failures {
                         return Err(ProgramErrors(failed).into());
