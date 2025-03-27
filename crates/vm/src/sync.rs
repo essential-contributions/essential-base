@@ -118,6 +118,9 @@ where
             &mut vm.memory,
         )
         .map(|_| None)?,
+        Op::Compute(op) => step_op_compute(op, &mut vm.stack, &mut vm.memory)
+            .map(|_| None)
+            .map_err(OpError::from_infallible)?,
     };
 
     Ok(r)
@@ -147,6 +150,14 @@ where
         essential_asm::StateRead::PostKeyRangeExtern => {
             crate::state_read::key_range_ext(state.post(), stack, memory)
         }
+    }
+}
+
+/// Step forward execution by the given compute operation.
+pub fn step_op_compute(op: asm::Compute, _stack: &mut Stack, _memory: &mut Memory) -> OpResult<()> {
+    match op {
+        asm::Compute::Compute => crate::compute::compute(),
+        asm::Compute::ComputeEnd => crate::compute::compute_end(),
     }
 }
 

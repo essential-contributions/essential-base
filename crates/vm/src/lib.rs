@@ -52,6 +52,7 @@ mod access;
 mod alu;
 pub mod bytecode;
 mod cached;
+mod compute;
 mod crypto;
 pub mod error;
 mod memory;
