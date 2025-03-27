@@ -9,7 +9,7 @@ use crate::{
 use std::sync::Arc;
 
 /// The operation execution state of the VM.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Vm {
     /// The program counter, i.e. index of the current operation within the program.
     pub pc: usize,
@@ -27,7 +27,7 @@ pub struct Vm {
     /// The repeat stack.
     pub repeat: Repeat,
     /// Lazily cached data for the VM.
-    pub cache: LazyCache,
+    pub cache: Arc<LazyCache>,
 }
 
 impl Vm {
