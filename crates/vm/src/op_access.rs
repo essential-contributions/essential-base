@@ -1,13 +1,10 @@
 //! The `OpAccess` trait declaration and its implementations.
 
-use crate::{
-    asm::{ToBytes, TryFromBytes},
-    bytecode::{BytecodeMapped, BytecodeMappedLazy},
-};
+use crate::{asm::TryFromBytes, bytecode::BytecodeMapped};
 
 /// Types that provide access to operations.
 ///
-/// Implementations are included for `&[Op]`, [`BytecodeMapped`] and [`BytecodeMappedLazy`].
+/// Implementations are included for `&[Op]` and [`BytecodeMapped`].
 pub trait OpAccess {
     /// The operation type being accessed.
     type Op;
@@ -18,7 +15,7 @@ pub trait OpAccess {
     /// Mutable access to self is required in case operations are lazily parsed.
     ///
     /// Any implementation should ensure the same index always returns the same operation.
-    fn op_access(&mut self, index: usize) -> Option<Result<Self::Op, Self::Error>>;
+    fn op_access(&self, index: usize) -> Option<Result<Self::Op, Self::Error>>;
 }
 
 impl<Op> OpAccess for &[Op]
@@ -27,7 +24,7 @@ where
 {
     type Op = Op;
     type Error = core::convert::Infallible;
-    fn op_access(&mut self, index: usize) -> Option<Result<Self::Op, Self::Error>> {
+    fn op_access(&self, index: usize) -> Option<Result<Self::Op, Self::Error>> {
         self.get(index).cloned().map(Ok)
     }
 }
@@ -39,27 +36,7 @@ where
 {
     type Op = Op;
     type Error = core::convert::Infallible;
-    fn op_access(&mut self, index: usize) -> Option<Result<Self::Op, Self::Error>> {
+    fn op_access(&self, index: usize) -> Option<Result<Self::Op, Self::Error>> {
         self.op(index).map(Ok)
-    }
-}
-
-impl<Op, I> OpAccess for BytecodeMappedLazy<Op, I>
-where
-    Op: ToBytes + TryFromBytes,
-    I: Iterator<Item = u8>,
-{
-    type Op = Op;
-    type Error = Op::Error;
-    fn op_access(&mut self, index: usize) -> Option<Result<Op, Self::Error>> {
-        loop {
-            match self.mapped.op(index) {
-                Some(op) => return Some(Ok(op)),
-                None => match Op::try_from_bytes(&mut self.iter)? {
-                    Err(err) => return Some(Err(err)),
-                    Ok(op) => self.mapped.push_op(op),
-                },
-            }
-        }
     }
 }

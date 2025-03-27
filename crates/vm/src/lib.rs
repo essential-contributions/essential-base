@@ -11,11 +11,10 @@
 //!
 //! ## Executing Ops
 //!
-//! There are three primary methods available for executing operations:
+//! There are two primary methods available for executing operations:
 //!
 //! - [`Vm::exec_ops`]
 //! - [`Vm::exec_bytecode`]
-//! - [`Vm::exec_bytecode_iter`]
 //!
 //! Each have slightly different performance implications, so be sure to read
 //! the docs before selecting a method.
@@ -103,8 +102,6 @@ pub(crate) mod utils {
 pub type BytecodeMapped<Bytes = Vec<u8>> = bytecode::BytecodeMapped<Op, Bytes>;
 /// Shorthand for the `BytecodeMappedSlice` type for mapping [`Op`]s.
 pub type BytecodeMappedSlice<'a> = bytecode::BytecodeMappedSlice<'a, Op>;
-/// Shorthand for the `BytecodeMappedLazy` type for mapping [`Op`]s.
-pub type BytecodeMappedLazy<I> = bytecode::BytecodeMappedLazy<Op, I>;
 
 /// Unit used to measure gas.
 pub type Gas = u64;
@@ -153,7 +150,7 @@ where
 /// In the error case, emits a debug log with the error.
 #[cfg(feature = "tracing")]
 pub(crate) fn trace_op_res<OA, T, E>(
-    oa: &mut OA,
+    oa: &OA,
     pc: usize,
     stack: &Stack,
     memory: &Memory,

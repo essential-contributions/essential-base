@@ -3,8 +3,8 @@
 use crate::{
     error::{ExecError, OpError, OutOfGasError},
     sync::step_op,
-    Access, BytecodeMapped, BytecodeMappedLazy, Gas, GasLimit, LazyCache, Memory, Op, OpAccess,
-    OpGasCost, ProgramControlFlow, Repeat, Stack, StateReads,
+    Access, BytecodeMapped, Gas, GasLimit, LazyCache, Memory, Op, OpAccess, OpGasCost,
+    ProgramControlFlow, Repeat, Stack, StateReads,
 };
 use std::sync::Arc;
 
@@ -44,8 +44,8 @@ impl Vm {
     /// the form of a `&[Op]`.
     ///
     /// If memory bloat is a concern, consider using the [`Vm::exec_bytecode`]
-    /// or [`Vm::exec_bytecode_iter`] methods which allow for providing a more
-    /// compact representation of the operations in the form of mapped bytecode.
+    /// method which allows for providing a more compact representation of the
+    /// operations in the form of mapped bytecode.
     pub fn exec_ops<S>(
         &mut self,
         ops: &[Op],
@@ -90,39 +90,6 @@ impl Vm {
         self.exec(access, state_read, bytecode_mapped, op_gas_cost, gas_limit)
     }
 
-    /// Execute the given bytecode from the current state of the VM.
-    ///
-    /// This function uses synchronous state reading and is intended for use
-    /// with in-memory state implementations.
-    ///
-    /// Upon reaching a `Halt` operation or reaching the end of the operation
-    /// sequence, returns the gas spent and the `Vm` will be left in the
-    /// resulting state.
-    ///
-    /// The given bytecode will be mapped lazily during execution. This
-    /// can be more efficient than pre-mapping the bytecode and using
-    /// [`Vm::exec_bytecode`] in the case that execution may fail early.
-    ///
-    /// However, successful execution still requires building the full
-    /// [`BytecodeMapped`] instance internally. So if bytecode has already been
-    /// mapped, [`Vm::exec_bytecode`] should be preferred.
-    pub fn exec_bytecode_iter<S, I>(
-        &mut self,
-        bytecode_iter: I,
-        access: Access,
-        state_read: &S,
-        op_gas_cost: &impl OpGasCost,
-        gas_limit: GasLimit,
-    ) -> Result<Gas, ExecError<S::Error>>
-    where
-        S: StateReads,
-        I: IntoIterator<Item = u8>,
-        I::IntoIter: Unpin,
-    {
-        let bytecode_lazy = BytecodeMappedLazy::new(bytecode_iter);
-        self.exec(access, state_read, bytecode_lazy, op_gas_cost, gas_limit)
-    }
-
     /// Execute the given operations synchronously from the current state of the VM.
     ///
     /// This function uses synchronous state reading and is intended for use
@@ -135,7 +102,7 @@ impl Vm {
         &mut self,
         access: Access,
         state_read: &S,
-        mut op_access: OA,
+        op_access: OA,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
@@ -175,7 +142,7 @@ impl Vm {
             let res = step_op(access.clone(), op, self, state_read);
 
             #[cfg(feature = "tracing")]
-            crate::trace_op_res(&mut op_access, self.pc, &self.stack, &self.memory, &res);
+            crate::trace_op_res(&op_access, self.pc, &self.stack, &self.memory, &res);
 
             // Handle the result of the operation.
             let update = match res {

@@ -133,21 +133,6 @@ fn exec_method_behaviours_match() {
         .unwrap();
     assert_eq!(spent_sync_ops, spent_bc);
     assert_eq!(vm_sync_ops, vm_bc);
-
-    // Execute the same ops, but from a bytes iterator.
-    let bc_iter = mapped.bytecode().iter().copied();
-    let mut vm_bc_iter = Vm::default();
-    let spent_bc_iter = vm_bc_iter
-        .exec_bytecode_iter(
-            bc_iter,
-            test_access().clone(),
-            &State::EMPTY,
-            &|_: &Op| 1,
-            GasLimit::UNLIMITED,
-        )
-        .unwrap();
-    assert_eq!(spent_ops, spent_bc_iter);
-    assert_eq!(vm_ops, vm_bc_iter);
 }
 
 // Emulate the process of reading pre state, applying mutations to produce
