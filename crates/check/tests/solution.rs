@@ -738,3 +738,148 @@ fn solution_compute_mutations() {
     assert_eq!(set.1.solutions[0].state_mutations, mutations_2);
     assert_eq!(set.1.solutions[1].state_mutations, expected);
 }
+
+#[test]
+fn solution_compute_mutations_two_pass() {
+    use essential_vm::asm::short::*;
+    let _ = tracing_subscriber::fmt::try_init();
+    let mutations_0 = vec![Mutation {
+        key: vec![1, 2, 3, 4],
+        value: vec![42],
+    }];
+    let mutations_1 = vec![
+        Mutation {
+            key: vec![5, 6, 7, 8],
+            value: vec![43, 44],
+        },
+        Mutation {
+            key: vec![9],
+            value: vec![45, 46],
+        },
+    ];
+    let mutations_2 = vec![
+        Mutation {
+            key: vec![10, 11],
+            value: vec![47, 48, 49],
+        },
+        Mutation {
+            key: vec![12],
+            value: vec![50, 51],
+        },
+    ];
+    let encoded_mutations_0 = encode_mutations(&mutations_0).collect::<Vec<_>>();
+    let encoded_mutations_1 = encode_mutations(&mutations_1).collect::<Vec<_>>();
+    let encoded_mutations_2 = encode_mutations(&mutations_2).collect::<Vec<_>>();
+
+    let make_prog = |encoded_mutations: Vec<Word>| {
+        let encoded_mutations_len = encoded_mutations.len();
+        let mut p = encoded_mutations.into_iter().map(PUSH).collect::<Vec<_>>();
+        p.push(PUSH(encoded_mutations_len as Word));
+        p.push(PUSH(encoded_mutations_len as Word));
+        p.push(ALOC);
+        p.push(STOR);
+        p.push(PUSH(2));
+        Program(asm::to_bytes(p).collect())
+    };
+
+    let post_read = Program(
+        asm::to_bytes([
+            // Read the key range into memory.
+            PUSH(9), // Key
+            PUSH(1), // Key Len
+            PUSH(1), // Num to read
+            PUSH(4),
+            ALOC,
+            PKRNG,
+            PUSH(2),
+            PUSH(2),
+            LODR,
+            PUSH(45),
+            PUSH(46),
+            PUSH(2),
+            EQRA,
+        ])
+        .collect(),
+    );
+
+    let pred_0_prg_0 = make_prog(encoded_mutations_0.clone());
+    let pred_0_prg_1 = make_prog(encoded_mutations_1.clone());
+    let pred_1_prg_0 = make_prog(encoded_mutations_2.clone());
+
+    let pred_0_prg_0_ca = content_addr(&pred_0_prg_0);
+    let pred_0_prg_1_ca = content_addr(&pred_0_prg_1);
+    let pred_1_prg_0_ca = content_addr(&pred_1_prg_0);
+    let post_read_ca = content_addr(&post_read);
+
+    let node = |program_address, edge_start| Node {
+        program_address,
+        edge_start,
+    };
+    let nodes = vec![
+        node(pred_0_prg_0_ca.clone(), Edge::MAX),
+        node(pred_0_prg_1_ca.clone(), Edge::MAX),
+        node(post_read_ca.clone(), Edge::MAX),
+    ];
+    let edges = vec![];
+    let predicate_0 = Predicate { nodes, edges };
+    let contract_0 = Contract::without_salt(vec![predicate_0]);
+    let pred_addr_0 = PredicateAddress {
+        contract: content_addr(&contract_0),
+        predicate: content_addr(&contract_0.predicates[0]),
+    };
+
+    let nodes = vec![node(pred_1_prg_0_ca.clone(), Edge::MAX)];
+    let edges = vec![];
+    let predicate_1 = Predicate { nodes, edges };
+    let contract_1 = Contract::without_salt(vec![predicate_1]);
+    let pred_addr_1 = PredicateAddress {
+        contract: content_addr(&contract_1),
+        predicate: content_addr(&contract_1.predicates[0]),
+    };
+
+    // Create a solution that "solves" our predicate.
+    let set = SolutionSet {
+        solutions: vec![
+            Solution {
+                predicate_to_solve: pred_addr_1.clone(),
+                predicate_data: Default::default(),
+                state_mutations: vec![],
+            },
+            Solution {
+                predicate_to_solve: pred_addr_0.clone(),
+                predicate_data: Default::default(),
+                state_mutations: vec![],
+            },
+        ],
+    };
+
+    let predicate_0 = Arc::new(contract_0.predicates[0].clone());
+    let predicate_1 = Arc::new(contract_1.predicates[0].clone());
+    let mut map = HashMap::new();
+    map.insert(pred_addr_0.contract.clone(), predicate_0);
+    map.insert(pred_addr_1.contract.clone(), predicate_1);
+
+    let get_predicate = |addr: &PredicateAddress| map.get(&addr.contract).unwrap().clone();
+    let programs: HashMap<ContentAddress, Arc<Program>> = vec![
+        (pred_0_prg_0_ca, Arc::new(pred_0_prg_0)),
+        (pred_0_prg_1_ca, Arc::new(pred_0_prg_1)),
+        (pred_1_prg_0_ca, Arc::new(pred_1_prg_0)),
+        (post_read_ca, Arc::new(post_read)),
+    ]
+    .into_iter()
+    .collect();
+    let get_program: Arc<HashMap<_, _>> = Arc::new(programs);
+
+    let set = solution::check_and_compute_solution_set_two_pass(
+        &State::EMPTY,
+        set,
+        get_predicate,
+        get_program,
+        Arc::new(solution::CheckPredicateConfig::default()),
+    )
+    .unwrap();
+
+    let expected = [mutations_0, mutations_1].concat();
+    assert_eq!(set.1.solutions[0].state_mutations, mutations_2);
+    assert_eq!(set.1.solutions[1].state_mutations, expected);
+}

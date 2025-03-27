@@ -14,8 +14,8 @@ use crate::{
 };
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
-use essential_types::{predicate::Program, ContentAddress};
-use essential_vm::StateReads;
+use essential_types::{predicate::Program, ContentAddress, Value};
+use essential_vm::{StateRead, StateReads};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt,
@@ -474,6 +474,144 @@ fn decode_mutations<E>(
         }
     }
     Ok(set)
+}
+
+/// Internal post state used for mutations.
+#[derive(Debug, Default)]
+struct PostState {
+    /// Contract => Key => Value
+    state: HashMap<ContentAddress, HashMap<Key, Value>>,
+}
+
+/// Arc wrapper for [`PostState`] to allow for cloning.
+/// Must take the same error type as the pre state.
+#[derive(Debug, Default)]
+struct PostStateArc<E>(Arc<PostState>, std::marker::PhantomData<E>);
+
+impl<E> Clone for PostStateArc<E> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), Default::default())
+    }
+}
+
+impl<E> StateRead for PostStateArc<E>
+where
+    E: std::fmt::Display + std::fmt::Debug,
+{
+    type Error = E;
+
+    fn key_range(
+        &self,
+        contract_addr: ContentAddress,
+        mut key: Key,
+        num_values: usize,
+    ) -> Result<Vec<Vec<essential_types::Word>>, Self::Error> {
+        let out = self
+            .0
+            .state
+            .get(&contract_addr)
+            .map(|state| {
+                let mut values = Vec::with_capacity(num_values);
+                for _ in 0..num_values {
+                    let Some(value) = state.get(&key) else {
+                        return values;
+                    };
+                    values.push(value.clone());
+                    let Some(k) = next_key(key) else {
+                        return values;
+                    };
+                    key = k;
+                }
+                values
+            })
+            .unwrap_or_default();
+        Ok(out)
+    }
+}
+
+/// Get the next key in the range of keys.
+fn next_key(mut key: Key) -> Option<Key> {
+    for w in key.iter_mut().rev() {
+        match *w {
+            Word::MAX => *w = Word::MIN,
+            _ => {
+                *w += 1;
+                return Some(key);
+            }
+        }
+    }
+    None
+}
+
+/// Check the given solution set against the given predicates and
+/// and compute the post state mutations for this set.
+///
+/// This is a two-pass check. The first pass generates the outputs
+/// and does not run any post state reads.
+/// The second pass checks the outputs and runs the post state reads.
+#[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
+pub fn check_and_compute_solution_set_two_pass<S>(
+    state: &S,
+    solution_set: SolutionSet,
+    get_predicate: impl GetPredicate + Sync + Clone,
+    get_program: impl 'static + Clone + GetProgram + Send + Sync,
+    config: Arc<CheckPredicateConfig>,
+) -> Result<(Gas, SolutionSet), PredicatesError<S::Error>>
+where
+    S: Clone + StateRead + Send + Sync + 'static,
+    S::Error: Send + Sync + 'static,
+{
+    // Create an empty post state,
+    let post_state = PostStateArc::<S::Error>(Arc::new(PostState::default()), Default::default());
+
+    // Create an empty cache.
+    let mut cache = HashMap::new();
+
+    // Generate the outputs
+    let (mut gas, solution_set) = check_and_compute_solution_set(
+        &(state.clone(), post_state.clone()),
+        solution_set,
+        get_predicate.clone(),
+        get_program.clone(),
+        config.clone(),
+        RunMode::Outputs,
+        &mut cache,
+    )?;
+
+    // Get the post state back.
+    let mut post_state =
+        Arc::try_unwrap(post_state.0).expect("post state should have one reference");
+
+    // Apply the state mutations to the post state.
+    for solution in &solution_set.solutions {
+        for mutation in &solution.state_mutations {
+            post_state
+                .state
+                .entry(solution.predicate_to_solve.contract.clone())
+                .or_default()
+                .insert(mutation.key.clone(), mutation.value.clone());
+        }
+    }
+
+    // Put the post state back into an arc.
+    let post_state = PostStateArc(Arc::new(post_state), Default::default());
+
+    // Check the outputs
+    let (g, solution_set) = check_and_compute_solution_set(
+        &(state.clone(), post_state.clone()),
+        solution_set,
+        get_predicate,
+        get_program,
+        config,
+        RunMode::Checks,
+        &mut cache,
+    )?;
+
+    // Add the total gas
+    gas = gas.saturating_add(g);
+
+    // Return solutions set
+    Ok((gas, solution_set))
 }
 
 /// Check the given solution set against the given predicates and
