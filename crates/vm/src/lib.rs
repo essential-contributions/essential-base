@@ -117,7 +117,7 @@ pub struct GasLimit {
 }
 
 /// A mapping from an operation to its gas cost.
-pub trait OpGasCost {
+pub trait OpGasCost: Send + Sync {
     /// The gas cost associated with the given op.
     fn op_gas_cost(&self, op: &Op) -> Gas;
 }
@@ -137,7 +137,7 @@ impl GasLimit {
 
 impl<F> OpGasCost for F
 where
-    F: Fn(&Op) -> Gas,
+    F: Fn(&Op) -> Gas + Send + Sync,
 {
     fn op_gas_cost(&self, op: &Op) -> Gas {
         (*self)(op)

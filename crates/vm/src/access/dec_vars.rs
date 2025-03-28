@@ -5,7 +5,7 @@ use crate::{
     sync::exec_ops,
     types::{ContentAddress, PredicateAddress},
     utils::EmptyState,
-    Op,
+    GasLimit, Op,
 };
 use test_case::test_case;
 use test_utils::{assert_err, assert_stack_ok};
@@ -167,7 +167,8 @@ fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>, S
         solutions: Arc::new(solutions),
         index: 0,
     };
-    exec_ops(&ops, access, &EmptyState)
+    let op_gas_cost = &|_: &Op| 1;
+    exec_ops(&ops, access, &EmptyState, op_gas_cost, GasLimit::UNLIMITED)
         .map_err(|ExecError(_, e)| e)
         .map(|stack| stack.into())
 }

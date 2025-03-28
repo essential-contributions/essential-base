@@ -369,6 +369,7 @@ mod tests {
         error::{ExecError, OpError, StackError},
         sync::{exec_ops, test_util::*},
         utils::EmptyState,
+        GasLimit, Op,
     };
 
     #[test]
@@ -381,7 +382,15 @@ mod tests {
             Stack::Push(3).into(), // Index `3` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[42, 2, 1, 0, 42]);
     }
 
@@ -395,14 +404,30 @@ mod tests {
             Stack::Push(0).into(), // Index `0` should be the `42` value.
             Stack::DupFrom.into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[3, 2, 1, 42, 42]);
     }
 
     #[test]
     fn push1() {
         let ops = &[Stack::Push(42).into()];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[42]);
     }
 
@@ -414,14 +439,29 @@ mod tests {
             Stack::Pop.into(),
             Stack::Push(3).into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[1, 3]);
     }
 
     #[test]
     fn pop_empty() {
         let ops = &[Stack::Pop.into()];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        match exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(0, OpError::Stack(StackError::Empty))) => (),
             _ => panic!("expected empty stack error"),
         }
@@ -430,7 +470,14 @@ mod tests {
     #[test]
     fn index_oob() {
         let ops = &[Stack::Push(0).into(), Stack::DupFrom.into()];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        match exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(1, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
@@ -446,7 +493,15 @@ mod tests {
             Stack::Push(2).into(), // Index `2` should be swapped with the `42` value.
             Stack::SwapIndex.into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[3, 42, 5, 4]);
     }
 
@@ -458,7 +513,14 @@ mod tests {
             Stack::Push(2).into(), // Index `2` is out of range.
             Stack::SwapIndex.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        match exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(3, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out-of-bounds stack error"),
         }
@@ -472,7 +534,15 @@ mod tests {
             Stack::Push(1).into(),
             Stack::Select.into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[4]);
     }
 
@@ -489,7 +559,15 @@ mod tests {
             Stack::Push(1).into(), // cond
             Stack::SelectRange.into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[5, 5, 5]);
     }
 
@@ -506,7 +584,15 @@ mod tests {
             Stack::Push(0).into(), // cond
             Stack::SelectRange.into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[4, 4, 4]);
     }
 
@@ -519,7 +605,14 @@ mod tests {
             Stack::Push(42).into(), // cond
             Stack::SelectRange.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        match exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(4, OpError::Stack(StackError::InvalidCondition(42)))) => (),
             _ => panic!("expected invalid condition stack error"),
         }
@@ -534,7 +627,15 @@ mod tests {
             Stack::Push(0).into(), // cond
             Stack::SelectRange.into(),
         ];
-        let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let stack = exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
         assert_eq!(&stack[..], &[4, 5]);
     }
 
@@ -545,7 +646,14 @@ mod tests {
             Stack::Push(0).into(),   // cond
             Stack::SelectRange.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        match exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(2, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out of bounds stack error"),
         }
@@ -561,7 +669,14 @@ mod tests {
             Stack::Push(0).into(), // cond
             Stack::SelectRange.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        match exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(5, OpError::Stack(StackError::IndexOutOfBounds))) => (),
             _ => panic!("expected index out of bounds stack error"),
         }

@@ -495,6 +495,7 @@ dependencies = [
  "essential-asm",
  "essential-types",
  "rand",
+ "rayon",
  "secp256k1",
  "sha2",
  "test-case",
