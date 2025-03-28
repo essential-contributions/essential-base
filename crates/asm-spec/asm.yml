@@ -635,7 +635,7 @@ Op:
           opcode: 0x90
           short: COM
           description: |
-            Hand off execution to compute threads until Halt operation is encountered.
+            Hand off execution to compute threads until ComputeEnd operation is encountered.
             The computes read from a shared memory and write to their local memories, which are conciled on thread join.
           panics:
             - Recursion limit (1) is reached.

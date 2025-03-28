@@ -345,9 +345,9 @@ pub type ComputeResult<T> = Result<T, ComputeError>;
 /// Compute operation error.
 #[derive(Debug, Error)]
 pub enum ComputeError {
-    /// Placeholder error for dev. TODO: remove.
-    #[error("placeholder error")]
-    Placeholder,
+    /// Maximum compute recursion depth reached.
+    #[error("Cannot exceed compute depth: {0}")]
+    DepthReached(usize),
 }
 
 /// Decode error.

@@ -1,11 +1,12 @@
 use super::*;
-
-use crate::asm;
-use crate::error::{ExecError, OpError};
-use crate::memory::MemoryError;
-use crate::sync::exec_ops;
-use crate::sync::test_util::test_access;
-use crate::utils::EmptyState;
+use crate::{
+    asm,
+    error::{ExecError, OpError},
+    memory::MemoryError,
+    sync::{exec_ops, test_util::test_access},
+    utils::EmptyState,
+    GasLimit, Op,
+};
 
 #[test]
 fn test_memory_store_load() {
@@ -598,7 +599,15 @@ fn test_memory_alloc_store_load_ops() {
         asm::Stack::Push(0).into(),
         asm::Memory::Load.into(),
     ];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[42]);
 }
 
@@ -618,7 +627,15 @@ fn test_memory_store_load_range_ops() {
         asm::Stack::Push(3).into(), // len
         asm::Memory::LoadRange.into(),
     ];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[1, 2, 3]);
 }
 
@@ -633,7 +650,14 @@ fn test_memory_free_ops() {
         asm::Stack::Push(4).into(),
         asm::Memory::Load.into(),
     ];
-    let result = exec_ops(ops, test_access().clone(), &EmptyState);
+    let op_gas_cost = &|_: &Op| 1;
+    let result = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    );
     match result {
         Err(ExecError(_, OpError::Memory(MemoryError::IndexOutOfBounds))) => {}
         _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
@@ -653,7 +677,15 @@ fn test_memory_store_range_bug_ops() {
         asm::Stack::Push(2).into(), // addr
         asm::Memory::Load.into(),
     ];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[99]);
 }
 
@@ -667,7 +699,15 @@ fn test_memory_load_range_zero_size_ops() {
         asm::Stack::Push(0).into(), // len
         asm::Memory::LoadRange.into(),
     ];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     let expected: &[i64] = &[];
     assert_eq!(&stack[..], expected);
 }
@@ -684,7 +724,14 @@ fn test_memory_store_range_invalid_address_ops() {
         asm::Stack::Push(2).into(), // addr (only one slot left)
         asm::Memory::StoreRange.into(),
     ];
-    let result = exec_ops(ops, test_access().clone(), &EmptyState);
+    let op_gas_cost = &|_: &Op| 1;
+    let result = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    );
     match result {
         Err(ExecError(_, OpError::Memory(MemoryError::IndexOutOfBounds))) => {}
         _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
@@ -701,7 +748,14 @@ fn test_memory_load_range_overflow_ops() {
         asm::Stack::Push(0).into(), // addr
         asm::Memory::LoadRange.into(),
     ];
-    let result = exec_ops(ops, test_access().clone(), &EmptyState);
+    let op_gas_cost = &|_: &Op| 1;
+    let result = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    );
     match result {
         Err(ExecError(_, OpError::Memory(MemoryError::IndexOutOfBounds))) => {}
         _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
@@ -719,7 +773,14 @@ fn test_memory_alloc_free_with_ops() {
         asm::Stack::Push(7).into(),
         asm::Memory::Load.into(),
     ];
-    let result = exec_ops(ops, test_access().clone(), &EmptyState);
+    let op_gas_cost = &|_: &Op| 1;
+    let result = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    );
     match result {
         Err(ExecError(_, OpError::Memory(MemoryError::IndexOutOfBounds))) => {}
         _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
@@ -744,7 +805,14 @@ fn test_memory_store_range_after_free_ops() {
         asm::Stack::Push(3).into(), // addr (should fail)
         asm::Memory::Load.into(),
     ];
-    let result = exec_ops(ops, test_access().clone(), &EmptyState);
+    let op_gas_cost = &|_: &Op| 1;
+    let result = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    );
     match result {
         Err(ExecError(_, OpError::Memory(MemoryError::IndexOutOfBounds))) => {}
         _ => panic!("Expected IndexOutOfBounds error, got {:?}", result),
@@ -761,7 +829,15 @@ fn test_memory_store_range_empty_values_ops() {
         asm::Stack::Push(0).into(), // addr
         asm::Memory::StoreRange.into(),
     ];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert!(stack.is_empty());
 }
 
@@ -783,6 +859,14 @@ fn test_memory_load_store_range_with_ops() {
         asm::Stack::Push(5).into(), // len
         asm::Memory::LoadRange.into(),
     ];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[1, 2, 3, 4, 5]);
 }

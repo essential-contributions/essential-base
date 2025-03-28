@@ -10,7 +10,7 @@ use essential_types::{convert::u8_32_from_word_4, ContentAddress, Key, Value, Wo
 mod tests;
 
 /// Read-only access to state required by the VM.
-pub trait StateRead {
+pub trait StateRead: Send + Sync {
     /// An error type describing any cases that might occur during state reading.
     type Error: core::fmt::Debug + core::fmt::Display;
 
@@ -25,9 +25,9 @@ pub trait StateRead {
 }
 
 /// Pre and post sync state reads.
-pub trait StateReads {
+pub trait StateReads: Send + Sync {
     /// Common error type
-    type Error: core::fmt::Debug + core::fmt::Display;
+    type Error: core::fmt::Debug + core::fmt::Display + Send;
 
     /// Pre state read
     type Pre: StateRead<Error = Self::Error>;
@@ -46,6 +46,7 @@ impl<S, P> StateReads for (S, P)
 where
     S: StateRead,
     P: StateRead<Error = S::Error>,
+    S::Error: Send,
 {
     type Error = S::Error;
 

@@ -85,7 +85,7 @@ impl Vm {
     ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateReads,
-        B: core::ops::Deref<Target = [u8]>,
+        B: core::ops::Deref<Target = [u8]> + Send + Sync,
     {
         self.exec(access, state_read, bytecode_mapped, op_gas_cost, gas_limit)
     }
@@ -139,7 +139,15 @@ impl Vm {
             gas_spent = next_spent;
 
             // Execute the operation.
-            let res = step_op(access.clone(), op, self, state_read);
+            let res = step_op(
+                access.clone(),
+                op,
+                self,
+                state_read,
+                op_access.clone(),
+                op_gas_cost,
+                gas_limit,
+            );
 
             #[cfg(feature = "tracing")]
             crate::trace_op_res(&op_access, self.pc, &self.stack, &self.memory, &res);

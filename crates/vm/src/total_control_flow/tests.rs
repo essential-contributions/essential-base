@@ -3,6 +3,7 @@ use crate::{
     error::{OpError, TotalControlFlowError},
     sync::{exec_ops, test_util::test_access},
     utils::EmptyState,
+    GasLimit, Op,
 };
 
 #[test]
@@ -20,7 +21,15 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[3]);
 
     let ops = &[
@@ -35,7 +44,15 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[4]);
 }
 
@@ -51,7 +68,15 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[2]);
 
     let ops = &[
@@ -63,7 +88,15 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let stack = exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     assert_eq!(&stack[..], &[3]);
 }
 
