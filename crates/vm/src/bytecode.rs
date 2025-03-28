@@ -39,15 +39,6 @@ pub struct BytecodeMappedSlice<'a, Op> {
     _op_ty: core::marker::PhantomData<Op>,
 }
 
-/// A type wrapper around `BytecodeMapped` that lazily constructs the map from
-/// the given bytecode as operations are accessed.
-pub struct BytecodeMappedLazy<Op, I> {
-    /// The `BytecodeMapped` instance that is lazily constructed.
-    pub(crate) mapped: BytecodeMapped<Op>,
-    /// The iterator yielding bytes.
-    pub(crate) iter: I,
-}
-
 impl<Op> BytecodeMapped<Op, Vec<u8>> {
     /// Push a single operation onto the bytecode mapping.
     pub fn push_op(&mut self, op: Op)
@@ -153,24 +144,6 @@ impl<'a, Op> BytecodeMappedSlice<'a, Op> {
         Op: TryFromBytes,
     {
         expect_ops_from_indices(self.bytecode, self.op_indices.iter().copied())
-    }
-}
-
-impl<Op, I> BytecodeMappedLazy<Op, I> {
-    /// Construct the `BytecodeMappedLazy` from its bytecode iterator.
-    pub fn new<J>(bytes: J) -> Self
-    where
-        J: IntoIterator<IntoIter = I>,
-        I: Iterator<Item = u8>,
-    {
-        let iter = bytes.into_iter();
-        let (min, _) = iter.size_hint();
-        let mapped = BytecodeMapped {
-            bytecode: Vec::with_capacity(min),
-            op_indices: Vec::with_capacity(min),
-            _op_ty: core::marker::PhantomData,
-        };
-        Self { mapped, iter }
     }
 }
 

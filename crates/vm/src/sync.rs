@@ -48,7 +48,7 @@ where
 }
 
 /// Execute the given synchronous operations and return the resulting stack.
-pub fn exec<OA, S>(mut op_access: OA, access: Access, state: &S) -> ExecResult<Stack, S::Error>
+pub fn exec<OA, S>(op_access: OA, access: Access, state: &S) -> ExecResult<Stack, S::Error>
 where
     OA: OpAccess<Op = Op>,
     OA::Error: Into<OpError<S::Error>>,
@@ -60,7 +60,7 @@ where
         let res = step_op(access.clone(), op, &mut vm, state);
 
         #[cfg(feature = "tracing")]
-        crate::trace_op_res(&mut op_access, vm.pc, &vm.stack, &vm.memory, &res);
+        crate::trace_op_res(&op_access, vm.pc, &vm.stack, &vm.memory, &res);
 
         let update = match res {
             Ok(update) => update,

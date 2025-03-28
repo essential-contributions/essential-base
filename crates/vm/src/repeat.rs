@@ -8,20 +8,20 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 /// A stack of repeat counters.
 pub struct Repeat {
     stack: Vec<Slot>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct Slot {
     pub counter: Word,
     pub limit: Direction,
     pub repeat_index: usize,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum Direction {
     Up(Word),
     Down,
