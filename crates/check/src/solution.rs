@@ -795,8 +795,7 @@ where
     }
 
     // Setup solution access for execution.
-    let mut_keys = vm::mut_keys_set(&solution_set, solution_index);
-    let access = Access::new(&solution_set, solution_index, &mut_keys);
+    let access = Access::new(Arc::new(solution_set.solutions.clone()), solution_index);
 
     // FIXME: Provide these from Config.
     let gas_cost = |_: &asm::Op| 1;

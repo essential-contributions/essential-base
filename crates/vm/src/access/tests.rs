@@ -3,10 +3,7 @@ use crate::{
     asm,
     error::{AccessError, ExecError, OpError},
     sync::{exec_ops, test_util::*},
-    types::{
-        solution::{Mutation, Solution},
-        ContentAddress, PredicateAddress,
-    },
+    types::solution::Solution,
     utils::EmptyState,
 };
 
@@ -301,13 +298,12 @@ fn test_predicate_data_len() {
 #[test]
 fn predicate_data_single_word_ops() {
     let access = Access {
-        solutions: &[Solution {
+        solutions: Arc::new(vec![Solution {
             predicate_to_solve: TEST_PREDICATE_ADDR,
             predicate_data: vec![vec![42]],
             state_mutations: Default::default(),
-        }],
+        }]),
         index: 0,
-        mutable_keys: test_empty_keys(),
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot index.
@@ -322,13 +318,12 @@ fn predicate_data_single_word_ops() {
 #[test]
 fn predicate_data_ops() {
     let access = Access {
-        solutions: &[Solution {
+        solutions: Arc::new(vec![Solution {
             predicate_to_solve: TEST_PREDICATE_ADDR,
             predicate_data: vec![vec![7, 8, 9], vec![10, 11, 12]],
             state_mutations: Default::default(),
-        }],
+        }]),
         index: 0,
-        mutable_keys: test_empty_keys(),
     };
     let ops = &[
         asm::Stack::Push(0).into(), // Slot.
@@ -343,13 +338,12 @@ fn predicate_data_ops() {
 #[test]
 fn predicate_data_slot_oob_ops() {
     let access = Access {
-        solutions: &[Solution {
+        solutions: Arc::new(vec![Solution {
             predicate_to_solve: TEST_PREDICATE_ADDR,
             predicate_data: vec![vec![42]],
             state_mutations: Default::default(),
-        }],
+        }]),
         index: 0,
-        mutable_keys: test_empty_keys(),
     };
     let ops = &[
         asm::Stack::Push(1).into(), // Slot index.
@@ -365,85 +359,9 @@ fn predicate_data_slot_oob_ops() {
 }
 
 #[test]
-fn mut_keys_push_eq() {
-    // The predicate that we're checking.
-    let predicate_addr = TEST_PREDICATE_ADDR;
-
-    // An example solution with some state mutations proposed for the predicate
-    // at index `1`.
-    let solution = SolutionSet {
-        solutions: vec![
-            // Solution for some other predicate.
-            Solution {
-                predicate_to_solve: PredicateAddress {
-                    contract: ContentAddress([0x13; 32]),
-                    predicate: ContentAddress([0x31; 32]),
-                },
-                predicate_data: vec![],
-                state_mutations: vec![Mutation {
-                    key: vec![0, 0, 0, 1],
-                    value: vec![1],
-                }],
-            },
-            // Solution for the predicate we're checking.
-            Solution {
-                predicate_to_solve: predicate_addr.clone(),
-                predicate_data: vec![],
-                state_mutations: vec![
-                    Mutation {
-                        key: vec![1, 1, 1, 1],
-                        value: vec![6],
-                    },
-                    Mutation {
-                        key: vec![1, 1, 1, 2],
-                        value: vec![7],
-                    },
-                    Mutation {
-                        key: vec![2, 2, 2, 1],
-                        value: vec![42],
-                    },
-                ],
-            },
-        ],
-        // All state mutations, 3 of which point to the predicate we're solving.
-    };
-
-    // The predicate we're solving is the second predicate, i.e. index `1`.
-    let predicate_index = 1;
-
-    let mutable_keys = mut_keys_set(&solution, predicate_index);
-
-    // Construct access to the parts of the solution that we need for checking.
-    let access = Access::new(&solution, predicate_index, &mutable_keys);
-
-    // We're only going to execute the `MutKeysLen` op to check the expected value.
-    let mut expected_set = vec![];
-    for key in solution.solutions[predicate_index as usize]
-        .state_mutations
-        .iter()
-        .map(|m| &m.key)
-    {
-        expected_set.extend(key.iter().copied());
-        expected_set.push(key.len() as Word);
-    }
-    expected_set.push(expected_set.len() as Word);
-
-    let mut ops = expected_set
-        .into_iter()
-        .map(asm::Stack::Push)
-        .map(Into::into)
-        .collect::<Vec<_>>();
-
-    ops.push(asm::Access::MutKeys.into());
-    ops.push(asm::Pred::EqSet.into());
-    let stack = exec_ops(&ops, access, &EmptyState).unwrap();
-    assert_eq!(&stack[..], &[1]);
-}
-
-#[test]
 fn this_address() {
     let ops = &[asm::Access::ThisAddress.into()];
-    let stack = exec_ops(ops, *test_access(), &EmptyState).unwrap();
+    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.predicate.0);
     assert_eq!(&stack[..], expected_words);
 }
@@ -451,7 +369,7 @@ fn this_address() {
 #[test]
 fn this_contract_address() {
     let ops = &[asm::Access::ThisContractAddress.into()];
-    let stack = exec_ops(ops, *test_access(), &EmptyState).unwrap();
+    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.contract.0);
     assert_eq!(&stack[..], expected_words);
 }

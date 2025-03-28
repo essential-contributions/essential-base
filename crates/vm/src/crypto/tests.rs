@@ -16,7 +16,7 @@ use sha2::Digest;
 use super::pop_bytes;
 
 fn exec_ops_sha256(ops: &[Op]) -> Hash {
-    let stack = exec_ops(ops, *test_access(), &EmptyState).unwrap();
+    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
     assert_eq!(stack.len(), 4);
     let bytes: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
     bytes.try_into().unwrap()
@@ -154,20 +154,20 @@ fn test_ed25519_ops(num_bytes: usize) -> Vec<Op> {
 #[test]
 fn verify_ed25519_true() {
     let ops = test_ed25519_ops(8 * 4);
-    assert!(eval_ops(&ops, *test_access(), &EmptyState).unwrap());
+    assert!(eval_ops(&ops, test_access().clone(), &EmptyState).unwrap());
 }
 
 #[test]
 fn verify_ed25519_bytes_true() {
     let ops = test_ed25519_ops(8 * 3 + 2);
-    assert!(eval_ops(&ops, *test_access(), &EmptyState).unwrap());
+    assert!(eval_ops(&ops, test_access().clone(), &EmptyState).unwrap());
 }
 
 #[test]
 fn verify_ed25519_false() {
     let mut ops = test_ed25519_ops(8 * 4);
     ops[0] = Stack::Push(0).into(); // Invalidate data.
-    assert!(!eval_ops(&ops, *test_access(), &EmptyState).unwrap());
+    assert!(!eval_ops(&ops, test_access().clone(), &EmptyState).unwrap());
 }
 
 #[test]
@@ -179,7 +179,7 @@ fn ed25519_error() {
     ops[key_ix + 1] = Stack::Push(1).into();
     ops[key_ix + 2] = Stack::Push(1).into();
     ops[key_ix + 3] = Stack::Push(1).into();
-    let res = exec_ops(&ops, *test_access(), &EmptyState);
+    let res = exec_ops(&ops, test_access().clone(), &EmptyState);
     match res {
         Err(ExecError(_, OpError::Crypto(CryptoError::Ed25519(_err)))) => (),
         _ => panic!("expected ed25519 error, got {res:?}"),

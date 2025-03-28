@@ -12,7 +12,7 @@ fn test_predicate_exists() {
         }],
         0,
     );
-    assert!(check(&mut stack, &data, &cache).unwrap());
+    assert!(check(&mut stack, Arc::new(data), &cache).unwrap());
 
     // Multiple
     let (mut stack, data, cache) = setup(
@@ -35,7 +35,7 @@ fn test_predicate_exists() {
         ],
         1,
     );
-    assert!(check(&mut stack, &data, &cache).unwrap());
+    assert!(check(&mut stack, Arc::new(data), &cache).unwrap());
 
     // Duplicate
     let (mut stack, data, cache) = setup(
@@ -58,7 +58,7 @@ fn test_predicate_exists() {
         ],
         1,
     );
-    assert!(check(&mut stack, &data, &cache).unwrap());
+    assert!(check(&mut stack, Arc::new(data), &cache).unwrap());
 
     // Not exists
     let (mut stack, mut data, cache) = setup(
@@ -80,7 +80,7 @@ fn test_predicate_exists() {
         contract: ContentAddress([0; 32]),
         predicate: ContentAddress([0; 32]),
     };
-    assert!(!check(&mut stack, &data, &cache).unwrap());
+    assert!(!check(&mut stack, Arc::new(data), &cache).unwrap());
 
     // Not exists
     let (mut stack, data, cache) = setup(
@@ -99,10 +99,10 @@ fn test_predicate_exists() {
         1,
     );
     stack.pop().unwrap();
-    check(&mut stack, &data, &cache).unwrap_err();
+    check(&mut stack, Arc::new(data), &cache).unwrap_err();
 }
 
-fn check(stack: &mut Stack, data: &[Solution], cache: &LazyCache) -> OpResult<bool> {
+fn check(stack: &mut Stack, data: Arc<Vec<Solution>>, cache: &LazyCache) -> OpResult<bool> {
     predicate_exists(stack, data, cache)?;
     let s = stack.iter().cloned().collect::<Vec<_>>();
     assert_eq!(s.len(), 1);

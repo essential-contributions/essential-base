@@ -73,7 +73,7 @@ mod tests {
             Stack::Push(42).into(),
             Pred::Eq.into(),
         ];
-        eval_ops(ops, *test_access(), &EmptyState).unwrap();
+        eval_ops(ops, test_access().clone(), &EmptyState).unwrap();
     }
 
     #[test]
@@ -85,7 +85,7 @@ mod tests {
             Stack::Push(6).into(),
             Pred::Eq.into(),
         ];
-        eval_ops(ops, *test_access(), &EmptyState).unwrap();
+        eval_ops(ops, test_access().clone(), &EmptyState).unwrap();
     }
 
     #[test]
@@ -95,7 +95,7 @@ mod tests {
             Stack::Push(0).into(),
             Alu::Div.into(),
         ];
-        match exec_ops(ops, *test_access(), &EmptyState) {
+        match exec_ops(ops, test_access().clone(), &EmptyState) {
             Err(ExecError(_, OpError::Alu(AluError::DivideByZero))) => (),
             _ => panic!("expected ALU divide-by-zero error"),
         }
@@ -108,7 +108,7 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Add.into(),
         ];
-        match exec_ops(ops, *test_access(), &EmptyState) {
+        match exec_ops(ops, test_access().clone(), &EmptyState) {
             Err(ExecError(_, OpError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
@@ -121,7 +121,7 @@ mod tests {
             Stack::Push(2).into(),
             Alu::Mul.into(),
         ];
-        match exec_ops(ops, *test_access(), &EmptyState) {
+        match exec_ops(ops, test_access().clone(), &EmptyState) {
             Err(ExecError(_, OpError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
@@ -134,7 +134,7 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Sub.into(),
         ];
-        match exec_ops(ops, *test_access(), &EmptyState) {
+        match exec_ops(ops, test_access().clone(), &EmptyState) {
             Err(ExecError(_, OpError::Alu(AluError::Underflow))) => (),
             _ => panic!("expected ALU underflow error"),
         }
