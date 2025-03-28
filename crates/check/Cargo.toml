@@ -23,6 +23,7 @@ essential-hash = { workspace = true }
 rand = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand", "std"] }
 sha2 = { workspace = true }
+tokio = { workspace = true }
 tracing-subscriber.workspace = true
 
 [features]

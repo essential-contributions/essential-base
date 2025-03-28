@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    future::{self, Ready},
     sync::Arc,
 };
 
@@ -8,11 +7,11 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use essential_hash::content_addr;
 use essential_types::{
     contract::{Contract, SignedContract},
-    predicate::{Edge, Node, Predicate, Program, Reads},
+    predicate::{Edge, Node, Predicate, Program},
     solution::{Mutation, Solution, SolutionSet},
     ContentAddress, Key, PredicateAddress, Word,
 };
-use essential_vm::StateRead;
+use essential_vm::{StateRead, StateReads};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 pub fn bench(c: &mut Criterion) {
@@ -23,15 +22,12 @@ pub fn bench(c: &mut Criterion) {
 
     for i in [1, 10, 100, 1000, 10_000] {
         let (contract, solution, predicates, programs) = create(i);
-        let mut pre_state = State::EMPTY;
-        pre_state.deploy_namespace(essential_hash::content_addr(&contract.contract));
-        let mut post_state = pre_state.clone();
-        post_state.apply_mutations(&solution);
+        let mut state = State::EMPTY;
+        state.deploy_namespace(essential_hash::content_addr(&contract.contract));
         c.bench_function(&format!("check_42_{}", i), |b| {
-            b.to_async(&runtime).iter(|| {
-                essential_check::solution::check_predicates(
-                    &pre_state,
-                    &post_state,
+            b.to_async(&runtime).iter(|| async {
+                essential_check::solution::check_set_predicates(
+                    &state,
                     solution.clone(),
                     predicates.clone(),
                     programs.clone(),
@@ -50,7 +46,7 @@ fn create(
     amount: usize,
 ) -> (
     SignedContract,
-    Arc<Solution>,
+    Arc<SolutionSet>,
     Arc<HashMap<PredicateAddress, Arc<Predicate>>>,
     Arc<HashMap<ContentAddress, Arc<Program>>>,
 ) {
@@ -152,8 +148,8 @@ impl State {
     }
 
     /// Apply all mutations proposed by the given solution.
-    pub fn apply_mutations(&mut self, solution: &Solution) {
-        for data in &solution.data {
+    pub fn apply_mutations(&mut self, solution: &SolutionSet) {
+        for data in &solution.solutions {
             for mutation in &data.state_mutations {
                 self.set(
                     data.predicate_to_solve.contract.clone(),
@@ -174,9 +170,27 @@ impl core::ops::Deref for State {
 
 impl StateRead for State {
     type Error = String;
-    type Future = Ready<Result<Vec<Vec<Word>>, Self::Error>>;
-    fn key_range(&self, contract_addr: ContentAddress, key: Key, num_words: usize) -> Self::Future {
-        future::ready(self.key_range(contract_addr, key, num_words))
+    fn key_range(
+        &self,
+        contract_addr: ContentAddress,
+        key: Key,
+        num_words: usize,
+    ) -> Result<Vec<Vec<Word>>, Self::Error> {
+        self.key_range(contract_addr, key, num_words)
+    }
+}
+
+impl StateReads for State {
+    type Error = String;
+    type Pre = State;
+    type Post = State;
+
+    fn pre(&self) -> &Self {
+        self // Assuming `State` itself represents the pre-state
+    }
+
+    fn post(&self) -> &Self {
+        self // Assuming `State` itself represents the post-state
     }
 }
 
@@ -187,7 +201,6 @@ fn test_predicate_42(entropy: Word) -> (HashMap<ContentAddress, Arc<Program>>, P
     let a = Program(
         asm::to_bytes([
             PUSH(1),
-            ALOCS,
             PUSH(0),
             PUSH(0),
             PUSH(0),
@@ -231,15 +244,14 @@ fn test_predicate_42(entropy: Word) -> (HashMap<ContentAddress, Arc<Program>>, P
     let a_ca = content_addr(&a);
     let b_ca = content_addr(&b);
 
-    let node = |program_address, edge_start, reads| Node {
+    let node = |program_address, edge_start| Node {
         program_address,
         edge_start,
-        reads,
     };
     let nodes = vec![
-        node(a_ca.clone(), 0, Reads::Pre),
-        node(a_ca.clone(), 1, Reads::Post),
-        node(b_ca.clone(), Edge::MAX, Default::default()),
+        node(a_ca.clone(), 0),
+        node(a_ca.clone(), 1),
+        node(b_ca.clone(), Edge::MAX),
     ];
     let edges = vec![2, 2];
 

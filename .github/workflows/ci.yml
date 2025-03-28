@@ -27,6 +27,7 @@ jobs:
           - command: test --no-default-features --locked --all
           - command: test --all-features --locked --all
           - command: doc --all-features --locked --no-deps
+          - command: bench --no-run --locked --all
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@stable
