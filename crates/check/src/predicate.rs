@@ -3,8 +3,12 @@
 use crate::sign::secp256k1;
 #[cfg(feature = "tracing")]
 use essential_hash::content_addr;
-use essential_types::{contract, predicate::Predicate};
+use essential_types::{contract, predicate::Predicate, Program};
+use essential_vm::asm::{self, ToOpcode};
 use thiserror::Error;
+
+#[cfg(test)]
+mod tests;
 
 /// [`check_signed_contract`] error.
 #[derive(Debug, Error)]
@@ -85,4 +89,43 @@ pub fn check(predicate: &Predicate) -> Result<(), InvalidPredicate> {
     }
     // FIXME: Update this to check DAG validity.
     Ok(())
+}
+
+/// Check if the predicate has a state read for the post state key range.
+///
+/// This avoids decoding the bytes of the predicate and instead checks the
+/// opcodes bytes directly.
+///
+/// Push also needs to be checked as it can introduce arbitrary bytes.
+///
+/// This is short circuiting and will return true on the first match.
+pub fn check_program_for_post_state_read(program: &Program) -> bool {
+    // PostKeyRange byte
+    let key: u8 = asm::Op::StateRead(asm::StateRead::PostKeyRange)
+        .to_opcode()
+        .into();
+
+    // PostKeyRangeExtern byte
+    let key_extern: u8 = asm::Op::StateRead(asm::StateRead::PostKeyRangeExtern)
+        .to_opcode()
+        .into();
+
+    // Push byte
+    let push: u8 = asm::Op::Stack(asm::Stack::Push(0)).to_opcode().into();
+
+    let mut iter = program.0.iter();
+
+    // Iterate over the program and check for the op codes.
+    loop {
+        match iter.next() {
+            // Found a post state read so return true.
+            Some(op) if *op == key || *op == key_extern => return true,
+            // Found a push so ignore the next 8 bytes
+            Some(op) if *op == push => iter.by_ref().take(8).for_each(|_| ()),
+            // Any other op code
+            Some(_) => (),
+            // Finished and didn't find anything
+            None => return false,
+        }
+    }
 }
