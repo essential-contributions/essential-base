@@ -1,9 +1,8 @@
-use essential_types::convert::bool_from_word;
-
 use crate::{
     error::{OpError, OpResult, StackError, TotalControlFlowError},
     Stack,
 };
+use essential_types::convert::bool_from_word;
 
 #[cfg(test)]
 mod tests;

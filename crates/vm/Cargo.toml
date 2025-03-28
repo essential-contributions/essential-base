@@ -12,6 +12,7 @@ repository.workspace = true
 ed25519-dalek = { workspace = true }
 essential-asm = { workspace = true }
 essential-types = { workspace = true }
+rayon = { workspace = true }
 secp256k1 = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
