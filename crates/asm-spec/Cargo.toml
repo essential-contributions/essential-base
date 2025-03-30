@@ -1,6 +1,6 @@
 [package]
 name = "essential-asm-spec"
-version = "0.7.0"
+version = "0.8.0"
 description = "Parses Essential assembly specification yaml"
 edition.workspace = true
 authors.workspace = true
