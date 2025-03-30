@@ -32,6 +32,8 @@ pub fn bench(c: &mut Criterion) {
                     predicates.clone(),
                     programs.clone(),
                     config.clone(),
+                    Default::default(),
+                    &mut Default::default(),
                 )
             });
         });
