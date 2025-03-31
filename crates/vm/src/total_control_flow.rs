@@ -1,6 +1,6 @@
 use crate::{
     error::{OpError, OpResult, StackError, TotalControlFlowError},
-    Stack,
+    Gas, Stack,
 };
 use essential_types::convert::bool_from_word;
 
@@ -14,6 +14,10 @@ pub enum ProgramControlFlow {
     Pc(usize),
     /// Halt the program.
     Halt,
+    /// End the compute program.
+    ComputeEnd,
+    /// Total gas spent during compute.
+    ComputeResult(Gas),
 }
 
 pub fn jump_if(stack: &mut Stack, pc: usize) -> OpResult<Option<ProgramControlFlow>> {

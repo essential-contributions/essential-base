@@ -50,14 +50,14 @@ impl Vm {
         &mut self,
         ops: &[Op],
         access: Access,
-        state_read: &S,
+        state_reads: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateReads,
     {
-        self.exec(access, state_read, ops, op_gas_cost, gas_limit)
+        self.exec(access, state_reads, ops, op_gas_cost, gas_limit)
     }
 
     /// Execute the given mapped bytecode from the current state of the VM.
@@ -79,7 +79,7 @@ impl Vm {
         &mut self,
         bytecode_mapped: &BytecodeMapped<B>,
         access: Access,
-        state_read: &S,
+        state_reads: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
@@ -87,7 +87,7 @@ impl Vm {
         S: StateReads,
         B: core::ops::Deref<Target = [u8]> + Send + Sync,
     {
-        self.exec(access, state_read, bytecode_mapped, op_gas_cost, gas_limit)
+        self.exec(access, state_reads, bytecode_mapped, op_gas_cost, gas_limit)
     }
 
     /// Execute the given operations synchronously from the current state of the VM.
@@ -101,7 +101,7 @@ impl Vm {
     pub fn exec<S, OA>(
         &mut self,
         access: Access,
-        state_read: &S,
+        state_reads: &S,
         op_access: OA,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -143,7 +143,7 @@ impl Vm {
                 access.clone(),
                 op,
                 self,
-                state_read,
+                state_reads,
                 op_access.clone(),
                 op_gas_cost,
                 gas_limit,
@@ -162,6 +162,12 @@ impl Vm {
             match update {
                 Some(ProgramControlFlow::Pc(new_pc)) => self.pc = new_pc,
                 Some(ProgramControlFlow::Halt) => break,
+                Some(ProgramControlFlow::ComputeEnd) => {
+                    self.pc += 1;
+                    break;
+                }
+                // TODO: compute gas_spent is not inferrable above
+                Some(ProgramControlFlow::ComputeResult(gas)) => gas_spent += gas,
                 None => self.pc += 1,
             }
         }

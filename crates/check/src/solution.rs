@@ -275,7 +275,7 @@ pub const MAX_VALUE_SIZE: usize = 10_000;
 /// Maximum number of words in a slot key.
 pub const MAX_KEY_SIZE: usize = 1000;
 
-impl<E: fmt::Display> fmt::Display for PredicateErrors<E> {
+impl<E: fmt::Display + fmt::Debug> fmt::Display for PredicateErrors<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("predicate checking failed for one or more solutions:\n")?;
         for (ix, err) in &self.0 {
@@ -285,11 +285,11 @@ impl<E: fmt::Display> fmt::Display for PredicateErrors<E> {
     }
 }
 
-impl<E: fmt::Display> fmt::Display for ProgramErrors<E> {
+impl<E: fmt::Display + fmt::Debug> fmt::Display for ProgramErrors<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("the programs at the following node indices failed: \n")?;
         for (node_ix, err) in &self.0 {
-            f.write_str(&format!("  {node_ix}: {err}\n"))?;
+            f.write_str(&format!("  {node_ix}: {:#?}\n", err))?;
         }
         Ok(())
     }

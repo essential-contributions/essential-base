@@ -79,7 +79,7 @@ pub enum OpError<E = Infallible> {
     StateRead(E),
     /// An error occurred during a `Compute` operation.
     #[error("compute operation error: {0}")]
-    Compute(#[from] ComputeError),
+    Compute(#[from] ComputeError<E>),
     /// An error occurred while parsing an operation from bytes.
     #[error("bytecode error: {0}")]
     FromBytes(#[from] asm::FromBytesError),
@@ -340,14 +340,23 @@ pub enum ParentMemoryError {
 }
 
 /// Shorthand for a `Result` where the error type is a `ComputeError`.
-pub type ComputeResult<T> = Result<T, ComputeError>;
+pub type ComputeResult<T, E> = Result<T, ComputeError<E>>;
 
 /// Compute operation error.
 #[derive(Debug, Error)]
-pub enum ComputeError {
+pub enum ComputeError<E> {
     /// Maximum compute recursion depth reached.
     #[error("Cannot exceed compute depth: {0}")]
     DepthReached(usize),
+    /// An error occurred during a `Stack` operation.
+    #[error("stack operation error: {0}")]
+    Stack(#[from] StackError),
+    /// An error occurred during execution.
+    #[error("{0}")]
+    Exec(#[from] Box<ExecError<E>>),
+    /// Compute breadth cannot be converted to usize.
+    #[error("cannot convert breadth to usize {0}")]
+    BreadthNegative(Word),
 }
 
 /// Decode error.
@@ -404,7 +413,7 @@ impl<E> OpError<E> {
             OpError::StateRead(_) => unreachable!(),
             OpError::FromBytes(from_bytes_error) => OpError::FromBytes(from_bytes_error),
             OpError::OutOfGas(out_of_gas_error) => OpError::OutOfGas(out_of_gas_error),
-            OpError::Compute(compute_error) => OpError::Compute(compute_error),
+            OpError::Compute(_) => unreachable!(),
         }
     }
 }

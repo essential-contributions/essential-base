@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 /// Types that provide access to operations.
 ///
-/// Implementations are included for `&[Op]` and [`BytecodeMapped`].
+/// Implementations are included for `&[Op]`, [`BytecodeMapped`] and `Arc<T>`.
 pub trait OpAccess: Clone + Send + Sync {
     /// The operation type being accessed.
     type Op;

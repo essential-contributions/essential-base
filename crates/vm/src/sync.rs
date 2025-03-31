@@ -104,6 +104,8 @@ where
         match update {
             Some(ProgramControlFlow::Pc(new_pc)) => vm.pc = new_pc,
             Some(ProgramControlFlow::Halt) => break,
+            Some(ProgramControlFlow::ComputeEnd) => vm.pc += 1,
+            Some(ProgramControlFlow::ComputeResult(_)) => {}
             None => vm.pc += 1,
         }
     }
@@ -149,7 +151,7 @@ where
         Op::Memory(op) => step_op_memory(op, &mut vm.stack, &mut vm.memory)
             .map(|_| None)
             .map_err(OpError::from_infallible)?,
-        Op::StateRead(op) => step_op_state_read(
+        Op::StateRead(op) => step_op_state_reads(
             op,
             &access.this_solution().predicate_to_solve.contract,
             state,
@@ -160,27 +162,27 @@ where
         Op::Compute(op) => step_op_compute(
             op,
             ComputeInputs {
+                pc: vm.pc,
                 stack: &mut vm.stack,
                 memory: &mut vm.memory,
                 parent_memory: vm.parent_memory.clone(),
                 repeat: &vm.repeat,
                 cache: vm.cache.clone(),
                 access,
-                state_read: state,
+                state_reads: state,
                 op_access,
                 op_gas_cost,
                 gas_limit,
             },
         )
-        .map(|_| None)
-        .map_err(OpError::from_infallible)?,
+        .map(Some)?,
     };
 
     Ok(r)
 }
 
-/// Step forward execution by the given state read operation.
-pub fn step_op_state_read<S>(
+/// Step forward execution by the given state reads operation.
+pub fn step_op_state_reads<S>(
     op: asm::StateRead,
     contract_addr: &ContentAddress,
     state: &S,
@@ -210,7 +212,7 @@ where
 pub fn step_op_compute<S, OA, OG>(
     op: asm::Compute,
     inputs: ComputeInputs<S, OA, OG>,
-) -> OpResult<()>
+) -> OpResult<ProgramControlFlow, S::Error>
 where
     S: StateReads,
     OA: OpAccess<Op = Op>,
@@ -218,8 +220,10 @@ where
     OG: OpGasCost,
 {
     match op {
-        asm::Compute::Compute => crate::compute::compute(inputs),
-        asm::Compute::ComputeEnd => crate::compute::compute_end(),
+        asm::Compute::Compute => {
+            crate::compute::compute(inputs).map(ProgramControlFlow::ComputeResult)
+        }
+        asm::Compute::ComputeEnd => Ok(ProgramControlFlow::ComputeEnd),
     }
 }
 
