@@ -155,6 +155,7 @@ pub(crate) fn trace_op_res<OA, T, E>(
     pc: usize,
     stack: &Stack,
     memory: &Memory,
+    parent_memory: &Vec<std::sync::Arc<Memory>>,
     op_res: &Result<T, E>,
 ) where
     OA: OpAccess,
@@ -168,7 +169,16 @@ pub(crate) fn trace_op_res<OA, T, E>(
     let pc_op = format!("0x{:02X}: {op:?}", pc);
     match op_res {
         Ok(_) => {
-            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", stack, memory)
+            if parent_memory.is_empty() {
+                tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", stack, memory)
+            } else {
+                tracing::trace!(
+                    "{pc_op}\n  ├── {:?}\n  ├── {:?}\n  └── {:?}",
+                    stack,
+                    memory,
+                    parent_memory
+                )
+            }
         }
         Err(ref err) => {
             tracing::trace!("{pc_op}");

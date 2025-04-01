@@ -150,7 +150,14 @@ impl Vm {
             );
 
             #[cfg(feature = "tracing")]
-            crate::trace_op_res(&op_access, self.pc, &self.stack, &self.memory, &res);
+            crate::trace_op_res(
+                &op_access,
+                self.pc,
+                &self.stack,
+                &self.memory,
+                &self.parent_memory,
+                &res,
+            );
 
             // Handle the result of the operation.
             let update = match res {
@@ -167,7 +174,10 @@ impl Vm {
                     break;
                 }
                 // TODO: compute gas_spent is not inferrable above
-                Some(ProgramControlFlow::ComputeResult(gas)) => gas_spent += gas,
+                Some(ProgramControlFlow::ComputeResult((pc, gas))) => {
+                    gas_spent += gas;
+                    self.pc = pc;
+                }
                 None => self.pc += 1,
             }
         }

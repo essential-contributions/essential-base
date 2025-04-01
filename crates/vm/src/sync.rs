@@ -94,7 +94,14 @@ where
         );
 
         #[cfg(feature = "tracing")]
-        crate::trace_op_res(&op_access, vm.pc, &vm.stack, &vm.memory, &res);
+        crate::trace_op_res(
+            &op_access,
+            vm.pc,
+            &vm.stack,
+            &vm.memory,
+            &vm.parent_memory,
+            &res,
+        );
 
         let update = match res {
             Ok(update) => update,

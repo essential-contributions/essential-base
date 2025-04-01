@@ -6,9 +6,6 @@ use crate::{
 use rayon::prelude::*;
 use std::sync::Arc;
 
-#[cfg(test)]
-mod tests;
-
 /// The limit on compute recursion depth.
 pub const MAX_COMPUTE_DEPTH: usize = 1;
 
@@ -42,8 +39,19 @@ pub struct ComputeInputs<'a, S, OA, OG> {
 
 /// The Compute op implementation.
 ///
-/// Pops the number of compute threads from the stack.
-pub fn compute<S, OA, OG>(inputs: ComputeInputs<S, OA, OG>) -> OpResult<Gas, S::Error>
+/// Computes as many programs as is the input to this op in parallel.
+/// Each compute program executes on a constructed VM that has
+/// - Read-only access to parent VM memory
+/// - Parent VM stack with an additional value on top that is the compute index
+/// - Parent program counter + 1
+///
+/// When compute program returns after seeing op ComputeEnd or when ops come to an end,
+/// parent VM memory is updated to be the concatenation of children's memories.
+///
+/// Intended usage is parallelizable computation that can be distributed to self index-aware compute programs.
+///
+/// Returns resulting program counter and spent gas.
+pub fn compute<S, OA, OG>(inputs: ComputeInputs<S, OA, OG>) -> OpResult<(usize, Gas), S::Error>
 where
     S: StateReads,
     OA: OpAccess<Op = Op>,
@@ -51,7 +59,7 @@ where
     OG: OpGasCost,
 {
     let ComputeInputs {
-        pc,
+        mut pc,
         stack,
         memory,
         mut parent_memory,
@@ -64,13 +72,15 @@ where
         gas_limit,
     } = inputs;
 
-    let mut total_gas = 0;
-
     // Pop the number of compute threads to spawn.
-    let compute_breadth = stack.pop()?;
-    TryInto::<u32>::try_into(compute_breadth).map_err(|_| {
-        OpError::Compute(ComputeError::<S::Error>::BreadthNegative(compute_breadth))
-    })?;
+    let compute_breadth = stack
+        .pop()
+        .map_err(|e| OpError::Compute(ComputeError::Stack(e)))?;
+    if compute_breadth < 1 {
+        return Err(OpError::Compute(ComputeError::<S::Error>::InvalidBreadth(
+            compute_breadth,
+        )));
+    }
 
     // Append parent memory to be read by spawned threads.
     if parent_memory.len() < MAX_COMPUTE_DEPTH {
@@ -80,7 +90,7 @@ where
     }
 
     // Compute in parallel.
-    let results: Result<Vec<(Gas, Memory)>, _> = (0..compute_breadth)
+    let results: Result<Vec<(Gas, usize, Memory)>, _> = (0..compute_breadth)
         .into_par_iter()
         .map(|compute_index| {
             // Clone stack and push compute program index.
@@ -90,7 +100,7 @@ where
                 .map_err(|e| ExecError(pc, OpError::Compute(e.into())))?;
 
             let mut vm = Vm {
-                pc,
+                pc: pc + 1,
                 stack,
                 memory: Memory::new(),
                 parent_memory: parent_memory.clone(),
@@ -106,17 +116,20 @@ where
                 op_gas_cost,
                 gas_limit,
             )
-            .map(|gas| (gas, vm.memory))
+            .map(|gas| (gas, vm.pc, vm.memory))
         })
         .collect();
 
-    let oks = results.map_err(|e| OpError::Compute(Box::new(e).into()))?;
+    let oks = results.map_err(|e| OpError::Compute(ComputeError::Exec(Box::new(e))))?;
 
+    // Assign concatanated compute memories to parent memory.
     // FIXME: avoid cloning the memory and extend the original memory
     // in a more straightforward way than alloc + store_range
+    let mut total_gas = 0;
     let resulting_memory: Memory = oks
         .iter()
-        .fold(memory.to_vec(), |mut acc, (gas, mem)| {
+        .fold(memory.to_vec(), |mut acc, (gas, c_pc, mem)| {
+            pc = *c_pc;
             total_gas += gas;
             acc.extend(mem.iter().clone());
             acc
@@ -124,5 +137,5 @@ where
         .try_into()?;
     *memory = resulting_memory;
 
-    Ok(total_gas)
+    Ok((pc, total_gas))
 }

@@ -20,11 +20,11 @@ pub type OpResult<T, E = Infallible> = Result<T, OpError<E>>;
 /// Execution failed at the operation at the given index.
 #[derive(Debug, Error)]
 #[error("operation at index {0} failed: {1}")]
-pub struct ExecError<E>(pub usize, pub OpError<E>);
+pub struct ExecError<E: std::fmt::Display>(pub usize, pub OpError<E>);
 
 /// Errors that might occur during synchronous evaluation.
 #[derive(Debug, Error)]
-pub enum EvalError<E> {
+pub enum EvalError<E: std::fmt::Display> {
     /// An error occurred during execution.
     #[error("{0}")]
     Exec(#[from] ExecError<E>),
@@ -40,7 +40,7 @@ pub enum EvalError<E> {
 
 /// An individual operation failed during execution.
 #[derive(Debug, Error)]
-pub enum OpError<E = Infallible> {
+pub enum OpError<E: std::fmt::Display = Infallible> {
     /// An error occurred during an `Access` operation.
     #[error("access operation error: {0}")]
     Access(#[from] AccessError),
@@ -344,19 +344,19 @@ pub type ComputeResult<T, E> = Result<T, ComputeError<E>>;
 
 /// Compute operation error.
 #[derive(Debug, Error)]
-pub enum ComputeError<E> {
+pub enum ComputeError<E: std::fmt::Display> {
     /// Maximum compute recursion depth reached.
-    #[error("Cannot exceed compute depth: {0}")]
+    #[error("cannot exceed compute depth: {0}")]
     DepthReached(usize),
     /// An error occurred during a `Stack` operation.
     #[error("stack operation error: {0}")]
     Stack(#[from] StackError),
     /// An error occurred during execution.
-    #[error("{0}")]
-    Exec(#[from] Box<ExecError<E>>),
-    /// Compute breadth cannot be converted to usize.
-    #[error("cannot convert breadth to usize {0}")]
-    BreadthNegative(Word),
+    #[error("execution error")]
+    Exec(Box<ExecError<E>>),
+    /// Compute breadth is not greater than or equal to 1.
+    #[error("compute breadth is not at least 1: {0}")]
+    InvalidBreadth(Word),
 }
 
 /// Decode error.
@@ -378,13 +378,13 @@ pub enum EncodeError {
     ItemLengthTooLarge(usize),
 }
 
-impl<E> From<core::convert::Infallible> for OpError<E> {
+impl<E: std::fmt::Display> From<core::convert::Infallible> for OpError<E> {
     fn from(err: core::convert::Infallible) -> Self {
         match err {}
     }
 }
 
-impl<E> From<StateReadArgError> for OpError<E> {
+impl<E: std::fmt::Display> From<StateReadArgError> for OpError<E> {
     fn from(err: StateReadArgError) -> Self {
         match err {
             StateReadArgError::Memory(e) => OpError::Memory(e),
@@ -393,7 +393,7 @@ impl<E> From<StateReadArgError> for OpError<E> {
     }
 }
 
-impl<E> OpError<E> {
+impl<E: std::fmt::Display> OpError<E> {
     /// Convert an op error that doesn't contain a state read a generic op error.
     pub fn from_infallible(value: OpError<Infallible>) -> Self {
         match value {

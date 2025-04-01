@@ -290,6 +290,7 @@ fn read_sync_state() {
     assert_eq!(pre_state_mem, vec![6, 1, 7, 0, 7, 1, 40, 42, 0]);
     assert_eq!(post_state_mem, vec![6, 1, 7, 1, 8, 1, 40, 41, 42]);
 }
+
 // Test that halt is not required to end the vm.
 #[test]
 fn test_halt() {

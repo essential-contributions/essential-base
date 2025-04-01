@@ -105,6 +105,7 @@ fn test_throughput() {
                     vm.pc += 1;
                     break;
                 }
+                Some(ProgramControlFlow::ComputeResult(_)) => break,
                 None => break,
             }
         }
