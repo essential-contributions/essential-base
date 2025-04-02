@@ -636,7 +636,7 @@ Op:
           short: COM
           description: |
             Hand off execution to compute threads until ComputeEnd operation is encountered.
-            The computes read from a shared memory and write to their local memories, which are conciled on thread join.
+            The computes read from a shared memory and write to their local memories, which are reconciled on thread join.
           panics:
             - Recursion limit (1) is reached.
           stack_in: [n_computes]

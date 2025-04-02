@@ -16,8 +16,9 @@ pub enum ProgramControlFlow {
     Halt,
     /// End the compute program.
     ComputeEnd,
-    /// Resulting program counter and total gas spent during compute.
-    ComputeResult((usize, Gas)),
+    /// Resulting program counter, total gas spent during compute
+    /// and whether top-level VM should halt.
+    ComputeResult((usize, Gas, bool)),
 }
 
 pub fn jump_if(stack: &mut Stack, pc: usize) -> OpResult<Option<ProgramControlFlow>> {

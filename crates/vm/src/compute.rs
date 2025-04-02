@@ -21,6 +21,8 @@ pub struct ComputeInputs<'a, S, OA, OG> {
     pub memory: &'a mut Memory,
     /// Read-only memory that is read by the compute threads.
     pub parent_memory: Vec<Arc<Memory>>,
+    /// Whether the top-level VM should halt.
+    pub halt: bool,
     /// Repeat stack. Cloned for compute programs.
     pub repeat: &'a Repeat,
     /// Lazily cached data.
@@ -50,8 +52,10 @@ pub struct ComputeInputs<'a, S, OA, OG> {
 ///
 /// Intended usage is parallelizable computation that can be distributed to self index-aware compute programs.
 ///
-/// Returns resulting program counter and spent gas.
-pub fn compute<S, OA, OG>(inputs: ComputeInputs<S, OA, OG>) -> OpResult<(usize, Gas), S::Error>
+/// Returns resulting program counter, spent gas and whether top-level VM should halt.
+pub fn compute<S, OA, OG>(
+    inputs: ComputeInputs<S, OA, OG>,
+) -> OpResult<(usize, Gas, bool), S::Error>
 where
     S: StateReads,
     OA: OpAccess<Op = Op>,
@@ -63,6 +67,7 @@ where
         stack,
         memory,
         mut parent_memory,
+        halt,
         repeat,
         cache,
         access,
@@ -90,7 +95,7 @@ where
     }
 
     // Compute in parallel.
-    let results: Result<Vec<(Gas, usize, Memory)>, _> = (0..compute_breadth)
+    let results: Result<Vec<(Gas, usize, Memory, bool)>, _> = (0..compute_breadth)
         .into_par_iter()
         .map(|compute_index| {
             // Clone stack and push compute program index.
@@ -106,6 +111,7 @@ where
                 parent_memory: parent_memory.clone(),
                 repeat: repeat.clone(),
                 cache: cache.clone(),
+                ..Default::default()
             };
 
             // Execute child VM.
@@ -116,16 +122,18 @@ where
                 op_gas_cost,
                 gas_limit,
             )
-            .map(|gas| (gas, vm.pc, vm.memory))
+            .map(|gas| (gas, vm.pc, vm.memory, vm.halt))
         })
         .collect();
 
     let oks = results.map_err(|e| OpError::Compute(ComputeError::Exec(Box::new(e))))?;
 
     // Process compute program results.
-    let (pc, total_gas) = compute_effects(memory, pc, oks)?;
+    let (pc, total_gas, halt) = compute_effects(memory, pc, halt, oks)?;
 
-    Ok((pc, total_gas))
+    parent_memory.pop();
+
+    Ok((pc, total_gas, halt))
 }
 
 // Allocates the resulting memories from compute programs to the parent VM memory.
@@ -135,25 +143,27 @@ where
 fn compute_effects(
     memory: &mut Memory,
     mut pc: usize,
-    compute_results: Vec<(Gas, usize, Memory)>,
-) -> Result<(usize, Gas), MemoryError> {
+    mut halt: bool,
+    compute_results: Vec<(Gas, usize, Memory, bool)>,
+) -> Result<(usize, Gas, bool), MemoryError> {
     let mut total_gas = 0;
 
     let mut memory_to_alloc = 0;
     compute_results
         .iter()
-        .for_each(|(_, _, mem)| memory_to_alloc += mem.len().unwrap_or_default());
+        .for_each(|(_, _, mem, _)| memory_to_alloc += mem.len().unwrap_or_default());
     // moving pointer to index in parent memory to store new values at
     let mut memory_pointer = memory.len().expect("memory has to have length");
     // allocate enough space in the parent memory at once
     memory.alloc(memory_to_alloc)?;
     // concat compute memories to parent memory one by one
-    compute_results.iter().for_each(|(gas, c_pc, mem)| {
+    compute_results.iter().for_each(|(gas, c_pc, mem, h)| {
         pc = std::cmp::max(pc, *c_pc);
         total_gas += gas;
         memory.store_range(memory_pointer, mem).expect("for now");
         memory_pointer += mem.len().unwrap();
+        halt |= h;
     });
 
-    Ok((pc, total_gas))
+    Ok((pc, total_gas, halt))
 }

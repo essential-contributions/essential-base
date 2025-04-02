@@ -25,6 +25,8 @@ pub struct Vm {
     ///
     /// This can also be used to observe the `Compute` op depth.
     pub parent_memory: Vec<Arc<Memory>>,
+    /// Propagation of `Halt` encountered in compute program.
+    pub halt: bool,
     /// The repeat stack.
     pub repeat: Repeat,
     /// Lazily cached data for the VM.
@@ -157,6 +159,7 @@ impl Vm {
                 &self.stack,
                 &self.memory,
                 &self.parent_memory,
+                self.halt,
                 &res,
             );
 
@@ -175,9 +178,13 @@ impl Vm {
                     break;
                 }
                 // TODO: compute gas_spent is not inferrable above
-                Some(ProgramControlFlow::ComputeResult((pc, gas))) => {
+                Some(ProgramControlFlow::ComputeResult((pc, gas, halt))) => {
                     gas_spent += gas;
                     self.pc = pc;
+                    self.halt |= halt;
+                    if self.halt {
+                        break;
+                    }
                 }
                 None => self.pc += 1,
             }

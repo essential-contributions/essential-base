@@ -93,6 +93,7 @@ fn test_compute_memory() {
             .chain(std::iter::once(42))
             .collect::<Vec<Word>>()
     );
+    assert!(vm.parent_memory.is_empty());
     assert!(&vm.stack.is_empty());
     assert_eq!(spent, expected_spent);
 }
@@ -133,6 +134,7 @@ fn test_compute_stack() {
 
     assert_eq!(vm.pc, ops.len());
     assert!(&vm.memory.is_empty());
+    assert!(vm.parent_memory.is_empty());
     // stack operation in compute not reflected in parent stack
     assert_eq!(&vm.stack[..], &[41, 42]);
     assert_eq!(spent, expected_spent);
@@ -171,6 +173,46 @@ fn test_compute_end() {
     assert_eq!(vm.pc, ops.len());
     // parent memory is a concatenation of children's memories
     assert_eq!(&vm.memory[..], (0..compute_breadth).collect::<Vec<Word>>());
+    assert!(vm.parent_memory.is_empty());
+    assert!(&vm.stack.is_empty());
+    assert_eq!(spent, expected_spent);
+}
+
+// Test that halt in compute program exits the entire program.
+#[test]
+fn test_compute_halt() {
+    let mut vm = Vm::default();
+    let compute_breadth = 1000;
+    let ops = &[
+        // compute in 1000 threads
+        asm::Stack::Push(compute_breadth).into(),
+        asm::Compute::Compute.into(),
+        asm::TotalControlFlow::Halt.into(),
+        asm::Stack::Push(42).into(),
+    ];
+    let op_gas_cost = &|_: &Op| 1;
+    let spent = vm
+        .exec_ops(
+            ops,
+            test_access().clone(),
+            &State::EMPTY,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
+
+    // calculate expected gas
+    let pre_compute_gas = ops[..2].iter().map(op_gas_cost).sum::<Gas>();
+    let halt_op = &ops[2];
+    let compute_gas = op_gas_cost(halt_op);
+    let parent_halt_gas = op_gas_cost(halt_op);
+    let expected_spent = pre_compute_gas + compute_breadth as u64 * compute_gas + parent_halt_gas;
+
+    // last op not executed due to Halt
+    assert_eq!(vm.pc, ops.len() - 2);
+    assert!(&vm.memory.is_empty());
+    assert!(vm.parent_memory.is_empty());
+    // push to stack in parent after child sees Halt is not executed
     assert!(&vm.stack.is_empty());
     assert_eq!(spent, expected_spent);
 }

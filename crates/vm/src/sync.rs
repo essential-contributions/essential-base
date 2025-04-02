@@ -66,6 +66,7 @@ where
                 stack: &mut vm.stack,
                 memory: &mut vm.memory,
                 parent_memory: vm.parent_memory.clone(),
+                halt: vm.halt,
                 repeat: &vm.repeat,
                 cache: vm.cache.clone(),
                 access,

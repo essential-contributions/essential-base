@@ -156,6 +156,7 @@ pub(crate) fn trace_op_res<OA, T, E>(
     stack: &Stack,
     memory: &Memory,
     parent_memory: &Vec<std::sync::Arc<Memory>>,
+    halt: bool,
     op_res: &Result<T, E>,
 ) where
     OA: OpAccess,
@@ -173,10 +174,11 @@ pub(crate) fn trace_op_res<OA, T, E>(
                 tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", stack, memory)
             } else {
                 tracing::trace!(
-                    "{pc_op}\n  ├── {:?}\n  ├── {:?}\n  └── {:?}",
+                    "{pc_op}\n  ├── {:?}\n  ├── {:?}\n  ├── {:?}\n  └── {:?}",
                     stack,
                     memory,
-                    parent_memory
+                    parent_memory,
+                    halt
                 )
             }
         }
