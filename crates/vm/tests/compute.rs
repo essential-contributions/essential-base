@@ -89,7 +89,7 @@ fn test_compute_memory() {
         &vm.memory[..],
         vec![41]
             .into_iter()
-            .chain((0..compute_breadth).map(|i| i))
+            .chain(0..compute_breadth)
             .chain(std::iter::once(42))
             .collect::<Vec<Word>>()
     );
