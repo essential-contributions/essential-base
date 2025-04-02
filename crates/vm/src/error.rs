@@ -20,11 +20,11 @@ pub type OpResult<T, E = Infallible> = Result<T, OpError<E>>;
 /// Execution failed at the operation at the given index.
 #[derive(Debug, Error)]
 #[error("operation at index {0} failed: {1}")]
-pub struct ExecError<E: std::fmt::Display>(pub usize, pub OpError<E>);
+pub struct ExecError<E>(pub usize, pub OpError<E>);
 
 /// Errors that might occur during synchronous evaluation.
 #[derive(Debug, Error)]
-pub enum EvalError<E: std::fmt::Display> {
+pub enum EvalError<E> {
     /// An error occurred during execution.
     #[error("{0}")]
     Exec(#[from] ExecError<E>),
@@ -40,7 +40,7 @@ pub enum EvalError<E: std::fmt::Display> {
 
 /// An individual operation failed during execution.
 #[derive(Debug, Error)]
-pub enum OpError<E: std::fmt::Display = Infallible> {
+pub enum OpError<E = Infallible> {
     /// An error occurred during an `Access` operation.
     #[error("access operation error: {0}")]
     Access(#[from] AccessError),
@@ -344,7 +344,7 @@ pub type ComputeResult<T, E> = Result<T, ComputeError<E>>;
 
 /// Compute operation error.
 #[derive(Debug, Error)]
-pub enum ComputeError<E: std::fmt::Display> {
+pub enum ComputeError<E> {
     /// Maximum compute recursion depth reached.
     #[error("cannot exceed compute depth: {0}")]
     DepthReached(usize),
@@ -381,13 +381,13 @@ pub enum EncodeError {
     ItemLengthTooLarge(usize),
 }
 
-impl<E: std::fmt::Display> From<core::convert::Infallible> for OpError<E> {
+impl<E> From<core::convert::Infallible> for OpError<E> {
     fn from(err: core::convert::Infallible) -> Self {
         match err {}
     }
 }
 
-impl<E: std::fmt::Display> From<StateReadArgError> for OpError<E> {
+impl<E> From<StateReadArgError> for OpError<E> {
     fn from(err: StateReadArgError) -> Self {
         match err {
             StateReadArgError::Memory(e) => OpError::Memory(e),
@@ -396,7 +396,7 @@ impl<E: std::fmt::Display> From<StateReadArgError> for OpError<E> {
     }
 }
 
-impl<E: std::fmt::Display> OpError<E> {
+impl<E> OpError<E> {
     /// Convert an op error that doesn't contain a state read a generic op error.
     pub fn from_infallible(value: OpError<Infallible>) -> Self {
         match value {

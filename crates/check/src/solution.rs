@@ -195,7 +195,7 @@ pub enum InvalidSetStateMutations {
 
 /// [`check_set_predicates`] error.
 #[derive(Debug, Error)]
-pub enum PredicatesError<E: std::fmt::Display> {
+pub enum PredicatesError<E> {
     /// One or more solution failed their associated predicate checks.
     #[error("{0}")]
     Failed(#[from] PredicateErrors<E>),
@@ -209,11 +209,11 @@ pub enum PredicatesError<E: std::fmt::Display> {
 
 /// Predicate checking failed for the solution at the given indices.
 #[derive(Debug, Error)]
-pub struct PredicateErrors<E: std::fmt::Display>(pub Vec<(SolutionIndex, PredicateError<E>)>);
+pub struct PredicateErrors<E>(pub Vec<(SolutionIndex, PredicateError<E>)>);
 
 /// [`check_predicate`] error.
 #[derive(Debug, Error)]
-pub enum PredicateError<E: std::fmt::Display> {
+pub enum PredicateError<E> {
     /// Failed to retrieve edges for a node, indicating that the predicate's graph is invalid.
     #[error("failed to retrieve edges for node {0} indicating an invalid graph")]
     InvalidNodeEdges(usize),
@@ -230,11 +230,11 @@ pub enum PredicateError<E: std::fmt::Display> {
 
 /// Program execution failed for the programs at the given node indices.
 #[derive(Debug, Error)]
-pub struct ProgramErrors<E: std::fmt::Display>(Vec<(usize, ProgramError<E>)>);
+pub struct ProgramErrors<E>(Vec<(usize, ProgramError<E>)>);
 
 /// An error occurring during a program task.
 #[derive(Debug, Error)]
-pub enum ProgramError<E: std::fmt::Display> {
+pub enum ProgramError<E> {
     /// Failed to parse ops from bytecode during bytecode mapping.
     #[error("failed to parse an op during bytecode mapping: {0}")]
     OpsFromBytesError(#[from] FromBytesError),
@@ -431,7 +431,7 @@ pub fn check_set_state_mutations(set: &SolutionSet) -> Result<(), InvalidSolutio
     Ok(())
 }
 
-fn decode_mutations<E: std::fmt::Display>(
+fn decode_mutations<E>(
     outputs: Outputs,
     mut set: SolutionSet,
 ) -> Result<SolutionSet, PredicatesError<E>> {
@@ -809,7 +809,7 @@ where
 }
 
 /// Includes nodes with no parents
-fn create_parent_map<E: std::fmt::Display>(
+fn create_parent_map<E>(
     predicate: &Predicate,
 ) -> Result<BTreeMap<u16, Vec<u16>>, PredicateError<E>> {
     let mut nodes: BTreeMap<u16, Vec<u16>> = BTreeMap::new();
@@ -884,7 +884,7 @@ fn find_nodes_with_no_parents(in_degrees: &BTreeMap<u16, usize>) -> Vec<u16> {
 /// ```
 /// If `B` or `C` finish first then they could start on
 /// `D` or `E` respectively but this sort doesn't allow that.
-fn parallel_topo_sort<E: std::fmt::Display>(
+fn parallel_topo_sort<E>(
     predicate: &Predicate,
     parent_map: &BTreeMap<u16, Vec<u16>>,
 ) -> Result<Vec<Vec<u16>>, PredicateError<E>> {
