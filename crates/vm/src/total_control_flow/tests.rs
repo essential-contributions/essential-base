@@ -1,9 +1,9 @@
 use crate::{
     asm,
     error::{OpError, TotalControlFlowError},
-    sync::{exec_ops, test_util::test_access},
+    sync::test_util::test_access,
     utils::EmptyState,
-    GasLimit, Op,
+    GasLimit, Op, Vm,
 };
 
 #[test]
@@ -22,7 +22,8 @@ fn test_jump_if() {
         asm::Alu::Add.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         access.clone(),
         &EmptyState,
@@ -30,7 +31,7 @@ fn test_jump_if() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[3]);
+    assert_eq!(&vm.stack[..], &[3]);
 
     let ops = &[
         asm::Stack::Push(1).into(),
@@ -45,7 +46,8 @@ fn test_jump_if() {
         asm::Alu::Add.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         access.clone(),
         &EmptyState,
@@ -53,7 +55,7 @@ fn test_jump_if() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[4]);
+    assert_eq!(&vm.stack[..], &[4]);
 }
 
 #[test]
@@ -69,7 +71,8 @@ fn test_halt_if() {
         asm::Alu::Add.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         access.clone(),
         &EmptyState,
@@ -77,7 +80,7 @@ fn test_halt_if() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[2]);
+    assert_eq!(&vm.stack[..], &[2]);
 
     let ops = &[
         asm::Stack::Push(1).into(),
@@ -89,7 +92,8 @@ fn test_halt_if() {
         asm::Alu::Add.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         access.clone(),
         &EmptyState,
@@ -97,7 +101,7 @@ fn test_halt_if() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[3]);
+    assert_eq!(&vm.stack[..], &[3]);
 }
 
 #[test]

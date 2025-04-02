@@ -1,11 +1,12 @@
 //! The VM state machine, used to drive forward execution.
 
 use crate::{
-    error::{ExecError, OpError, OutOfGasError},
+    error::{EvalError, EvalResult, ExecError, OpError, OutOfGasError},
     sync::step_op,
     Access, BytecodeMapped, Gas, GasLimit, LazyCache, Memory, Op, OpAccess, OpGasCost,
     ProgramControlFlow, Repeat, Stack, StateReads,
 };
+use essential_types::convert::bool_from_word;
 use std::sync::Arc;
 
 /// The operation execution state of the VM.
@@ -182,5 +183,47 @@ impl Vm {
             }
         }
         Ok(gas_spent)
+    }
+
+    /// Evaluate a slice of synchronous operations and return their boolean result.
+    ///
+    /// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
+    pub fn eval_ops<S>(
+        &mut self,
+        ops: &[Op],
+        access: Access,
+        state: &S,
+        op_gas_cost: &impl OpGasCost,
+        gas_limit: GasLimit,
+    ) -> EvalResult<bool, S::Error>
+    where
+        S: StateReads,
+    {
+        self.eval(ops, access, state, op_gas_cost, gas_limit)
+    }
+
+    // Evaluate the operations of a single synchronous program and return its boolean result.
+    ///
+    /// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
+    pub fn eval<OA, S>(
+        &mut self,
+        op_access: OA,
+        access: Access,
+        state: &S,
+        op_gas_cost: &impl OpGasCost,
+        gas_limit: GasLimit,
+    ) -> EvalResult<bool, S::Error>
+    where
+        OA: OpAccess<Op = Op>,
+        OA::Error: Into<OpError<S::Error>>,
+        S: StateReads,
+    {
+        self.exec(access, state, op_access, op_gas_cost, gas_limit)?;
+
+        let word = match self.stack.last() {
+            Some(&w) => w,
+            None => return Err(EvalError::InvalidEvaluation(self.stack.clone())),
+        };
+        bool_from_word(word).ok_or_else(|| EvalError::InvalidEvaluation(self.stack.clone()))
     }
 }

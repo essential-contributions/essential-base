@@ -4,120 +4,13 @@ use crate::{
     access, alu, asm,
     compute::ComputeInputs,
     crypto,
-    error::{EvalError, EvalResult, ExecError, ExecResult, OpError, OpResult, ParentMemoryError},
-    pred, repeat, total_control_flow,
-    types::convert::bool_from_word,
-    Access, GasLimit, LazyCache, Memory, OpAccess, OpGasCost, ProgramControlFlow, Repeat, Stack,
-    StateReads, Vm,
+    error::{OpError, OpResult, ParentMemoryError},
+    pred, repeat, total_control_flow, Access, GasLimit, LazyCache, Memory, OpAccess, OpGasCost,
+    ProgramControlFlow, Repeat, Stack, StateReads, Vm,
 };
 use essential_asm::Op;
 use essential_types::ContentAddress;
 use std::sync::Arc;
-
-/// Evaluate a slice of synchronous operations and return their boolean result.
-///
-/// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
-pub fn eval_ops<S>(
-    ops: &[Op],
-    access: Access,
-    state: &S,
-    op_gas_cost: &impl OpGasCost,
-    gas_limit: GasLimit,
-) -> EvalResult<bool, S::Error>
-where
-    S: StateReads,
-{
-    eval(ops, access, state, op_gas_cost, gas_limit)
-}
-
-/// Evaluate the operations of a single synchronous program and return its boolean result.
-///
-/// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
-pub fn eval<S, OA>(
-    op_access: OA,
-    access: Access,
-    state: &S,
-    op_gas_cost: &impl OpGasCost,
-    gas_limit: GasLimit,
-) -> EvalResult<bool, S::Error>
-where
-    OA: OpAccess<Op = Op>,
-    OA::Error: Into<OpError<S::Error>>,
-    S: StateReads,
-{
-    let stack = exec(op_access, access, state, op_gas_cost, gas_limit)?;
-    let word = match stack.last() {
-        Some(&w) => w,
-        None => return Err(EvalError::InvalidEvaluation(stack)),
-    };
-    bool_from_word(word).ok_or_else(|| EvalError::InvalidEvaluation(stack))
-}
-
-/// Execute a slice of synchronous operations and return the resulting stack.
-pub fn exec_ops<S>(
-    ops: &[Op],
-    access: Access,
-    state: &S,
-    op_gas_cost: &impl OpGasCost,
-    gas_limit: GasLimit,
-) -> ExecResult<Stack, S::Error>
-where
-    S: StateReads,
-{
-    exec(ops, access, state, op_gas_cost, gas_limit)
-}
-
-/// Execute the given synchronous operations and return the resulting stack.
-pub fn exec<S, OA>(
-    op_access: OA,
-    access: Access,
-    state: &S,
-    op_gas_cost: &impl OpGasCost,
-    gas_limit: GasLimit,
-) -> ExecResult<Stack, S::Error>
-where
-    OA: OpAccess<Op = Op>,
-    OA::Error: Into<OpError<S::Error>>,
-    S: StateReads,
-{
-    let mut vm = Vm::default();
-    while let Some(res) = op_access.op_access(vm.pc) {
-        let op = res.map_err(|err| ExecError(vm.pc, err.into()))?;
-        let res = step_op(
-            access.clone(),
-            op,
-            &mut vm,
-            state,
-            op_access.clone(),
-            op_gas_cost,
-            gas_limit,
-        );
-
-        #[cfg(feature = "tracing")]
-        crate::trace_op_res(
-            &op_access,
-            vm.pc,
-            &vm.stack,
-            &vm.memory,
-            &vm.parent_memory,
-            &res,
-        );
-
-        let update = match res {
-            Ok(update) => update,
-            Err(err) => return Err(ExecError(vm.pc, err)),
-        };
-
-        match update {
-            Some(ProgramControlFlow::Pc(new_pc)) => vm.pc = new_pc,
-            Some(ProgramControlFlow::Halt) => break,
-            Some(ProgramControlFlow::ComputeEnd) => vm.pc += 1,
-            Some(ProgramControlFlow::ComputeResult(_)) => {}
-            None => vm.pc += 1,
-        }
-    }
-    Ok(vm.stack)
-}
 
 /// Step forward execution by the given synchronous operation.
 /// This includes the synchronous state read operation.

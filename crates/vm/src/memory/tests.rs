@@ -3,9 +3,9 @@ use crate::{
     asm,
     error::{ExecError, OpError},
     memory::MemoryError,
-    sync::{exec_ops, test_util::test_access},
+    sync::test_util::test_access,
     utils::EmptyState,
-    GasLimit, Op,
+    GasLimit, Op, Vm,
 };
 
 #[test]
@@ -600,7 +600,8 @@ fn test_memory_alloc_store_load_ops() {
         asm::Memory::Load.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -608,7 +609,7 @@ fn test_memory_alloc_store_load_ops() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[42]);
+    assert_eq!(&vm.stack[..], &[42]);
 }
 
 #[test]
@@ -628,7 +629,8 @@ fn test_memory_store_load_range_ops() {
         asm::Memory::LoadRange.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -636,7 +638,7 @@ fn test_memory_store_load_range_ops() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[1, 2, 3]);
+    assert_eq!(&vm.stack[..], &[1, 2, 3]);
 }
 
 #[test]
@@ -651,7 +653,7 @@ fn test_memory_free_ops() {
         asm::Memory::Load.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let result = exec_ops(
+    let result = Vm::default().exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -678,7 +680,8 @@ fn test_memory_store_range_bug_ops() {
         asm::Memory::Load.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -686,7 +689,7 @@ fn test_memory_store_range_bug_ops() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[99]);
+    assert_eq!(&vm.stack[..], &[99]);
 }
 
 #[test]
@@ -700,7 +703,8 @@ fn test_memory_load_range_zero_size_ops() {
         asm::Memory::LoadRange.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -709,7 +713,7 @@ fn test_memory_load_range_zero_size_ops() {
     )
     .unwrap();
     let expected: &[i64] = &[];
-    assert_eq!(&stack[..], expected);
+    assert_eq!(&vm.stack[..], expected);
 }
 
 #[test]
@@ -725,7 +729,7 @@ fn test_memory_store_range_invalid_address_ops() {
         asm::Memory::StoreRange.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let result = exec_ops(
+    let result = Vm::default().exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -749,7 +753,7 @@ fn test_memory_load_range_overflow_ops() {
         asm::Memory::LoadRange.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let result = exec_ops(
+    let result = Vm::default().exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -774,7 +778,7 @@ fn test_memory_alloc_free_with_ops() {
         asm::Memory::Load.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let result = exec_ops(
+    let result = Vm::default().exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -806,7 +810,7 @@ fn test_memory_store_range_after_free_ops() {
         asm::Memory::Load.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let result = exec_ops(
+    let result = Vm::default().exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -830,7 +834,8 @@ fn test_memory_store_range_empty_values_ops() {
         asm::Memory::StoreRange.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -838,7 +843,7 @@ fn test_memory_store_range_empty_values_ops() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert!(stack.is_empty());
+    assert!(vm.stack.is_empty());
 }
 
 #[test]
@@ -860,7 +865,8 @@ fn test_memory_load_store_range_with_ops() {
         asm::Memory::LoadRange.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -868,5 +874,5 @@ fn test_memory_load_store_range_with_ops() {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(&stack[..], &[1, 2, 3, 4, 5]);
+    assert_eq!(&vm.stack[..], &[1, 2, 3, 4, 5]);
 }

@@ -2,10 +2,9 @@ use super::*;
 use crate::{
     asm,
     error::{ExecError, OpError, OpResult, StackError},
-    sync::exec_ops,
     types::{ContentAddress, PredicateAddress},
     utils::EmptyState,
-    GasLimit, Op,
+    GasLimit, Op, Vm,
 };
 use test_case::test_case;
 use test_utils::{assert_err, assert_stack_ok};
@@ -168,9 +167,10 @@ fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>, S
         index: 0,
     };
     let op_gas_cost = &|_: &Op| 1;
-    exec_ops(&ops, access, &EmptyState, op_gas_cost, GasLimit::UNLIMITED)
-        .map_err(|ExecError(_, e)| e)
-        .map(|stack| stack.into())
+    let mut vm = Vm::default();
+    vm.exec_ops(&ops, access, &EmptyState, op_gas_cost, GasLimit::UNLIMITED)
+        .map_err(|ExecError(_, e)| e)?;
+    Ok(vm.stack.into())
 }
 
 #[test]

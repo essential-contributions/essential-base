@@ -51,9 +51,9 @@ pub(crate) fn eq_set(stack: &mut Stack) -> OpResult<()> {
 mod pred_tests {
     use crate::{
         asm::{Pred, Stack},
-        sync::{eval_ops, test_util::*},
+        sync::test_util::*,
         utils::EmptyState,
-        GasLimit, Op,
+        GasLimit, Op, Vm,
     };
 
     #[test]
@@ -64,14 +64,15 @@ mod pred_tests {
             Pred::Eq.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -82,14 +83,15 @@ mod pred_tests {
             Pred::Eq.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -100,14 +102,15 @@ mod pred_tests {
             Pred::Gt.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -118,14 +121,15 @@ mod pred_tests {
             Pred::Gt.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -136,14 +140,15 @@ mod pred_tests {
             Pred::Lt.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -154,14 +159,15 @@ mod pred_tests {
             Pred::Lt.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -172,14 +178,15 @@ mod pred_tests {
             Pred::Gte.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -190,28 +197,30 @@ mod pred_tests {
             Pred::Gte.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
         let ops = &[
             Stack::Push(8).into(),
             Stack::Push(7).into(),
             Pred::Gte.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -222,14 +231,15 @@ mod pred_tests {
             Pred::Lte.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -240,28 +250,30 @@ mod pred_tests {
             Pred::Lte.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
         let ops = &[
             Stack::Push(7).into(),
             Stack::Push(8).into(),
             Pred::Lte.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -272,14 +284,15 @@ mod pred_tests {
             Pred::And.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -290,28 +303,30 @@ mod pred_tests {
             Pred::And.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(0).into(),
             Pred::And.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -322,42 +337,45 @@ mod pred_tests {
             Pred::Or.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
         let ops = &[
             Stack::Push(0).into(),
             Stack::Push(42).into(),
             Pred::Or.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
         let ops = &[
             Stack::Push(42).into(),
             Stack::Push(0).into(),
             Pred::Or.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
@@ -368,41 +386,44 @@ mod pred_tests {
             Pred::Or.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
     fn pred_not_true() {
         let ops = &[Stack::Push(0).into(), Pred::Not.into()];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 
     #[test]
     fn pred_not_false() {
         let ops = &[Stack::Push(42).into(), Pred::Not.into()];
         let op_gas_cost = &|_: &Op| 1;
-        assert!(!eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED
-        )
-        .unwrap());
+        assert!(!Vm::default()
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED
+            )
+            .unwrap());
     }
 }

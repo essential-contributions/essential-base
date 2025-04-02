@@ -367,9 +367,9 @@ mod tests {
     use crate::{
         asm::Stack,
         error::{ExecError, OpError, StackError},
-        sync::{exec_ops, test_util::*},
+        sync::test_util::*,
         utils::EmptyState,
-        GasLimit, Op,
+        GasLimit, Op, Vm,
     };
 
     #[test]
@@ -383,7 +383,8 @@ mod tests {
             Stack::DupFrom.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -391,7 +392,7 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[42, 2, 1, 0, 42]);
+        assert_eq!(&vm.stack[..], &[42, 2, 1, 0, 42]);
     }
 
     #[test]
@@ -405,7 +406,8 @@ mod tests {
             Stack::DupFrom.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -413,14 +415,15 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[3, 2, 1, 42, 42]);
+        assert_eq!(&vm.stack[..], &[3, 2, 1, 42, 42]);
     }
 
     #[test]
     fn push1() {
         let ops = &[Stack::Push(42).into()];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -428,7 +431,7 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[42]);
+        assert_eq!(&vm.stack[..], &[42]);
     }
 
     #[test]
@@ -440,7 +443,8 @@ mod tests {
             Stack::Push(3).into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -448,14 +452,14 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[1, 3]);
+        assert_eq!(&vm.stack[..], &[1, 3]);
     }
 
     #[test]
     fn pop_empty() {
         let ops = &[Stack::Pop.into()];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        match Vm::default().exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -471,7 +475,7 @@ mod tests {
     fn index_oob() {
         let ops = &[Stack::Push(0).into(), Stack::DupFrom.into()];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        match Vm::default().exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -494,7 +498,8 @@ mod tests {
             Stack::SwapIndex.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -502,7 +507,7 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[3, 42, 5, 4]);
+        assert_eq!(&vm.stack[..], &[3, 42, 5, 4]);
     }
 
     #[test]
@@ -514,7 +519,7 @@ mod tests {
             Stack::SwapIndex.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        match Vm::default().exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -535,7 +540,8 @@ mod tests {
             Stack::Select.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -543,7 +549,7 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[4]);
+        assert_eq!(&vm.stack[..], &[4]);
     }
 
     #[test]
@@ -560,7 +566,8 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -568,7 +575,7 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[5, 5, 5]);
+        assert_eq!(&vm.stack[..], &[5, 5, 5]);
     }
 
     #[test]
@@ -585,7 +592,8 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -593,7 +601,7 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[4, 4, 4]);
+        assert_eq!(&vm.stack[..], &[4, 4, 4]);
     }
 
     #[test]
@@ -606,7 +614,7 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        match Vm::default().exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -628,7 +636,8 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        let stack = exec_ops(
+        let mut vm = Vm::default();
+        vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -636,7 +645,7 @@ mod tests {
             GasLimit::UNLIMITED,
         )
         .unwrap();
-        assert_eq!(&stack[..], &[4, 5]);
+        assert_eq!(&vm.stack[..], &[4, 5]);
     }
 
     #[test]
@@ -647,7 +656,7 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        match Vm::default().exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -670,7 +679,7 @@ mod tests {
             Stack::SelectRange.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        match Vm::default().exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,

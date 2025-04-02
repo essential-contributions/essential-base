@@ -60,9 +60,9 @@ mod tests {
     use crate::{
         asm::{Alu, Pred, Stack, Word},
         error::{AluError, ExecError, OpError},
-        sync::{eval_ops, exec_ops, test_util::*},
+        sync::test_util::*,
         utils::EmptyState,
-        GasLimit, Op,
+        GasLimit, Op, Vm,
     };
 
     #[test]
@@ -75,14 +75,16 @@ mod tests {
             Pred::Eq.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED,
-        )
-        .unwrap();
+        let mut vm = Vm::default();
+        assert!(vm
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED,
+            )
+            .unwrap());
     }
 
     #[test]
@@ -95,14 +97,16 @@ mod tests {
             Pred::Eq.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        eval_ops(
-            ops,
-            test_access().clone(),
-            &EmptyState,
-            op_gas_cost,
-            GasLimit::UNLIMITED,
-        )
-        .unwrap();
+        let mut vm = Vm::default();
+        assert!(vm
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED,
+            )
+            .unwrap());
     }
 
     #[test]
@@ -113,7 +117,8 @@ mod tests {
             Alu::Div.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        let mut vm = Vm::default();
+        match vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -133,7 +138,8 @@ mod tests {
             Alu::Add.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        let mut vm = Vm::default();
+        match vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -153,7 +159,8 @@ mod tests {
             Alu::Mul.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        let mut vm = Vm::default();
+        match vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,
@@ -173,7 +180,8 @@ mod tests {
             Alu::Sub.into(),
         ];
         let op_gas_cost = &|_: &Op| 1;
-        match exec_ops(
+        let mut vm = Vm::default();
+        match vm.exec_ops(
             ops,
             test_access().clone(),
             &EmptyState,

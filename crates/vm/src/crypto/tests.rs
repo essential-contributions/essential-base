@@ -3,13 +3,13 @@ use crate::{
     asm::{Crypto, Stack, Word},
     crypto::{bytes_from_words, recover_secp256k1},
     error::{CryptoError, ExecError, OpError},
-    sync::{eval_ops, exec_ops, test_util::*},
+    sync::test_util::*,
     types::{
         convert::{bytes_from_word, word_4_from_u8_32, word_8_from_u8_64},
         Hash,
     },
     utils::EmptyState,
-    GasLimit,
+    GasLimit, Vm,
 };
 use essential_asm::Op;
 use essential_types::convert::{u8_32_from_word_4, word_from_bytes_slice};
@@ -17,7 +17,8 @@ use sha2::Digest;
 
 fn exec_ops_sha256(ops: &[Op]) -> Hash {
     let op_gas_cost = &|_: &Op| 1;
-    let stack = exec_ops(
+    let mut vm = Vm::default();
+    vm.exec_ops(
         ops,
         test_access().clone(),
         &EmptyState,
@@ -25,8 +26,8 @@ fn exec_ops_sha256(ops: &[Op]) -> Hash {
         GasLimit::UNLIMITED,
     )
     .unwrap();
-    assert_eq!(stack.len(), 4);
-    let bytes: Vec<u8> = stack.iter().copied().flat_map(bytes_from_word).collect();
+    assert_eq!(vm.stack.len(), 4);
+    let bytes: Vec<u8> = vm.stack.iter().copied().flat_map(bytes_from_word).collect();
     bytes.try_into().unwrap()
 }
 
@@ -163,28 +164,30 @@ fn test_ed25519_ops(num_bytes: usize) -> Vec<Op> {
 fn verify_ed25519_true() {
     let ops = test_ed25519_ops(8 * 4);
     let op_gas_cost = &|_: &Op| 1;
-    assert!(eval_ops(
-        &ops,
-        test_access().clone(),
-        &EmptyState,
-        op_gas_cost,
-        GasLimit::UNLIMITED
-    )
-    .unwrap());
+    assert!(Vm::default()
+        .eval_ops(
+            &ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED
+        )
+        .unwrap());
 }
 
 #[test]
 fn verify_ed25519_bytes_true() {
     let ops = test_ed25519_ops(8 * 3 + 2);
     let op_gas_cost = &|_: &Op| 1;
-    assert!(eval_ops(
-        &ops,
-        test_access().clone(),
-        &EmptyState,
-        op_gas_cost,
-        GasLimit::UNLIMITED
-    )
-    .unwrap());
+    assert!(Vm::default()
+        .eval_ops(
+            &ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED
+        )
+        .unwrap());
 }
 
 #[test]
@@ -192,14 +195,15 @@ fn verify_ed25519_false() {
     let mut ops = test_ed25519_ops(8 * 4);
     ops[0] = Stack::Push(0).into(); // Invalidate data.
     let op_gas_cost = &|_: &Op| 1;
-    assert!(!eval_ops(
-        &ops,
-        test_access().clone(),
-        &EmptyState,
-        op_gas_cost,
-        GasLimit::UNLIMITED
-    )
-    .unwrap());
+    assert!(!Vm::default()
+        .eval_ops(
+            &ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED
+        )
+        .unwrap());
 }
 
 #[test]
@@ -212,7 +216,7 @@ fn ed25519_error() {
     ops[key_ix + 2] = Stack::Push(1).into();
     ops[key_ix + 3] = Stack::Push(1).into();
     let op_gas_cost = &|_: &Op| 1;
-    let res = exec_ops(
+    let res = Vm::default().exec_ops(
         &ops,
         test_access().clone(),
         &EmptyState,

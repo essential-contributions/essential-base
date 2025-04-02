@@ -1,6 +1,6 @@
 use essential_asm as asm;
 use essential_types::{solution::Solution, ContentAddress, PredicateAddress};
-use essential_vm::{sync::eval_ops, Access, GasLimit, Op};
+use essential_vm::{Access, GasLimit, Op, Vm};
 use std::sync::Arc;
 
 mod util;
@@ -45,7 +45,9 @@ fn test_forall_in_asm() {
         asm::Stack::RepeatEnd.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let res = eval_ops(ops, access, &State::EMPTY, op_gas_cost, GasLimit::UNLIMITED).unwrap();
+    let res = Vm::default()
+        .eval_ops(ops, access, &State::EMPTY, op_gas_cost, GasLimit::UNLIMITED)
+        .unwrap();
     assert!(res)
 }
 
@@ -92,14 +94,15 @@ fn test_fold_filter_in_asm() {
         asm::Pred::Eq.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let res = eval_ops(
-        ops,
-        access.clone(),
-        &State::EMPTY,
-        op_gas_cost,
-        GasLimit::UNLIMITED,
-    )
-    .unwrap();
+    let res = Vm::default()
+        .eval_ops(
+            ops,
+            access.clone(),
+            &State::EMPTY,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        )
+        .unwrap();
     assert!(res);
 
     let ops = &[
@@ -172,6 +175,8 @@ fn test_fold_filter_in_asm() {
         asm::Pred::And.into(),
     ];
     let op_gas_cost = &|_: &Op| 1;
-    let res = eval_ops(ops, access, &State::EMPTY, op_gas_cost, GasLimit::UNLIMITED).unwrap();
+    let res = Vm::default()
+        .eval_ops(ops, access, &State::EMPTY, op_gas_cost, GasLimit::UNLIMITED)
+        .unwrap();
     assert!(res)
 }
