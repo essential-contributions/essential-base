@@ -351,6 +351,9 @@ pub enum ComputeError<E: std::fmt::Display> {
     /// An error occurred during a `Stack` operation.
     #[error("stack operation error: {0}")]
     Stack(#[from] StackError),
+    /// A memory access related error occurred.
+    #[error("memory error: {0}")]
+    Memory(#[from] MemoryError),
     /// An error occurred during execution.
     #[error("execution error")]
     Exec(Box<ExecError<E>>),

@@ -1,5 +1,5 @@
 use crate::{
-    error::{ComputeError, ExecError, OpError, OpResult},
+    error::{ComputeError, ExecError, MemoryError, OpError, OpResult},
     Access, Gas, GasLimit, LazyCache, Memory, Op, OpAccess, OpGasCost, Repeat, Stack, StateReads,
     Vm,
 };
@@ -59,7 +59,7 @@ where
     OG: OpGasCost,
 {
     let ComputeInputs {
-        mut pc,
+        pc,
         stack,
         memory,
         mut parent_memory,
@@ -122,20 +122,38 @@ where
 
     let oks = results.map_err(|e| OpError::Compute(ComputeError::Exec(Box::new(e))))?;
 
-    // Assign concatanated compute memories to parent memory.
-    // FIXME: avoid cloning the memory and extend the original memory
-    // in a more straightforward way than alloc + store_range
+    // Process compute program results.
+    let (pc, total_gas) = compute_effects(memory, pc, oks)?;
+
+    Ok((pc, total_gas))
+}
+
+// Allocates the resulting memories from compute programs to the parent VM memory.
+// Updates parent VM program counter to the largest pc returned from the compute programs.
+//
+// Returns maximum program counter and total gas spent in compute programs.
+fn compute_effects(
+    memory: &mut Memory,
+    mut pc: usize,
+    compute_results: Vec<(Gas, usize, Memory)>,
+) -> Result<(usize, Gas), MemoryError> {
     let mut total_gas = 0;
-    let resulting_memory: Memory = oks
+
+    let mut memory_to_alloc = 0;
+    compute_results
         .iter()
-        .fold(memory.to_vec(), |mut acc, (gas, c_pc, mem)| {
-            pc = std::cmp::max(pc, *c_pc);
-            total_gas += gas;
-            acc.extend(mem.iter().clone());
-            acc
-        })
-        .try_into()?;
-    *memory = resulting_memory;
+        .for_each(|(_, _, mem)| memory_to_alloc += mem.len().unwrap_or_default());
+    // moving pointer to index in parent memory to store new values at
+    let mut memory_pointer = memory.len().expect("memory has to have length");
+    // allocate enough space in the parent memory at once
+    memory.alloc(memory_to_alloc)?;
+    // concat compute memories to parent memory one by one
+    compute_results.iter().for_each(|(gas, c_pc, mem)| {
+        pc = std::cmp::max(pc, *c_pc);
+        total_gas += gas;
+        memory.store_range(memory_pointer, mem).expect("for now");
+        memory_pointer += mem.len().unwrap();
+    });
 
     Ok((pc, total_gas))
 }
