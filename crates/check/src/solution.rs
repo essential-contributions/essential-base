@@ -31,6 +31,9 @@ mod tests;
 #[cfg(test)]
 mod test_graph_ops;
 
+#[cfg(test)]
+mod test_state_read_fallback;
+
 /// Configuration options passed to [`check_predicate`].
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct CheckPredicateConfig {
@@ -485,48 +488,56 @@ struct PostState {
 
 /// Arc wrapper for [`PostState`] to allow for cloning.
 /// Must take the same error type as the pre state.
-#[derive(Debug, Default)]
-struct PostStateArc<E>(Arc<PostState>, std::marker::PhantomData<E>);
-
-impl<E> Clone for PostStateArc<E> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone(), Default::default())
-    }
-}
-
-impl<E> StateRead for PostStateArc<E>
+#[derive(Clone, Debug, Default)]
+struct PostStateArc<S>(Arc<PostState>, S)
 where
-    E: std::fmt::Display + std::fmt::Debug + Sync + Send,
+    S: StateRead;
+
+impl<S> StateRead for PostStateArc<S>
+where
+    S: StateRead,
 {
-    type Error = E;
+    type Error = S::Error;
 
     fn key_range(
         &self,
         contract_addr: ContentAddress,
-        mut key: Key,
+        key: Key,
         num_values: usize,
     ) -> Result<Vec<Vec<essential_types::Word>>, Self::Error> {
-        let out = self
-            .0
-            .state
-            .get(&contract_addr)
-            .map(|state| {
-                let mut values = Vec::with_capacity(num_values);
-                for _ in 0..num_values {
-                    let Some(value) = state.get(&key) else {
-                        return values;
-                    };
-                    values.push(value.clone());
-                    let Some(k) = next_key(key) else {
-                        return values;
-                    };
-                    key = k;
-                }
-                values
-            })
-            .unwrap_or_default();
-        Ok(out)
+        read_or_fallback(&self.0, &self.1, contract_addr, key, num_values)
     }
+}
+
+fn read_or_fallback<S: StateRead>(
+    post: &PostState,
+    state: &S,
+    contract_addr: ContentAddress,
+    mut key: Key,
+    num_values: usize,
+) -> Result<Vec<Vec<Word>>, S::Error> {
+    let mut out = Vec::with_capacity(num_values);
+    match post.state.get(&contract_addr) {
+        Some(contract_state) => {
+            for _ in 0..num_values {
+                match contract_state.get(&key) {
+                    Some(value) => out.push(value.clone()),
+                    None => {
+                        let mut value = state.key_range(contract_addr.clone(), key.clone(), 1)?;
+                        out.push(value.pop().unwrap_or_default());
+                    }
+                }
+                match next_key(key) {
+                    Some(next_key) => key = next_key,
+                    None => break,
+                }
+            }
+        }
+        None => {
+            out = state.key_range(contract_addr, key.clone(), num_values)?;
+        }
+    }
+    Ok(out)
 }
 
 /// Get the next key in the range of keys.
@@ -562,7 +573,7 @@ where
     S::Error: Send + Sync + 'static,
 {
     // Create an empty post state,
-    let post_state = PostStateArc::<S::Error>(Arc::new(PostState::default()), Default::default());
+    let post_state = PostStateArc(Arc::new(PostState::default()), state.clone());
 
     // Create an empty cache.
     let mut cache = HashMap::new();
@@ -594,7 +605,7 @@ where
     }
 
     // Put the post state back into an arc.
-    let post_state = PostStateArc(Arc::new(post_state), Default::default());
+    let post_state = PostStateArc(Arc::new(post_state), state.clone());
 
     // Check the outputs
     let (g, solution_set) = check_and_compute_solution_set(
