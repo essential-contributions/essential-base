@@ -129,7 +129,7 @@ where
     let resulting_memory: Memory = oks
         .iter()
         .fold(memory.to_vec(), |mut acc, (gas, c_pc, mem)| {
-            pc = *c_pc;
+            pc = std::cmp::max(pc, *c_pc);
             total_gas += gas;
             acc.extend(mem.iter().clone());
             acc
