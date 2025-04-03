@@ -13,13 +13,13 @@ repository = "https://github.com/essential-contributions/essential-base"
 bitflags = "2.6"
 criterion = "0.5"
 ed25519-dalek = "2.1.1"
-essential-asm = { path = "crates/asm", version = "0.10.0" }
-essential-asm-gen = { path = "crates/asm-gen", version = "0.10.0" }
-essential-asm-spec = { path = "crates/asm-spec", version = "0.8.0" }
+essential-asm = { path = "crates/asm", version = "0.11.0" }
+essential-asm-gen = { path = "crates/asm-gen", version = "0.11.0" }
+essential-asm-spec = { path = "crates/asm-spec", version = "0.9.0" }
 essential-hash = { path = "crates/hash", version = "0.10.0" }
 essential-sign = { path = "crates/sign", version = "0.12.0" }
 essential-types = { path = "crates/types", version = "0.8.0" }
-essential-vm = { path = "crates/vm", version = "0.12.0" }
+essential-vm = { path = "crates/vm", version = "0.13.0" }
 futures = "0.3" # For `state-read-vm` tests.
 hex = "0.4.3"
 postcard = { version = "1.0.10", features = ["alloc"] }

@@ -1,6 +1,6 @@
 [package]
 name = "essential-asm"
-version = "0.10.0"
+version = "0.11.0"
 description = "Assembly operations for the Essential VM"
 edition.workspace = true
 authors.workspace = true
