@@ -2,9 +2,10 @@ use super::*;
 use crate::{
     asm,
     error::{AccessError, ExecError, OpError},
-    sync::{exec_ops, test_util::*},
+    sync::test_util::*,
     types::solution::Solution,
     utils::EmptyState,
+    GasLimit, Op, Vm,
 };
 
 macro_rules! check_dec_var {
@@ -311,8 +312,11 @@ fn predicate_data_single_word_ops() {
         asm::Stack::Push(1).into(), // Length.
         asm::Access::PredicateData.into(),
     ];
-    let stack = exec_ops(ops, access, &EmptyState).unwrap();
-    assert_eq!(&stack[..], &[42]);
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(ops, access, &EmptyState, op_gas_cost, GasLimit::UNLIMITED)
+        .unwrap();
+    assert_eq!(&vm.stack[..], &[42]);
 }
 
 #[test]
@@ -331,8 +335,11 @@ fn predicate_data_ops() {
         asm::Stack::Push(3).into(), // Range length.
         asm::Access::PredicateData.into(),
     ];
-    let stack = exec_ops(ops, access, &EmptyState).unwrap();
-    assert_eq!(&stack[..], &[7, 8, 9]);
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(ops, access, &EmptyState, op_gas_cost, GasLimit::UNLIMITED)
+        .unwrap();
+    assert_eq!(&vm.stack[..], &[7, 8, 9]);
 }
 
 #[test]
@@ -351,7 +358,8 @@ fn predicate_data_slot_oob_ops() {
         asm::Stack::Push(1).into(),
         asm::Access::PredicateData.into(),
     ];
-    let res = exec_ops(ops, access, &EmptyState);
+    let op_gas_cost = &|_: &Op| 1;
+    let res = Vm::default().exec_ops(ops, access, &EmptyState, op_gas_cost, GasLimit::UNLIMITED);
     match res {
         Err(ExecError(_, OpError::Access(AccessError::PredicateDataSlotIxOutOfBounds(_)))) => {}
         _ => panic!("expected predicate data slot out-of-bounds error, got {res:?}"),
@@ -361,15 +369,33 @@ fn predicate_data_slot_oob_ops() {
 #[test]
 fn this_address() {
     let ops = &[asm::Access::ThisAddress.into()];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.predicate.0);
-    assert_eq!(&stack[..], expected_words);
+    assert_eq!(&vm.stack[..], expected_words);
 }
 
 #[test]
 fn this_contract_address() {
     let ops = &[asm::Access::ThisContractAddress.into()];
-    let stack = exec_ops(ops, test_access().clone(), &EmptyState).unwrap();
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(
+        ops,
+        test_access().clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
     let expected_words = word_4_from_u8_32(TEST_PREDICATE_ADDR.contract.0);
-    assert_eq!(&stack[..], expected_words);
+    assert_eq!(&vm.stack[..], expected_words);
 }

@@ -1,7 +1,7 @@
 use asm::short::*;
 use essential_types::{ContentAddress, PredicateAddress, Solution};
 use essential_vm::sync::step_op;
-use essential_vm::{asm, Access, Op, ProgramControlFlow, Vm};
+use essential_vm::{asm, Access, GasLimit, Op, ProgramControlFlow, Vm};
 use std::sync::Arc;
 
 mod util;
@@ -56,9 +56,20 @@ fn test_throughput() {
 
     let mut out = true;
     let s = std::time::Instant::now();
+    let op_gas_cost = &|_: &Op| 1;
+    let gas_limit = GasLimit::UNLIMITED;
     for _ in 0..short_n {
         for op in &ops {
-            step_op(access.clone(), *op, &mut vm, &State::EMPTY).unwrap();
+            step_op(
+                access.clone(),
+                *op,
+                &mut vm,
+                &State::EMPTY,
+                ops.as_slice(),
+                op_gas_cost,
+                gas_limit,
+            )
+            .unwrap();
         }
         out &= vm.stack[0] == 1;
         vm.stack.pop().unwrap();
@@ -72,13 +83,29 @@ fn test_throughput() {
     let mut vm = Vm::default();
     let mut out = true;
     let s = std::time::Instant::now();
+    let op_gas_cost = &|_: &Op| 1;
+    let gas_limit = GasLimit::UNLIMITED;
     for _ in 0..long_n {
         while vm.pc < ops.len() {
             let op = &ops[vm.pc];
-            let r = step_op(access.clone(), *op, &mut vm, &State::EMPTY).unwrap();
+            let r = step_op(
+                access.clone(),
+                *op,
+                &mut vm,
+                &State::EMPTY,
+                ops.as_slice(),
+                op_gas_cost,
+                gas_limit,
+            )
+            .unwrap();
             match r {
                 Some(ProgramControlFlow::Pc(p)) => vm.pc = p,
                 Some(ProgramControlFlow::Halt) => break,
+                Some(ProgramControlFlow::ComputeEnd) => {
+                    vm.pc += 1;
+                    break;
+                }
+                Some(ProgramControlFlow::ComputeResult(_)) => break,
                 None => break,
             }
         }

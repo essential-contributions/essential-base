@@ -1,8 +1,9 @@
 use crate::{
     asm,
     error::{OpError, TotalControlFlowError},
-    sync::{exec_ops, test_util::test_access},
+    sync::test_util::test_access,
     utils::EmptyState,
+    GasLimit, Op, Vm,
 };
 
 #[test]
@@ -20,8 +21,17 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
-    assert_eq!(&stack[..], &[3]);
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
+    assert_eq!(&vm.stack[..], &[3]);
 
     let ops = &[
         asm::Stack::Push(1).into(),
@@ -35,8 +45,17 @@ fn test_jump_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
-    assert_eq!(&stack[..], &[4]);
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
+    assert_eq!(&vm.stack[..], &[4]);
 }
 
 #[test]
@@ -51,8 +70,17 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
-    assert_eq!(&stack[..], &[2]);
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
+    assert_eq!(&vm.stack[..], &[2]);
 
     let ops = &[
         asm::Stack::Push(1).into(),
@@ -63,8 +91,17 @@ fn test_halt_if() {
         asm::Stack::Push(1).into(),
         asm::Alu::Add.into(),
     ];
-    let stack = exec_ops(ops, access.clone(), &EmptyState).unwrap();
-    assert_eq!(&stack[..], &[3]);
+    let op_gas_cost = &|_: &Op| 1;
+    let mut vm = Vm::default();
+    vm.exec_ops(
+        ops,
+        access.clone(),
+        &EmptyState,
+        op_gas_cost,
+        GasLimit::UNLIMITED,
+    )
+    .unwrap();
+    assert_eq!(&vm.stack[..], &[3]);
 }
 
 #[test]

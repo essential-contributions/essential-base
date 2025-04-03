@@ -52,6 +52,7 @@ mod access;
 mod alu;
 pub mod bytecode;
 mod cached;
+mod compute;
 mod crypto;
 pub mod error;
 mod memory;
@@ -116,7 +117,7 @@ pub struct GasLimit {
 }
 
 /// A mapping from an operation to its gas cost.
-pub trait OpGasCost {
+pub trait OpGasCost: Send + Sync {
     /// The gas cost associated with the given op.
     fn op_gas_cost(&self, op: &Op) -> Gas;
 }
@@ -136,7 +137,7 @@ impl GasLimit {
 
 impl<F> OpGasCost for F
 where
-    F: Fn(&Op) -> Gas,
+    F: Fn(&Op) -> Gas + Send + Sync,
 {
     fn op_gas_cost(&self, op: &Op) -> Gas {
         (*self)(op)
@@ -154,6 +155,8 @@ pub(crate) fn trace_op_res<OA, T, E>(
     pc: usize,
     stack: &Stack,
     memory: &Memory,
+    parent_memory: &Vec<std::sync::Arc<Memory>>,
+    halt: bool,
     op_res: &Result<T, E>,
 ) where
     OA: OpAccess,
@@ -167,7 +170,17 @@ pub(crate) fn trace_op_res<OA, T, E>(
     let pc_op = format!("0x{:02X}: {op:?}", pc);
     match op_res {
         Ok(_) => {
-            tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", stack, memory)
+            if parent_memory.is_empty() {
+                tracing::trace!("{pc_op}\n  ├── {:?}\n  └── {:?}", stack, memory)
+            } else {
+                tracing::trace!(
+                    "{pc_op}\n  ├── {:?}\n  ├── {:?}\n  ├── {:?}\n  └── {:?}",
+                    stack,
+                    memory,
+                    parent_memory,
+                    halt
+                )
+            }
         }
         Err(ref err) => {
             tracing::trace!("{pc_op}");

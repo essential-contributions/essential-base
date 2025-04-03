@@ -1,91 +1,32 @@
 //! Items related to stepping forward VM execution by synchronous operations.
 
+use crate::{
+    access, alu, asm,
+    compute::ComputeInputs,
+    crypto,
+    error::{OpError, OpResult, ParentMemoryError},
+    pred, repeat, total_control_flow, Access, GasLimit, LazyCache, Memory, OpAccess, OpGasCost,
+    ProgramControlFlow, Repeat, Stack, StateReads, Vm,
+};
 use essential_asm::Op;
 use essential_types::ContentAddress;
-
-use crate::{
-    access, alu, asm, crypto,
-    error::{EvalError, EvalResult, ExecError, ExecResult, OpError, OpResult, ParentMemoryError},
-    pred, repeat, total_control_flow,
-    types::convert::bool_from_word,
-    Access, LazyCache, Memory, OpAccess, ProgramControlFlow, Repeat, Stack, StateReads, Vm,
-};
 use std::sync::Arc;
-
-/// Evaluate a slice of synchronous operations and return their boolean result.
-///
-/// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
-pub fn eval_ops<S>(ops: &[Op], access: Access, state: &S) -> EvalResult<bool, S::Error>
-where
-    S: StateReads,
-{
-    eval(ops, access, state)
-}
-
-/// Evaluate the operations of a single synchronous program and return its boolean result.
-///
-/// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
-pub fn eval<OA, S>(op_access: OA, access: Access, state: &S) -> EvalResult<bool, S::Error>
-where
-    OA: OpAccess<Op = Op>,
-    OA::Error: Into<OpError<S::Error>>,
-    S: StateReads,
-{
-    let stack = exec(op_access, access, state)?;
-    let word = match stack.last() {
-        Some(&w) => w,
-        None => return Err(EvalError::InvalidEvaluation(stack)),
-    };
-    bool_from_word(word).ok_or_else(|| EvalError::InvalidEvaluation(stack))
-}
-
-/// Execute a slice of synchronous operations and return the resulting stack.
-pub fn exec_ops<S>(ops: &[Op], access: Access, state: &S) -> ExecResult<Stack, S::Error>
-where
-    S: StateReads,
-{
-    exec(ops, access, state)
-}
-
-/// Execute the given synchronous operations and return the resulting stack.
-pub fn exec<OA, S>(op_access: OA, access: Access, state: &S) -> ExecResult<Stack, S::Error>
-where
-    OA: OpAccess<Op = Op>,
-    OA::Error: Into<OpError<S::Error>>,
-    S: StateReads,
-{
-    let mut vm = Vm::default();
-    while let Some(res) = op_access.op_access(vm.pc) {
-        let op = res.map_err(|err| ExecError(vm.pc, err.into()))?;
-        let res = step_op(access.clone(), op, &mut vm, state);
-
-        #[cfg(feature = "tracing")]
-        crate::trace_op_res(&op_access, vm.pc, &vm.stack, &vm.memory, &res);
-
-        let update = match res {
-            Ok(update) => update,
-            Err(err) => return Err(ExecError(vm.pc, err)),
-        };
-
-        match update {
-            Some(ProgramControlFlow::Pc(new_pc)) => vm.pc = new_pc,
-            Some(ProgramControlFlow::Halt) => break,
-            None => vm.pc += 1,
-        }
-    }
-    Ok(vm.stack)
-}
 
 /// Step forward execution by the given synchronous operation.
 /// This includes the synchronous state read operation.
-pub fn step_op<S>(
+pub fn step_op<S, OA>(
     access: Access,
     op: Op,
     vm: &mut Vm,
     state: &S,
+    op_access: OA,
+    op_gas_cost: &impl OpGasCost,
+    gas_limit: GasLimit,
 ) -> OpResult<Option<ProgramControlFlow>, S::Error>
 where
     S: StateReads,
+    OA: OpAccess<Op = Op>,
+    OA::Error: Into<OpError<S::Error>>,
 {
     let r = match op {
         Op::Access(op) => step_op_access(access, op, &mut vm.stack, &mut vm.repeat, &vm.cache)
@@ -110,7 +51,7 @@ where
         Op::Memory(op) => step_op_memory(op, &mut vm.stack, &mut vm.memory)
             .map(|_| None)
             .map_err(OpError::from_infallible)?,
-        Op::StateRead(op) => step_op_state_read(
+        Op::StateRead(op) => step_op_state_reads(
             op,
             &access.this_solution().predicate_to_solve.contract,
             state,
@@ -118,13 +59,31 @@ where
             &mut vm.memory,
         )
         .map(|_| None)?,
+        Op::Compute(op) => step_op_compute(
+            op,
+            ComputeInputs {
+                pc: vm.pc,
+                stack: &mut vm.stack,
+                memory: &mut vm.memory,
+                parent_memory: vm.parent_memory.clone(),
+                halt: vm.halt,
+                repeat: &vm.repeat,
+                cache: vm.cache.clone(),
+                access,
+                state_reads: state,
+                op_access,
+                op_gas_cost,
+                gas_limit,
+            },
+        )
+        .map(Some)?,
     };
 
     Ok(r)
 }
 
-/// Step forward execution by the given state read operation.
-pub fn step_op_state_read<S>(
+/// Step forward execution by the given state reads operation.
+pub fn step_op_state_reads<S>(
     op: asm::StateRead,
     contract_addr: &ContentAddress,
     state: &S,
@@ -147,6 +106,25 @@ where
         essential_asm::StateRead::PostKeyRangeExtern => {
             crate::state_read::key_range_ext(state.post(), stack, memory)
         }
+    }
+}
+
+/// Step forward execution by the given compute operation.
+pub fn step_op_compute<S, OA, OG>(
+    op: asm::Compute,
+    inputs: ComputeInputs<S, OA, OG>,
+) -> OpResult<ProgramControlFlow, S::Error>
+where
+    S: StateReads,
+    OA: OpAccess<Op = Op>,
+    OA::Error: Into<OpError<S::Error>>,
+    OG: OpGasCost,
+{
+    match op {
+        asm::Compute::Compute => {
+            crate::compute::compute(inputs).map(ProgramControlFlow::ComputeResult)
+        }
+        asm::Compute::ComputeEnd => Ok(ProgramControlFlow::ComputeEnd),
     }
 }
 

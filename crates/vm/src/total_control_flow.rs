@@ -1,9 +1,8 @@
-use essential_types::convert::bool_from_word;
-
 use crate::{
     error::{OpError, OpResult, StackError, TotalControlFlowError},
-    Stack,
+    Gas, Stack,
 };
+use essential_types::convert::bool_from_word;
 
 #[cfg(test)]
 mod tests;
@@ -15,6 +14,11 @@ pub enum ProgramControlFlow {
     Pc(usize),
     /// Halt the program.
     Halt,
+    /// End the compute program.
+    ComputeEnd,
+    /// Resulting program counter, total gas spent during compute
+    /// and whether top-level VM should halt.
+    ComputeResult((usize, Gas, bool)),
 }
 
 pub fn jump_if(stack: &mut Stack, pc: usize) -> OpResult<Option<ProgramControlFlow>> {

@@ -60,8 +60,9 @@ mod tests {
     use crate::{
         asm::{Alu, Pred, Stack, Word},
         error::{AluError, ExecError, OpError},
-        sync::{eval_ops, exec_ops, test_util::*},
+        sync::test_util::*,
         utils::EmptyState,
+        GasLimit, Op, Vm,
     };
 
     #[test]
@@ -73,7 +74,17 @@ mod tests {
             Stack::Push(42).into(),
             Pred::Eq.into(),
         ];
-        eval_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let mut vm = Vm::default();
+        assert!(vm
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED,
+            )
+            .unwrap());
     }
 
     #[test]
@@ -85,7 +96,17 @@ mod tests {
             Stack::Push(6).into(),
             Pred::Eq.into(),
         ];
-        eval_ops(ops, test_access().clone(), &EmptyState).unwrap();
+        let op_gas_cost = &|_: &Op| 1;
+        let mut vm = Vm::default();
+        assert!(vm
+            .eval_ops(
+                ops,
+                test_access().clone(),
+                &EmptyState,
+                op_gas_cost,
+                GasLimit::UNLIMITED,
+            )
+            .unwrap());
     }
 
     #[test]
@@ -95,7 +116,15 @@ mod tests {
             Stack::Push(0).into(),
             Alu::Div.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        let mut vm = Vm::default();
+        match vm.exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(_, OpError::Alu(AluError::DivideByZero))) => (),
             _ => panic!("expected ALU divide-by-zero error"),
         }
@@ -108,7 +137,15 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Add.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        let mut vm = Vm::default();
+        match vm.exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(_, OpError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
@@ -121,7 +158,15 @@ mod tests {
             Stack::Push(2).into(),
             Alu::Mul.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        let mut vm = Vm::default();
+        match vm.exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(_, OpError::Alu(AluError::Overflow))) => (),
             _ => panic!("expected ALU overflow error"),
         }
@@ -134,7 +179,15 @@ mod tests {
             Stack::Push(1).into(),
             Alu::Sub.into(),
         ];
-        match exec_ops(ops, test_access().clone(), &EmptyState) {
+        let op_gas_cost = &|_: &Op| 1;
+        let mut vm = Vm::default();
+        match vm.exec_ops(
+            ops,
+            test_access().clone(),
+            &EmptyState,
+            op_gas_cost,
+            GasLimit::UNLIMITED,
+        ) {
             Err(ExecError(_, OpError::Alu(AluError::Underflow))) => (),
             _ => panic!("expected ALU underflow error"),
         }

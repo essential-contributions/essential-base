@@ -1,12 +1,11 @@
 //! The types of errors that might occur throughout execution.
 
-use core::convert::Infallible;
-
 #[doc(inline)]
 use crate::{
     asm::{self, Word},
     Gas,
 };
+use core::convert::Infallible;
 use thiserror::Error;
 
 /// Shorthand for a `Result` where the error type is a `ExecError`.
@@ -78,6 +77,9 @@ pub enum OpError<E = Infallible> {
     /// An error occurred during a `StateRead` operation.
     #[error("state read operation error: {0}")]
     StateRead(E),
+    /// An error occurred during a `Compute` operation.
+    #[error("compute operation error: {0}")]
+    Compute(#[from] ComputeError<E>),
     /// An error occurred while parsing an operation from bytes.
     #[error("bytecode error: {0}")]
     FromBytes(#[from] asm::FromBytesError),
@@ -337,6 +339,29 @@ pub enum ParentMemoryError {
     Memory(#[from] MemoryError),
 }
 
+/// Shorthand for a `Result` where the error type is a `ComputeError`.
+pub type ComputeResult<T, E> = Result<T, ComputeError<E>>;
+
+/// Compute operation error.
+#[derive(Debug, Error)]
+pub enum ComputeError<E> {
+    /// Maximum compute recursion depth reached.
+    #[error("cannot exceed compute depth: {0}")]
+    DepthReached(usize),
+    /// An error occurred during a `Stack` operation.
+    #[error("stack operation error: {0}")]
+    Stack(#[from] StackError),
+    /// A memory access related error occurred.
+    #[error("memory error: {0}")]
+    Memory(#[from] MemoryError),
+    /// An error occurred during execution.
+    #[error("execution error")]
+    Exec(Box<ExecError<E>>),
+    /// Compute breadth is not greater than or equal to 1.
+    #[error("compute breadth is not at least 1: {0}")]
+    InvalidBreadth(Word),
+}
+
 /// Decode error.
 #[derive(Debug, Error)]
 pub enum DecodeError {
@@ -391,6 +416,7 @@ impl<E> OpError<E> {
             OpError::StateRead(_) => unreachable!(),
             OpError::FromBytes(from_bytes_error) => OpError::FromBytes(from_bytes_error),
             OpError::OutOfGas(out_of_gas_error) => OpError::OutOfGas(out_of_gas_error),
+            OpError::Compute(_) => unreachable!(),
         }
     }
 }

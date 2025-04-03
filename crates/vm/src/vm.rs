@@ -1,11 +1,12 @@
 //! The VM state machine, used to drive forward execution.
 
 use crate::{
-    error::{ExecError, OpError, OutOfGasError},
+    error::{EvalError, EvalResult, ExecError, OpError, OutOfGasError},
     sync::step_op,
     Access, BytecodeMapped, Gas, GasLimit, LazyCache, Memory, Op, OpAccess, OpGasCost,
     ProgramControlFlow, Repeat, Stack, StateReads,
 };
+use essential_types::convert::bool_from_word;
 use std::sync::Arc;
 
 /// The operation execution state of the VM.
@@ -24,6 +25,8 @@ pub struct Vm {
     ///
     /// This can also be used to observe the `Compute` op depth.
     pub parent_memory: Vec<Arc<Memory>>,
+    /// Propagation of `Halt` encountered in compute program.
+    pub halt: bool,
     /// The repeat stack.
     pub repeat: Repeat,
     /// Lazily cached data for the VM.
@@ -50,14 +53,14 @@ impl Vm {
         &mut self,
         ops: &[Op],
         access: Access,
-        state_read: &S,
+        state_reads: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateReads,
     {
-        self.exec(access, state_read, ops, op_gas_cost, gas_limit)
+        self.exec(access, state_reads, ops, op_gas_cost, gas_limit)
     }
 
     /// Execute the given mapped bytecode from the current state of the VM.
@@ -79,15 +82,15 @@ impl Vm {
         &mut self,
         bytecode_mapped: &BytecodeMapped<B>,
         access: Access,
-        state_read: &S,
+        state_reads: &S,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
     ) -> Result<Gas, ExecError<S::Error>>
     where
         S: StateReads,
-        B: core::ops::Deref<Target = [u8]>,
+        B: core::ops::Deref<Target = [u8]> + Send + Sync,
     {
-        self.exec(access, state_read, bytecode_mapped, op_gas_cost, gas_limit)
+        self.exec(access, state_reads, bytecode_mapped, op_gas_cost, gas_limit)
     }
 
     /// Execute the given operations synchronously from the current state of the VM.
@@ -101,7 +104,7 @@ impl Vm {
     pub fn exec<S, OA>(
         &mut self,
         access: Access,
-        state_read: &S,
+        state_reads: &S,
         op_access: OA,
         op_gas_cost: &impl OpGasCost,
         gas_limit: GasLimit,
@@ -139,10 +142,26 @@ impl Vm {
             gas_spent = next_spent;
 
             // Execute the operation.
-            let res = step_op(access.clone(), op, self, state_read);
+            let res = step_op(
+                access.clone(),
+                op,
+                self,
+                state_reads,
+                op_access.clone(),
+                op_gas_cost,
+                gas_limit,
+            );
 
             #[cfg(feature = "tracing")]
-            crate::trace_op_res(&op_access, self.pc, &self.stack, &self.memory, &res);
+            crate::trace_op_res(
+                &op_access,
+                self.pc,
+                &self.stack,
+                &self.memory,
+                &self.parent_memory,
+                self.halt,
+                &res,
+            );
 
             // Handle the result of the operation.
             let update = match res {
@@ -154,9 +173,64 @@ impl Vm {
             match update {
                 Some(ProgramControlFlow::Pc(new_pc)) => self.pc = new_pc,
                 Some(ProgramControlFlow::Halt) => break,
+                Some(ProgramControlFlow::ComputeEnd) => {
+                    self.pc += 1;
+                    break;
+                }
+                // TODO: compute gas_spent is not inferrable above
+                Some(ProgramControlFlow::ComputeResult((pc, gas, halt))) => {
+                    gas_spent += gas;
+                    self.pc = pc;
+                    self.halt |= halt;
+                    if self.halt {
+                        break;
+                    }
+                }
                 None => self.pc += 1,
             }
         }
         Ok(gas_spent)
+    }
+
+    /// Evaluate a slice of synchronous operations and return their boolean result.
+    ///
+    /// This is the same as [`exec_ops`], but retrieves the boolean result from the resulting stack.
+    pub fn eval_ops<S>(
+        &mut self,
+        ops: &[Op],
+        access: Access,
+        state: &S,
+        op_gas_cost: &impl OpGasCost,
+        gas_limit: GasLimit,
+    ) -> EvalResult<bool, S::Error>
+    where
+        S: StateReads,
+    {
+        self.eval(ops, access, state, op_gas_cost, gas_limit)
+    }
+
+    // Evaluate the operations of a single synchronous program and return its boolean result.
+    ///
+    /// This is the same as [`exec`], but retrieves the boolean result from the resulting stack.
+    pub fn eval<OA, S>(
+        &mut self,
+        op_access: OA,
+        access: Access,
+        state: &S,
+        op_gas_cost: &impl OpGasCost,
+        gas_limit: GasLimit,
+    ) -> EvalResult<bool, S::Error>
+    where
+        OA: OpAccess<Op = Op>,
+        OA::Error: Into<OpError<S::Error>>,
+        S: StateReads,
+    {
+        self.exec(access, state, op_access, op_gas_cost, gas_limit)?;
+
+        let word = match self.stack.last() {
+            Some(&w) => w,
+            None => return Err(EvalError::InvalidEvaluation(self.stack.clone())),
+        };
+        bool_from_word(word).ok_or_else(|| EvalError::InvalidEvaluation(self.stack.clone()))
     }
 }
