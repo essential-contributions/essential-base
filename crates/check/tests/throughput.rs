@@ -112,6 +112,67 @@ fn test_throughput() {
         let elapsed = s.elapsed();
 
         println!("Gas: {}", gas);
-        println!("Elapsed: {:?}, per run: {:?}", elapsed, elapsed / n);
+        println!(
+            "Check set Elapsed: {:?}, per run: {:?}",
+            elapsed,
+            elapsed / n
+        );
+
+        let mut gas = 0;
+        let s = std::time::Instant::now();
+        let mut set = Arc::try_unwrap(set).unwrap();
+        for _ in 0..n {
+            let outputs = solution::check_and_compute_solution_set(
+                &State::EMPTY,
+                set,
+                get_predicate,
+                get_program.clone(),
+                config.clone(),
+                Default::default(),
+                &mut Default::default(),
+            )
+            .unwrap();
+            assert!(outputs.0 > 0);
+            gas += outputs.0;
+            set = outputs.1;
+            for s in &mut set.solutions {
+                s.state_mutations.clear();
+            }
+        }
+        let elapsed = s.elapsed();
+
+        println!("Gas: {}", gas);
+        println!(
+            "With compute Elapsed: {:?}, per run: {:?}",
+            elapsed,
+            elapsed / n
+        );
+
+        let mut gas = 0;
+        let s = std::time::Instant::now();
+        for _ in 0..n {
+            let outputs = solution::check_and_compute_solution_set_two_pass(
+                &State::EMPTY,
+                set,
+                get_predicate,
+                get_program.clone(),
+                config.clone(),
+            )
+            .unwrap();
+            assert!(outputs.0 > 0);
+            gas += outputs.0;
+            set = outputs.1;
+            for s in &mut set.solutions {
+                s.state_mutations.clear();
+            }
+        }
+        let elapsed = s.elapsed();
+
+        println!("Gas: {}", gas);
+        println!(
+            "Two pass Elapsed: {:?}, per run: {:?}",
+            elapsed,
+            elapsed / n
+        );
     }
 }
