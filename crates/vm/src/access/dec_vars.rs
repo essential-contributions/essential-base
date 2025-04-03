@@ -175,9 +175,7 @@ fn test_dec_var_ops(ops: Vec<Op>, dec_vars: &[&[Word]]) -> OpResult<Vec<Word>, S
 
 #[test]
 fn test_dec_var_slots() {
-    let vars = std::iter::repeat(vec![-1, -2, -3, 900])
-        .take(12)
-        .collect::<Vec<_>>();
+    let vars = std::iter::repeat_n(vec![-1, -2, -3, 900], 12).collect::<Vec<_>>();
 
     let mut stack = crate::Stack::default();
 
